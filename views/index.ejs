@@ -17,13 +17,13 @@
         .search-form button { padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 12px; color: #fff; font-weight: 600; font-size: 16px; cursor: pointer; transition: transform 0.2s; }
         .search-form button:hover { transform: scale(1.02); }
         .error-message { background: #2a1a1a; border: 1px solid #662222; color: #ff6b6b; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; }
+        .result-count { color: #888; font-size: 14px; margin-bottom: 16px; }
         .performer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
         .performer-card { background: #1a1a1a; border-radius: 16px; overflow: hidden; text-decoration: none; color: #e0e0e0; transition: transform 0.2s; border: 1px solid #2a2a2a; }
-        .performer-card:hover { transform: translateY(-4px); }
+        .performer-card:hover { transform: translateY(-4px); border-color: #667eea; }
         .performer-image { width: 100%; height: 200px; overflow: hidden; background: #1a1a1a; display: flex; align-items: center; justify-content: center; }
         .performer-image img { width: 100%; height: 100%; object-fit: cover; }
         .no-image { font-size: 48px; opacity: 0.3; }
-        .no-image.large { font-size: 80px; }
         .performer-info { padding: 16px; }
         .performer-info h3 { font-size: 18px; margin-bottom: 8px; color: #fff; }
         .performer-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: #888; }
@@ -58,6 +58,9 @@
         <% } %>
 
         <% if (performers && performers.length > 0) { %>
+            <div class="result-count">
+                Found <%= performers.length %> result<%= performers.length > 1 ? 's' : '' %> for "<%= searchTerm %>"
+            </div>
             <div class="performer-grid">
                 <% performers.forEach(performer => { %>
                     <a href="/performer/<%= performer.id %>" class="performer-card">
@@ -91,6 +94,69 @@
                 <p class="hint">Try a different search term</p>
             </div>
         <% } %>
+
+        <!-- Add this after the performer search form -->
+<div style="margin-bottom: 24px;">
+    <h3 style="color: #888; margin-bottom: 8px;">🏢 Search Studios</h3>
+    <div style="display: flex; gap: 10px;">
+        <input type="text" 
+               id="studioSearchInput" 
+               placeholder="Search studios..." 
+               style="flex:1;padding:12px 16px;border:2px solid #333;border-radius:12px;background:#1a1a1a;color:#fff;font-size:16px;">
+        <button onclick="searchStudios()" 
+                style="padding:12px 24px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border:none;border-radius:12px;color:#fff;font-weight:600;font-size:16px;cursor:pointer;">
+            🔍 Search
+        </button>
+    </div>
+    <div id="studioResults" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;"></div>
+</div>
+
+<script>
+    function searchStudios() {
+        var input = document.getElementById('studioSearchInput');
+        var query = input.value.trim();
+        var resultsDiv = document.getElementById('studioResults');
+        
+        if (query.length < 2) {
+            resultsDiv.innerHTML = '<p style="color:#888;">Please enter at least 2 characters</p>';
+            return;
+        }
+        
+        resultsDiv.innerHTML = '<p style="color:#888;">Searching...</p>';
+        
+        fetch('/api/search/studios?q=' + encodeURIComponent(query))
+            .then(res => res.json())
+            .then(data => {
+                if (data.studios && data.studios.length > 0) {
+                    resultsDiv.innerHTML = data.studios.map(studio => `
+                        <a href="/studio/${studio.id}" style="background:#1a1a1a;border-radius:12px;padding:16px;text-decoration:none;color:#e0e0e0;border:1px solid #2a2a2a;display:block;text-align:center;transition:transform 0.2s;">
+                            <div style="font-size:32px;margin-bottom:8px;">🏢</div>
+                            <div style="font-weight:600;">${studio.name}</div>
+                            <div style="color:#888;font-size:12px;">${studio.scene_count || 0} scenes</div>
+                        </a>
+                    `).join('');
+                } else {
+                    resultsDiv.innerHTML = '<p style="color:#888;">No studios found</p>';
+                }
+            })
+            .catch(err => {
+                resultsDiv.innerHTML = '<p style="color:#ff6b6b;">Error searching studios</p>';
+                console.error(err);
+            });
+    }
+    
+    // Allow Enter key for studio search
+    document.addEventListener('DOMContentLoaded', function() {
+        var input = document.getElementById('studioSearchInput');
+        if (input) {
+            input.addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') {
+                    searchStudios();
+                }
+            });
+        }
+    });
+</script>
 
         <footer>
             <p>Data from StashDB</p>

@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title><%= studioName %> - Studio View</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 0; margin: 0; min-height: 100vh; }
+        .app { max-width: 1400px; margin: 0 auto; padding: 16px; }
+        header { margin-bottom: 20px; padding: 16px 0; }
+        header h1 { font-size: 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block; }
+        .back-link { display: inline-block; color: #667eea; text-decoration: none; font-size: 14px; margin-bottom: 10px; }
+        .back-link:hover { text-decoration: underline; }
+
+        .studio-header { background: #1a1a1a; border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid #2a2a2a; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .studio-logo { width: 80px; height: 80px; border-radius: 12px; overflow: hidden; background: #1a1a1a; border: 2px solid #333; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        .studio-logo img { width: 100%; height: 100%; object-fit: contain; }
+        .studio-info h2 { font-size: 28px; color: #fff; }
+        .studio-info p { color: #888; font-size: 14px; margin-top: 4px; }
+        .studio-info .favorite-badge { display: inline-block; background: #764ba2; padding: 2px 12px; border-radius: 12px; font-size: 12px; margin-left: 8px; }
+
+        .filter-section { background: #1a1a1a; border-radius: 16px; padding: 16px 20px; margin-bottom: 24px; border: 1px solid #2a2a2a; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+        .filter-section label { color: #888; font-size: 13px; font-weight: 600; }
+        .filter-section select, .filter-section input { padding: 8px 14px; border-radius: 8px; background: #252525; color: #e0e0e0; border: 1px solid #333; font-size: 13px; cursor: pointer; }
+        .filter-section select:focus, .filter-section input:focus { outline: none; border-color: #667eea; }
+        .filter-section .filter-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .filter-count { color: #888; font-size: 13px; margin-left: auto; }
+        .filter-btn { padding: 6px 16px; border-radius: 20px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        .filter-btn.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-color: #667eea; color: #fff; }
+        .filter-btn:hover { border-color: #667eea; }
+
+        .scene-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .scene-card { background: #1a1a1a; border-radius: 12px; overflow: hidden; text-decoration: none; color: #e0e0e0; border: 1px solid #2a2a2a; display: flex; flex-direction: column; transition: transform 0.2s; }
+        .scene-card:hover { transform: translateY(-4px); border-color: #667eea; }
+        .scene-card.hidden { display: none; }
+        .scene-thumbnail { position: relative; width: 100%; padding-top: 56.25%; background: #111; overflow: hidden; }
+        .scene-thumbnail img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .scene-thumbnail .no-image { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 40px; opacity: 0.3; }
+        .scene-duration { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.8); padding: 2px 8px; border-radius: 4px; font-size: 12px; color: #fff; }
+        .scene-favorite-btn { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 16px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .scene-favorite-btn:hover { transform: scale(1.1); }
+        .scene-info { padding: 12px; flex: 1; display: flex; flex-direction: column; }
+        .scene-info h4 { font-size: 14px; color: #fff; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; min-height: 36px; }
+        .scene-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #888; margin-top: auto; }
+        .scene-meta .studio { color: #667eea; }
+        .scene-meta .date { color: #888; }
+        .scene-meta .performer-names { color: #aaa; font-size: 11px; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 24px; flex-wrap: wrap; }
+        .page-link { display: inline-block; padding: 8px 14px; border-radius: 8px; background: #1a1a1a; color: #e0e0e0; text-decoration: none; border: 1px solid #2a2a2a; font-size: 14px; transition: background 0.2s; cursor: pointer; }
+        .page-link:hover { background: #2a2a2a; border-color: #667eea; }
+        .page-link.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-color: #667eea; color: #fff; }
+
+        .no-results { text-align: center; padding: 60px; color: #888; }
+        .no-results h3 { color: #fff; margin-bottom: 8px; }
+        .loading { text-align: center; padding: 40px; color: #888; }
+
+        footer { text-align: center; color: #444; font-size: 12px; padding: 20px; margin-top: 20px; }
+
+        @media (max-width: 1024px) { .scene-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 768px) { .scene-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 480px) { .scene-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <a href="/" class="back-link">← Back to Search</a>
+            <h1>🏢 Studio</h1>
+        </header>
+
+        <div class="studio-header">
+            <div class="studio-logo">
+                <% if (studioImage) { %>
+                    <img src="<%= studioImage %>" alt="<%= studioName %>">
+                <% } else { %>
+                    <div style="font-size:32px;color:#555;">🏢</div>
+                <% } %>
+            </div>
+            <div class="studio-info">
+                <h2>
+                    <%= studioName %>
+                    <% if (isFavorite) { %>
+                        <span class="favorite-badge">❤️ Favorite</span>
+                    <% } %>
+                </h2>
+                <p><%= totalScenes %> scenes • <%= performersCount %> performers</p>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <div class="filter-group">
+                <label>⭐ Tier:</label>
+                <select id="tierFilter" onchange="applyFilters()">
+                    <option value="all">All</option>
+                    <option value="rated">Rated</option>
+                    <option value="unrated">Unrated</option>
+                    <option value="S">S</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                    <option value="F">F</option>
+                    <option value="U">U</option>
+                    <option value="L">L</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>❤️ Favorites:</label>
+                <button class="filter-btn" data-filter="favorites" onclick="toggleFilter('favorites')">⭐ Favorited</button>
+                <button class="filter-btn" data-filter="unfavorites" onclick="toggleFilter('unfavorites')">☆ Not Favorited</button>
+            </div>
+
+            <button class="filter-btn" onclick="clearFilters()" style="border-color:#662222;color:#ff6b6b;">✕ Clear All</button>
+            <span class="filter-count" id="filterCount">Showing all scenes</span>
+        </div>
+
+        <div id="loadingIndicator" class="loading" style="display:none;">Loading scenes...</div>
+
+        <div class="scene-grid" id="sceneGrid">
+            <% scenes.forEach(scene => { %>
+                <div class="scene-card" 
+                     data-scene-id="<%= scene.id %>"
+                     data-tier="<%= scene.performerRating || 'unrated' %>"
+                     data-favorited="<%= scene.isFavorited ? 'true' : 'false' %>">
+                    <a href="/scene/<%= scene.id %>" style="text-decoration: none; color: inherit; display: block; height: 100%;">
+                        <div class="scene-thumbnail">
+                            <% if (scene.images && scene.images.length > 0 && scene.images[0].url) { %>
+                                <img src="<%= scene.images[0].url %>" alt="<%= scene.title || 'Scene' %>" loading="lazy">
+                            <% } else { %>
+                                <div class="no-image">🎬</div>
+                            <% } %>
+                            <% if (scene.duration) { %>
+                                <div class="scene-duration"><%= Math.floor(scene.duration / 60) %>m</div>
+                            <% } %>
+                            <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavoriteScene('<%= scene.id %>', this)" 
+                                    class="scene-favorite-btn" 
+                                    style="color: <%= scene.isFavorited ? '#f0c040' : '#555' %>;">
+                                <%= scene.isFavorited ? '⭐' : '☆' %>
+                            </button>
+                            <% if (scene.performerRating) { %>
+                                <div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.8);padding:2px 10px;border-radius:12px;font-size:12px;color:#f0c040;border:1px solid #f0c040;">
+                                    <%= scene.performerRating %>
+                                </div>
+                            <% } %>
+                        </div>
+                        <div class="scene-info">
+                            <h4><%= scene.title || 'Untitled Scene' %></h4>
+                            <div class="scene-meta">
+                                <% if (scene.date) { %>
+                                    <span class="date">📅 <%= new Date(scene.date).toLocaleDateString() %></span>
+                                <% } %>
+                                <% if (scene.performers && scene.performers.length > 0) { %>
+                                    <span class="performer-names">👥 <%= scene.performers.map(p => p.performer.name).join(', ') %></span>
+                                <% } %>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            <% }) %>
+        </div>
+
+        <div id="noResults" class="no-results" style="display:none;">
+            <h3>No scenes found</h3>
+            <p>Try adjusting your filters.</p>
+        </div>
+
+        <div class="pagination" id="paginationContainer">
+            <% if (totalPages > 1) { %>
+                <% if (currentPage > 1) { %>
+                    <a href="#" onclick="goToPage(<%= currentPage - 1 %>)" class="page-link">← Previous</a>
+                <% } %>
+                <% for (let i = 1; i <= totalPages; i++) { %>
+                    <% if (i === currentPage) { %>
+                        <span class="page-link active"><%= i %></span>
+                    <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
+                        <a href="#" onclick="goToPage(<%= i %>)" class="page-link"><%= i %></a>
+                    <% } else if (i === 4 && currentPage > 5) { %>
+                        <span class="page-link">…</span>
+                    <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
+                        <span class="page-link">…</span>
+                    <% } %>
+                <% } %>
+                <% if (currentPage < totalPages) { %>
+                    <a href="#" onclick="goToPage(<%= currentPage + 1 %>)" class="page-link">Next →</a>
+                <% } %>
+            <% } %>
+        </div>
+
+        <footer>
+            <p>Data from StashDB</p>
+        </footer>
+    </div>
+
+    <!-- Store all scenes for client-side filtering -->
+<div id="allScenesData" data-scenes='<%- JSON.stringify(allScenes) %>' style="display: none;"></div>
+
+    <script>
+    // =========================
+    // ALL SCENES DATA - Load from server
+    // =========================
+    var allScenes = <%- JSON.stringify(allScenes) %>;
+    var currentPage = <%= currentPage %>;
+    var studioId = '<%= studioId %>';
+    var perPage = 24;
+
+    // Debug: Log the number of scenes loaded
+    console.log('📊 Loaded ' + allScenes.length + ' scenes for studio');
+
+    // =========================
+    // FILTERING STATE
+    // =========================
+    var currentFilters = {
+        tier: 'all',
+        favorites: 'all'
+    };
+
+    // =========================
+    // TOGGLE FAVORITE SCENE
+    // =========================
+    function toggleFavoriteScene(sceneId, button) {
+        event.preventDefault();
+        event.stopPropagation();
+        fetch('/api/favorite/scene', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sceneId: sceneId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Update the scene in allScenes
+                var scene = allScenes.find(s => s.id === sceneId);
+                if (scene) {
+                    scene.isFavorited = data.favorited;
+                }
+                if (data.favorited) {
+                    button.textContent = '⭐';
+                    button.style.color = '#f0c040';
+                } else {
+                    button.textContent = '☆';
+                    button.style.color = '#555';
+                }
+                applyFilters();
+            }
+        })
+        .catch(err => console.error('Error toggling scene favorite:', err));
+    }
+
+    // =========================
+    // FILTER FUNCTIONS
+    // =========================
+    function toggleFilter(type) {
+        if (type === 'favorites') {
+            var btn = document.querySelector('[data-filter="favorites"]');
+            if (currentFilters.favorites === 'favorited') {
+                currentFilters.favorites = 'all';
+                btn.classList.remove('active');
+            } else {
+                currentFilters.favorites = 'favorited';
+                btn.classList.add('active');
+                document.querySelector('[data-filter="unfavorites"]').classList.remove('active');
+            }
+        } else if (type === 'unfavorites') {
+            var btn = document.querySelector('[data-filter="unfavorites"]');
+            if (currentFilters.favorites === 'unfavorited') {
+                currentFilters.favorites = 'all';
+                btn.classList.remove('active');
+            } else {
+                currentFilters.favorites = 'unfavorited';
+                btn.classList.add('active');
+                document.querySelector('[data-filter="favorites"]').classList.remove('active');
+            }
+        }
+        applyFilters();
+    }
+
+    function applyFilters() {
+        var tier = document.getElementById('tierFilter').value;
+        currentFilters.tier = tier;
+        
+        // Debug
+        console.log('🔍 Filtering with tier:', tier, 'favorites:', currentFilters.favorites);
+        
+        // Filter allScenes
+        var filteredScenes = allScenes.filter(function(scene) {
+            var sceneTier = scene.performerRating || 'unrated';
+            var isFavorited = scene.isFavorited || false;
+            var show = true;
+
+            // Tier filter
+            if (tier !== 'all') {
+                if (tier === 'rated' && sceneTier === 'unrated') show = false;
+                else if (tier === 'unrated' && sceneTier !== 'unrated') show = false;
+                else if (tier !== 'rated' && tier !== 'unrated' && sceneTier !== tier) show = false;
+            }
+
+            // Favorites filter
+            if (currentFilters.favorites === 'favorited' && !isFavorited) show = false;
+            if (currentFilters.favorites === 'unfavorited' && isFavorited) show = false;
+
+            return show;
+        });
+
+        // Debug
+        console.log('🔍 Found ' + filteredScenes.length + ' scenes matching filters');
+
+        // Paginate
+        var totalCount = filteredScenes.length;
+        var startIndex = (currentPage - 1) * perPage;
+        var endIndex = Math.min(startIndex + perPage, totalCount);
+        var paginatedScenes = filteredScenes.slice(startIndex, endIndex);
+
+        // Update count
+        var countSpan = document.getElementById('filterCount');
+        if (countSpan) {
+            countSpan.textContent = 'Showing ' + totalCount + ' of ' + allScenes.length + ' scenes';
+        }
+
+        // Render scenes
+        var grid = document.getElementById('sceneGrid');
+        var noResults = document.getElementById('noResults');
+
+        if (grid) {
+            if (paginatedScenes.length === 0) {
+                grid.innerHTML = '';
+                if (noResults) noResults.style.display = 'block';
+            } else {
+                if (noResults) noResults.style.display = 'none';
+                grid.innerHTML = paginatedScenes.map(function(scene) {
+                    return `
+                        <div class="scene-card" 
+                             data-scene-id="${scene.id}"
+                             data-tier="${scene.performerRating || 'unrated'}"
+                             data-favorited="${scene.isFavorited ? 'true' : 'false'}">
+                            <a href="/scene/${scene.id}" style="text-decoration: none; color: inherit; display: block; height: 100%;">
+                                <div class="scene-thumbnail">
+                                    ${scene.images && scene.images.length > 0 && scene.images[0].url ? 
+                                        `<img src="${scene.images[0].url}" alt="${scene.title || 'Scene'}" loading="lazy">` :
+                                        '<div class="no-image">🎬</div>'
+                                    }
+                                    ${scene.duration ? `<div class="scene-duration">${Math.floor(scene.duration / 60)}m</div>` : ''}
+                                    <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavoriteScene('${scene.id}', this)" 
+                                            class="scene-favorite-btn" 
+                                            style="color: ${scene.isFavorited ? '#f0c040' : '#555'};">
+                                        ${scene.isFavorited ? '⭐' : '☆'}
+                                    </button>
+                                    ${scene.performerRating ? `
+                                        <div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.8);padding:2px 10px;border-radius:12px;font-size:12px;color:#f0c040;border:1px solid #f0c040;">
+                                            ${scene.performerRating}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="scene-info">
+                                    <h4>${scene.title || 'Untitled Scene'}</h4>
+                                    <div class="scene-meta">
+                                        ${scene.date ? `<span class="date">📅 ${new Date(scene.date).toLocaleDateString()}</span>` : ''}
+                                        ${scene.performers && scene.performers.length > 0 ? 
+                                            `<span class="performer-names">👥 ${scene.performers.map(p => p.performer.name).join(', ')}</span>` : ''
+                                        }
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Update pagination
+        updatePagination(totalCount);
+    }
+
+    function updatePagination(totalCount) {
+        var totalPages = Math.ceil(totalCount / perPage);
+        var paginationContainer = document.getElementById('paginationContainer');
+        
+        if (paginationContainer) {
+            if (totalPages > 1) {
+                var paginationHtml = '<div class="pagination">';
+                if (currentPage > 1) {
+                    paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${currentPage - 1});" class="page-link">← Previous</a>`;
+                }
+                for (var i = 1; i <= totalPages; i++) {
+                    if (i === currentPage) {
+                        paginationHtml += `<span class="page-link active">${i}</span>`;
+                    } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) {
+                        paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${i});" class="page-link">${i}</a>`;
+                    } else if (i === 4 && currentPage > 5) {
+                        paginationHtml += '<span class="page-link">…</span>';
+                    } else if (i === totalPages - 3 && currentPage < totalPages - 4) {
+                        paginationHtml += '<span class="page-link">…</span>';
+                    }
+                }
+                if (currentPage < totalPages) {
+                    paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${currentPage + 1});" class="page-link">Next →</a>`;
+                }
+                paginationHtml += '</div>';
+                paginationContainer.innerHTML = paginationHtml;
+            } else {
+                paginationContainer.innerHTML = '';
+            }
+        }
+    }
+
+    function goToPage(page) {
+        if (page === currentPage) return;
+        currentPage = page;
+        applyFilters();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function clearFilters() {
+        document.getElementById('tierFilter').value = 'all';
+        currentFilters.favorites = 'all';
+        document.querySelectorAll('.filter-btn[data-filter]').forEach(function(btn) {
+            btn.classList.remove('active');
+        });
+        currentPage = 1;
+        applyFilters();
+    }
+
+    // =========================
+    // KEYBOARD SHORTCUTS
+    // =========================
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            clearFilters();
+        }
+    });
+
+    // =========================
+    // INITIALIZE - Apply filters on page load
+    // =========================
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('📊 Initializing studio page with ' + allScenes.length + ' scenes');
+        applyFilters();
+    });
+</script>
+</body>
+</html>

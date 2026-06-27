@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><%= title %></title>
     <style>
+        /* All your CSS styles here (keep the same) */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 0; margin: 0; min-height: 100vh; }
         .app { max-width: 1200px; margin: 0 auto; padding: 16px; }
@@ -28,6 +29,7 @@
         .scene-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
         .scene-card { background: #1a1a1a; border-radius: 12px; overflow: hidden; text-decoration: none; color: #e0e0e0; border: 1px solid #2a2a2a; display: flex; flex-direction: column; transition: transform 0.2s; position: relative; }
         .scene-card:hover { transform: translateY(-4px); border-color: #667eea; }
+        .scene-card.hidden { display: none; }
         .scene-thumbnail { position: relative; width: 100%; padding-top: 56.25%; background: #111; overflow: hidden; }
         .scene-thumbnail img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
         .scene-thumbnail .no-image { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 40px; opacity: 0.3; }
@@ -52,6 +54,15 @@
         .favorite-btn { background: none; border: 1px solid #555; color: #888; padding: 4px 14px; border-radius: 20px; cursor: pointer; font-size: 13px; transition: all 0.2s; white-space: nowrap; }
         .favorite-btn:hover { border-color: #667eea; color: #667eea; }
         .favorite-btn.active { border-color: #f0c040; color: #f0c040; }
+        .scene-search { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+        .scene-search input { flex: 1; min-width: 200px; padding: 10px 14px; border: 2px solid #333; border-radius: 10px; background: #1a1a1a; color: #fff; font-size: 14px; transition: border-color 0.3s; }
+        .scene-search input:focus { outline: none; border-color: #667eea; }
+        .scene-search button { padding: 10px 18px; border: none; border-radius: 10px; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; }
+        .scene-search button:first-of-type { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .scene-search button:last-of-type { background: #333; }
+        .scene-search button:hover { transform: scale(1.02); opacity: 0.9; }
+        .filter-count { color: #888; font-size: 13px; margin-left: auto; }
+        .loading-indicator { text-align: center; padding: 40px; color: #888; }
         @media (max-width: 1024px) { .scene-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 768px) { .scene-grid { grid-template-columns: repeat(2, 1fr); } .profile-image { width: 100px; height: 100px; } }
         @media (max-width: 480px) { .scene-grid { grid-template-columns: 1fr; } }
@@ -70,7 +81,6 @@
                     <div class="profile-image-container">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <button onclick="changeImage(-1)" class="image-nav-btn">❮</button>
-                            
                             <div class="profile-image">
                                 <% if (performer.images && performer.images.length > 0) { %>
                                     <img id="mainProfileImage" src="<%= performer.images[0].url %>" alt="<%= performer.name %>">
@@ -79,7 +89,6 @@
                                     <div class="no-image large" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 80px; opacity: 0.3;">🎭</div>
                                 <% } %>
                             </div>
-                            
                             <button onclick="changeImage(1)" class="image-nav-btn">❯</button>
                         </div>
                         <div style="text-align: center; margin-top: 6px; font-size: 12px; color: #888;">
@@ -92,14 +101,12 @@
                             </span>
                         </div>
                     </div>
-                    
                     <div class="profile-info">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;">
                             <div>
                                 <h2><%= performer.name %></h2>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap;">
-                                <!-- Letter Grade Rating -->
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <span style="color: #888; font-size: 13px;">Grade:</span>
                                     <select id="performerGrade" onchange="ratePerformer(this.value)" class="grade-select">
@@ -114,45 +121,23 @@
                                         <option value="L" <%= performerRating === 'L' ? 'selected' : '' %>>L</option>
                                     </select>
                                 </div>
-                                
-                                <!-- Favorite Performer Button -->
-                                <button onclick="toggleFavoritePerformer()" 
-                                        class="favorite-btn <%= isPerformerFavorited ? 'active' : '' %>">
+                                <button onclick="toggleFavoritePerformer()" class="favorite-btn <%= isPerformerFavorited ? 'active' : '' %>">
                                     <%= isPerformerFavorited ? '❤️ Favorited' : '🤍 Favorite' %>
                                 </button>
                             </div>
                         </div>
-                        
-                        <!-- Display saved grade if set -->
                         <% if (performerRating) { %>
-                            <div class="grade-display">
-                                ⭐ Grade: <strong><%= performerRating %></strong>
-                            </div>
+                            <div class="grade-display">⭐ Grade: <strong><%= performerRating %></strong></div>
                         <% } %>
-                        
                         <div class="profile-meta">
-                            <% if (performer.gender) { %>
-                                <span class="badge">⚥ <%= performer.gender %></span>
-                            <% } %>
-                            <% if (performer.age) { %>
-                                <span class="badge">🎂 <%= performer.age %> years</span>
-                            <% } %>
-                            <% if (performer.scene_count) { %>
-                                <span class="badge">🎬 <%= performer.scene_count %> scenes</span>
-                            <% } %>
-                            <% if (performer.is_favorite) { %>
-                                <span class="badge" style="background: #764ba2;">❤️ Favorite</span>
-                            <% } %>
+                            <% if (performer.gender) { %><span class="badge">⚥ <%= performer.gender %></span><% } %>
+                            <% if (performer.age) { %><span class="badge">🎂 <%= performer.age %> years</span><% } %>
+                            <% if (performer.scene_count) { %><span class="badge">🎬 <%= performer.scene_count %> scenes</span><% } %>
+                            <% if (performer.is_favorite) { %><span class="badge" style="background: #764ba2;">❤️ Favorite</span><% } %>
                         </div>
-                        <% if (performer.height) { %>
-                            <div class="profile-detail">Height: <%= performer.height %> cm</div>
-                        <% } %>
-                        <% if (performer.ethnicity) { %>
-                            <div class="profile-detail">Ethnicity: <%= performer.ethnicity %></div>
-                        <% } %>
-                        <% if (performer.country) { %>
-                            <div class="profile-detail">Country: <%= performer.country %></div>
-                        <% } %>
+                        <% if (performer.height) { %><div class="profile-detail">Height: <%= performer.height %> cm</div><% } %>
+                        <% if (performer.ethnicity) { %><div class="profile-detail">Ethnicity: <%= performer.ethnicity %></div><% } %>
+                        <% if (performer.country) { %><div class="profile-detail">Country: <%= performer.country %></div><% } %>
                         <% if (performer.aliases && performer.aliases.length > 0) { %>
                             <div class="profile-detail">Also known as: <%= performer.aliases.join(', ') %></div>
                         <% } %>
@@ -160,74 +145,94 @@
                 </div>
 
                 <div class="scenes-section">
-                    <h3>🎬 Scenes (<%= totalScenes %>)</h3>
-                    
-                    <div class="scene-grid">
+                    <h3>🎬 Scenes (<span id="totalSceneCount"><%= totalScenes %></span>)</h3>
+
+                    <!-- Scene Search Bar - Global Search -->
+                    <div class="scene-search">
+                        <input type="text" 
+                               id="sceneSearchInput" 
+                               placeholder="Search all scenes by title or studio..." 
+                               onkeyup="handleSearchKeyup(event)">
+                        <button onclick="performGlobalSearch()">🔍 Search</button>
+                        <button onclick="clearGlobalSearch()">✕ Clear</button>
+                        <span id="sceneCount" class="filter-count">Showing <%= scenes.length %> of <%= totalScenes %> scenes</span>
+                        <span id="searchStatus" style="color: #888; font-size: 12px; display: none;"></span>
+                    </div>
+
+                    <!-- Loading indicator -->
+                    <div id="searchLoading" class="loading-indicator" style="display: none;">
+                        <p>🔍 Searching scenes...</p>
+                    </div>
+
+                    <div class="scene-grid" id="sceneGrid">
                         <% scenes.forEach(scene => { %>
-                            <a href="/scene/<%= scene.id %>" class="scene-card">
-                                <div class="scene-thumbnail">
-                                    <% if (scene.images && scene.images.length > 0 && scene.images[0].url) { %>
-                                        <img src="<%= scene.images[0].url %>" alt="<%= scene.title || 'Scene' %>" loading="lazy">
-                                    <% } else { %>
-                                        <div class="no-image">🎬</div>
-                                    <% } %>
-                                    <% if (scene.duration) { %>
-                                        <div class="scene-duration"><%= Math.floor(scene.duration / 60) %>m</div>
-                                    <% } %>
-                                    <!-- Favorite Star on Scene -->
-                                    <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavoriteScene('<%= scene.id %>', this)" 
-                                            class="scene-favorite-btn" 
-                                            style="color: <%= scene.isFavorited ? '#f0c040' : '#555' %>;">
-                                        <%= scene.isFavorited ? '⭐' : '☆' %>
-                                    </button>
-                                </div>
-                                <div class="scene-info">
-                                    <h4><%= scene.title || 'Untitled Scene' %></h4>
-                                    <div class="scene-meta">
-                                        <% if (scene.studio) { %>
-                                            <span class="studio">🏢 <%= scene.studio.name %></span>
+                            <div class="scene-card" data-scene-id="<%= scene.id %>">
+                                <a href="/scene/<%= scene.id %>" style="text-decoration: none; color: inherit; display: block; height: 100%;">
+                                    <div class="scene-thumbnail">
+                                        <% if (scene.images && scene.images.length > 0 && scene.images[0].url) { %>
+                                            <img src="<%= scene.images[0].url %>" alt="<%= scene.title || 'Scene' %>" loading="lazy">
+                                        <% } else { %>
+                                            <div class="no-image">🎬</div>
                                         <% } %>
-                                        <% if (scene.date) { %>
-                                            <span class="date">📅 <%= new Date(scene.date).toLocaleDateString() %></span>
+                                        <% if (scene.duration) { %>
+                                            <div class="scene-duration"><%= Math.floor(scene.duration / 60) %>m</div>
                                         <% } %>
+                                        <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavoriteScene('<%= scene.id %>', this)" 
+                                                class="scene-favorite-btn" 
+                                                style="color: <%= scene.isFavorited ? '#f0c040' : '#555' %>;">
+                                            <%= scene.isFavorited ? '⭐' : '☆' %>
+                                        </button>
                                     </div>
-                                </div>
-                            </a>
+                                    <div class="scene-info">
+                                        <h4><%= scene.title || 'Untitled Scene' %></h4>
+                                        <div class="scene-meta">
+                                            <% if (scene.studio) { %>
+                                                <span class="studio">🏢 <%= scene.studio.name %></span>
+                                            <% } %>
+                                            <% if (scene.date) { %>
+                                                <span class="date">📅 <%= new Date(scene.date).toLocaleDateString() %></span>
+                                            <% } %>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
                         <% }) %>
                     </div>
 
+                    <!-- No results message -->
+                    <div id="noResults" style="display: none; text-align: center; padding: 40px; color: #888;">
+                        <p>No scenes found matching your search.</p>
+                    </div>
+
                     <!-- Pagination -->
-                    <% if (totalPages > 1) { %>
-                        <div class="pagination">
-                            <% if (currentPage > 1) { %>
-                                <a href="/performer/<%= performerId %>?page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
-                            <% } %>
-                            
-                            <% for (let i = 1; i <= totalPages; i++) { %>
-                                <% if (i === currentPage) { %>
-                                    <span class="page-link active"><%= i %></span>
-                                <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
-                                    <a href="/performer/<%= performerId %>?page=<%= i %>" class="page-link"><%= i %></a>
-                                <% } else if (i === 4 && currentPage > 5) { %>
-                                    <span class="page-link">…</span>
-                                <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
-                                    <span class="page-link">…</span>
+                    <div id="paginationContainer">
+                        <% if (totalPages > 1) { %>
+                            <div class="pagination" id="pagination">
+                                <% if (currentPage > 1) { %>
+                                    <a href="/performer/<%= performerId %>?page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
                                 <% } %>
-                            <% } %>
-                            
-                            <% if (currentPage < totalPages) { %>
-                                <a href="/performer/<%= performerId %>?page=<%= currentPage + 1 %>" class="page-link">Next →</a>
-                            <% } %>
-                        </div>
-                    <% } %>
+                                <% for (let i = 1; i <= totalPages; i++) { %>
+                                    <% if (i === currentPage) { %>
+                                        <span class="page-link active"><%= i %></span>
+                                    <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
+                                        <a href="/performer/<%= performerId %>?page=<%= i %>" class="page-link"><%= i %></a>
+                                    <% } else if (i === 4 && currentPage > 5) { %>
+                                        <span class="page-link">…</span>
+                                    <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
+                                        <span class="page-link">…</span>
+                                    <% } %>
+                                <% } %>
+                                <% if (currentPage < totalPages) { %>
+                                    <a href="/performer/<%= performerId %>?page=<%= currentPage + 1 %>" class="page-link">Next →</a>
+                                <% } %>
+                            </div>
+                        <% } %>
+                    </div>
                 </div>
             </div>
 
-            <!-- Store image URLs in a data attribute -->
-            <div id="imageData" 
-                 data-images='<%= JSON.stringify(performer.images || []) %>'
-                 style="display: none;">
-            </div>
+            <!-- Store image URLs -->
+            <div id="imageData" data-images='<%= JSON.stringify(performer.images || []) %>' style="display: none;"></div>
 
         <% } else { %>
             <div class="error-message">
@@ -249,17 +254,10 @@
             fetch('/api/rate/performer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    performerId: '<%= performerId %>', 
-                    rating: rating 
-                })
+                body: JSON.stringify({ performerId: '<%= performerId %>', rating: rating })
             })
             .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                }
-            })
+            .then(data => { if (data.success) location.reload(); })
             .catch(err => console.error('Error rating performer:', err));
         }
 
@@ -273,11 +271,7 @@
                 body: JSON.stringify({ performerId: '<%= performerId %>' })
             })
             .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                }
-            })
+            .then(data => { if (data.success) location.reload(); })
             .catch(err => console.error('Error toggling favorite:', err));
         }
 
@@ -287,7 +281,6 @@
         function toggleFavoriteScene(sceneId, button) {
             event.preventDefault();
             event.stopPropagation();
-            
             fetch('/api/favorite/scene', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -313,7 +306,6 @@
         // =========================
         var performerImages = [];
         var currentImageIndex = 0;
-
         var imageDataElement = document.getElementById('imageData');
         if (imageDataElement) {
             try {
@@ -321,31 +313,168 @@
                 if (imagesData && imagesData !== '[]') {
                     performerImages = JSON.parse(imagesData);
                 }
-            } catch (e) {
-                console.log('Error parsing image data:', e);
-            }
+            } catch (e) { console.log('Error parsing image data:', e); }
         }
 
         function changeImage(direction) {
             if (performerImages.length === 0) return;
-            
-            currentImageIndex = currentImageIndex + direction;
-            if (currentImageIndex < 0) currentImageIndex = performerImages.length - 1;
-            if (currentImageIndex >= performerImages.length) currentImageIndex = 0;
-            
+            currentImageIndex = (currentImageIndex + direction + performerImages.length) % performerImages.length;
             var mainImage = document.getElementById('mainProfileImage');
             var imageCounter = document.getElementById('imageCounter');
             var imageIndexDisplay = document.getElementById('imageIndexDisplay');
-            
-            if (mainImage) {
-                mainImage.src = performerImages[currentImageIndex].url;
+            if (mainImage) mainImage.src = performerImages[currentImageIndex].url;
+            if (imageCounter) imageCounter.textContent = performerImages.length + ' photos';
+            if (imageIndexDisplay) imageIndexDisplay.textContent = (currentImageIndex + 1) + ' / ' + performerImages.length;
+        }
+
+        // =========================
+        // GLOBAL SCENE SEARCH
+        // =========================
+        var currentSearchTerm = '';
+        var currentSearchPage = 1;
+        var isSearching = false;
+
+        function handleSearchKeyup(event) {
+            if (event.key === 'Enter') {
+                performGlobalSearch();
             }
-            if (imageCounter) {
-                imageCounter.textContent = performerImages.length + ' photos';
-            }
-            if (imageIndexDisplay) {
-                imageIndexDisplay.textContent = (currentImageIndex + 1) + ' / ' + performerImages.length;
-            }
+        }
+
+        function performGlobalSearch() {
+            var input = document.getElementById('sceneSearchInput');
+            var searchTerm = input.value.trim();
+            currentSearchTerm = searchTerm;
+            currentSearchPage = 1;
+            fetchScenes(searchTerm, 1);
+        }
+
+        function clearGlobalSearch() {
+            document.getElementById('sceneSearchInput').value = '';
+            currentSearchTerm = '';
+            currentSearchPage = 1;
+            fetchScenes('', 1);
+        }
+
+        function fetchScenes(searchTerm, page) {
+            var performerId = '<%= performerId %>';
+            var loading = document.getElementById('searchLoading');
+            var grid = document.getElementById('sceneGrid');
+            var noResults = document.getElementById('noResults');
+            var countSpan = document.getElementById('sceneCount');
+            var totalSpan = document.getElementById('totalSceneCount');
+            var statusSpan = document.getElementById('searchStatus');
+            var paginationContainer = document.getElementById('paginationContainer');
+
+            if (isSearching) return;
+            isSearching = true;
+
+            // Show loading
+            if (loading) loading.style.display = 'block';
+            if (grid) grid.style.display = 'none';
+            if (noResults) noResults.style.display = 'none';
+            if (statusSpan) statusSpan.textContent = 'Searching...';
+            if (statusSpan) statusSpan.style.display = 'inline';
+
+            var url = '/api/performer/' + performerId + '/scenes?q=' + encodeURIComponent(searchTerm) + '&page=' + page;
+
+            fetch(url)
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    isSearching = false;
+                    if (loading) loading.style.display = 'none';
+                    if (statusSpan) statusSpan.style.display = 'none';
+
+                    if (data.success) {
+                        // Update scene grid
+                        if (grid) {
+                            grid.innerHTML = '';
+                            if (data.scenes.length === 0) {
+                                if (noResults) noResults.style.display = 'block';
+                                if (grid) grid.style.display = 'none';
+                            } else {
+                                if (noResults) noResults.style.display = 'none';
+                                if (grid) grid.style.display = 'grid';
+                                data.scenes.forEach(function(scene) {
+                                    var card = document.createElement('div');
+                                    card.className = 'scene-card';
+                                    card.setAttribute('data-scene-id', scene.id);
+                                    card.innerHTML = `
+                                        <a href="/scene/${scene.id}" style="text-decoration: none; color: inherit; display: block; height: 100%;">
+                                            <div class="scene-thumbnail">
+                                                ${scene.images && scene.images.length > 0 && scene.images[0].url ? 
+                                                    `<img src="${scene.images[0].url}" alt="${scene.title || 'Scene'}" loading="lazy">` :
+                                                    '<div class="no-image">🎬</div>'
+                                                }
+                                                ${scene.duration ? `<div class="scene-duration">${Math.floor(scene.duration / 60)}m</div>` : ''}
+                                                <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavoriteScene('${scene.id}', this)" 
+                                                        class="scene-favorite-btn" 
+                                                        style="color: ${scene.isFavorited ? '#f0c040' : '#555'};">
+                                                    ${scene.isFavorited ? '⭐' : '☆'}
+                                                </button>
+                                            </div>
+                                            <div class="scene-info">
+                                                <h4>${scene.title || 'Untitled Scene'}</h4>
+                                                <div class="scene-meta">
+                                                    ${scene.studio ? `<span class="studio">🏢 ${scene.studio.name}</span>` : ''}
+                                                    ${scene.date ? `<span class="date">📅 ${new Date(scene.date).toLocaleDateString()}</span>` : ''}
+                                                </div>
+                                            </div>
+                                        </a>
+                                    `;
+                                    grid.appendChild(card);
+                                });
+                            }
+                        }
+
+                        // Update count
+                        if (countSpan) countSpan.textContent = 'Showing ' + data.scenes.length + ' of ' + data.totalCount + ' scenes';
+                        if (totalSpan) totalSpan.textContent = data.totalCount;
+
+                        // Update pagination
+                        if (paginationContainer) {
+                            if (data.totalPages > 1) {
+                                var paginationHtml = '<div class="pagination">';
+                                if (data.currentPage > 1) {
+                                    paginationHtml += `<a href="#" onclick="event.preventDefault(); fetchScenes('${searchTerm}', ${data.currentPage - 1}); return false;" class="page-link">← Previous</a>`;
+                                }
+                                for (var i = 1; i <= data.totalPages; i++) {
+                                    if (i === data.currentPage) {
+                                        paginationHtml += `<span class="page-link active">${i}</span>`;
+                                    } else if (i <= 3 || i > data.totalPages - 3 || Math.abs(i - data.currentPage) <= 1) {
+                                        paginationHtml += `<a href="#" onclick="event.preventDefault(); fetchScenes('${searchTerm}', ${i}); return false;" class="page-link">${i}</a>`;
+                                    } else if (i === 4 && data.currentPage > 5) {
+                                        paginationHtml += '<span class="page-link">…</span>';
+                                    } else if (i === data.totalPages - 3 && data.currentPage < data.totalPages - 4) {
+                                        paginationHtml += '<span class="page-link">…</span>';
+                                    }
+                                }
+                                if (data.currentPage < data.totalPages) {
+                                    paginationHtml += `<a href="#" onclick="event.preventDefault(); fetchScenes('${searchTerm}', ${data.currentPage + 1}); return false;" class="page-link">Next →</a>`;
+                                }
+                                paginationHtml += '</div>';
+                                paginationContainer.innerHTML = paginationHtml;
+                            } else {
+                                paginationContainer.innerHTML = '';
+                            }
+                        }
+                    } else {
+                        console.error('Search error:', data.error);
+                        if (noResults) {
+                            noResults.style.display = 'block';
+                            noResults.innerHTML = '<p>❌ Error searching: ' + data.error + '</p>';
+                        }
+                    }
+                })
+                .catch(function(error) {
+                    isSearching = false;
+                    if (loading) loading.style.display = 'none';
+                    if (statusSpan) statusSpan.style.display = 'none';
+                    console.error('Fetch error:', error);
+                    if (noResults) {
+                        noResults.style.display = 'block';
+                        noResults.innerHTML = '<p>❌ Error searching scenes. Please try again.</p>';
+                    }
+                });
         }
     </script>
 </body>
