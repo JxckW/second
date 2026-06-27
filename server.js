@@ -36,7 +36,7 @@ try {
     db = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false },
-        family: 4 // <-- THIS FORCES IPv4 AND FIXES THE ERROR
+        family: 4  // Forces IPv4
     });
     console.log('✅ PostgreSQL connection pool created (IPv4 forced)');
 } catch (error) {
