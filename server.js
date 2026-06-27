@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const { Pool } = require('pg');
 const scraper = require('./scraper');
 const app = express();
@@ -26,12 +27,30 @@ if (!process.env.DATABASE_URL) {
 }
 
 // =========================
-// CREATE DATABASE CONNECTION - SIMPLE SSL
+// LOAD CA CERTIFICATE
+// =========================
+let caCert = null;
+try {
+    const caPath = path.join(__dirname, 'ca.pem');
+    if (fs.existsSync(caPath)) {
+        caCert = fs.readFileSync(caPath).toString();
+        console.log('✅ CA certificate loaded from ca.pem');
+    } else {
+        console.log('❌ CA certificate not found at:', caPath);
+        console.log('Please download it from Aiven console and save as ca.pem');
+        process.exit(1);
+    }
+} catch (error) {
+    console.error('❌ Error loading CA certificate:', error.message);
+    process.exit(1);
+}
+
+// =========================
+// CREATE DATABASE CONNECTION
 // =========================
 let db;
 
 try {
-    // Parse URL for debugging
     const url = new URL(process.env.DATABASE_URL);
     console.log('🔍 Host:', url.hostname);
     console.log('🔍 Port:', url.port);
@@ -40,12 +59,13 @@ try {
     db = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: {
-            rejectUnauthorized: false,  // Accept self-signed certificates
+            rejectUnauthorized: true,
+            ca: caCert,
         },
         connectionTimeoutMillis: 10000,
         idleTimeoutMillis: 30000,
     });
-    console.log('✅ PostgreSQL connection pool created (SSL verification disabled)');
+    console.log('✅ PostgreSQL connection pool created (SSL with CA certificate)');
 } catch (error) {
     console.error('❌ Error creating PostgreSQL connection pool:', error.message);
     process.exit(1);
