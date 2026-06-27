@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
+const dns = require('dns');
 const scraper = require('./scraper');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,15 +31,48 @@ if (!process.env.DATABASE_URL) {
     process.exit(1);
 }
 
+// =========================
+// FORCE IPv4 RESOLUTION
+// =========================
+function getIPv4ConnectionString(url) {
+    // Extract hostname from connection string
+    const match = url.match(/postgresql:\/\/[^@]+@([^:]+):(\d+)\/(.+)/);
+    if (!match) {
+        console.log('⚠️ Could not parse connection string, using original');
+        return url;
+    }
+    
+    const hostname = match[1];
+    const port = match[2];
+    const database = match[3];
+    
+    // Look up IPv4 address
+    try {
+        const addresses = dns.resolve4Sync(hostname);
+        if (addresses && addresses.length > 0) {
+            const ipv4 = addresses[0];
+            console.log(`🔍 Resolved ${hostname} → IPv4: ${ipv4}`);
+            // Replace hostname with IPv4 address
+            return url.replace(hostname, ipv4);
+        }
+    } catch (error) {
+        console.log(`⚠️ Could not resolve IPv4 for ${hostname}:`, error.message);
+    }
+    return url;
+}
+
+// Get the IPv4 connection string
+const connectionString = getIPv4ConnectionString(process.env.DATABASE_URL);
+console.log('🔍 Using connection string with host:', connectionString.split('@')[1]?.split(':')[0] || 'unknown');
+
 let db;
 
 try {
     db = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-        family: 4  // Forces IPv4
+        connectionString: connectionString,
+        ssl: { rejectUnauthorized: false }
     });
-    console.log('✅ PostgreSQL connection pool created (IPv4 forced)');
+    console.log('✅ PostgreSQL connection pool created');
 } catch (error) {
     console.error('❌ Error creating PostgreSQL connection pool:', error.message);
     process.exit(1);
