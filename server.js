@@ -1,13 +1,12 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const { Pool } = require('pg');
 const scraper = require('./scraper');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // =========================
-// DEBUGGING: Check environment variables
+// DEBUGGING
 // =========================
 console.log('🔍 === DEBUGGING START ===');
 console.log('🔍 DATABASE_URL exists?', !!process.env.DATABASE_URL);
@@ -27,64 +26,26 @@ if (!process.env.DATABASE_URL) {
 }
 
 // =========================
-// LOAD CA CERTIFICATE (for Aiven SSL)
-// =========================
-let caCert = null;
-try {
-    const caPath = path.join(__dirname, 'ca.pem');
-    if (fs.existsSync(caPath)) {
-        caCert = fs.readFileSync(caPath).toString();
-        console.log('✅ CA certificate loaded from ca.pem');
-    } else {
-        console.log('⚠️ CA certificate not found at:', caPath);
-        console.log('⚠️ Download it from Aiven console and place it in the project root');
-        console.log('⚠️ Falling back to self-signed certificate mode');
-    }
-} catch (error) {
-    console.log('⚠️ Could not load CA certificate:', error.message);
-}
-
-// =========================
-// CREATE DATABASE CONNECTION
+// CREATE DATABASE CONNECTION - SIMPLE SSL
 // =========================
 let db;
 
 try {
-    let connectionString = process.env.DATABASE_URL;
-    
-    // Force SSL mode if not already set
-    if (!connectionString.includes('sslmode=')) {
-        if (connectionString.includes('?')) {
-            connectionString += '&sslmode=require';
-        } else {
-            connectionString += '?sslmode=require';
-        }
-        console.log('🔍 Added sslmode=require to connection string');
-    }
-    
     // Parse URL for debugging
-    const url = new URL(connectionString);
+    const url = new URL(process.env.DATABASE_URL);
     console.log('🔍 Host:', url.hostname);
     console.log('🔍 Port:', url.port);
     console.log('🔍 Database:', url.pathname.substring(1));
-    
-    // SSL configuration
-    const sslConfig = caCert ? {
-        rejectUnauthorized: true,
-        ca: caCert,
-    } : {
-        rejectUnauthorized: false,  // Fallback for self-signed certificates
-    };
-    
+
     db = new Pool({
-        connectionString: connectionString,
-        ssl: sslConfig,
+        connectionString: process.env.DATABASE_URL,
+        ssl: {
+            rejectUnauthorized: false,  // Accept self-signed certificates
+        },
         connectionTimeoutMillis: 10000,
         idleTimeoutMillis: 30000,
     });
-    
-    console.log('✅ PostgreSQL connection pool created');
-    console.log('🔍 SSL mode:', caCert ? 'CA certificate (secure)' : 'self-signed (less secure)');
+    console.log('✅ PostgreSQL connection pool created (SSL verification disabled)');
 } catch (error) {
     console.error('❌ Error creating PostgreSQL connection pool:', error.message);
     process.exit(1);
@@ -183,7 +144,7 @@ async function getUserData() {
 }
 
 // =========================
-// TEST ROUTE - Check database connection
+// TEST ROUTE
 // =========================
 app.get('/api/test-db', async (req, res) => {
     try {
