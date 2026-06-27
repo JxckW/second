@@ -1,14 +1,10 @@
 const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
-const dns = require('dns');
 const scraper = require('./scraper');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// =========================
-// DEBUGGING: Check environment variables
-// =========================
 console.log('🔍 === DEBUGGING START ===');
 console.log('🔍 DATABASE_URL exists?', !!process.env.DATABASE_URL);
 if (process.env.DATABASE_URL) {
@@ -21,56 +17,32 @@ console.log('🔍 NODE_ENV:', process.env.NODE_ENV || 'not set');
 console.log('🔍 PORT:', PORT);
 console.log('🔍 === DEBUGGING END ===');
 
-// =========================
-// FORCE POSTGRESQL (NO FALLBACK)
-// =========================
-
 if (!process.env.DATABASE_URL) {
     console.error('❌ FATAL ERROR: DATABASE_URL environment variable is required!');
-    console.error('Please set DATABASE_URL in your Render environment variables.');
     process.exit(1);
 }
 
 // =========================
-// FORCE IPv4 RESOLUTION
+// CREATE DATABASE CONNECTION
 // =========================
-function getIPv4ConnectionString(url) {
-    // Extract hostname from connection string
-    const match = url.match(/postgresql:\/\/[^@]+@([^:]+):(\d+)\/(.+)/);
-    if (!match) {
-        console.log('⚠️ Could not parse connection string, using original');
-        return url;
-    }
-    
-    const hostname = match[1];
-    const port = match[2];
-    const database = match[3];
-    
-    // Look up IPv4 address
-    try {
-        const addresses = dns.resolve4Sync(hostname);
-        if (addresses && addresses.length > 0) {
-            const ipv4 = addresses[0];
-            console.log(`🔍 Resolved ${hostname} → IPv4: ${ipv4}`);
-            // Replace hostname with IPv4 address
-            return url.replace(hostname, ipv4);
-        }
-    } catch (error) {
-        console.log(`⚠️ Could not resolve IPv4 for ${hostname}:`, error.message);
-    }
-    return url;
-}
-
-// Get the IPv4 connection string
-const connectionString = getIPv4ConnectionString(process.env.DATABASE_URL);
-console.log('🔍 Using connection string with host:', connectionString.split('@')[1]?.split(':')[0] || 'unknown');
-
 let db;
 
 try {
+    // Parse the URL to check if it's IPv4
+    const url = new URL(process.env.DATABASE_URL);
+    console.log('🔍 Host:', url.hostname);
+    console.log('🔍 Port:', url.port);
+    console.log('🔍 Database:', url.pathname.substring(1));
+    
     db = new Pool({
-        connectionString: connectionString,
-        ssl: { rejectUnauthorized: false }
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        // Force IPv4 by using the hostname directly
+        host: url.hostname,
+        port: parseInt(url.port) || 5432,
+        user: url.username,
+        password: url.password,
+        database: url.pathname.substring(1),
     });
     console.log('✅ PostgreSQL connection pool created');
 } catch (error) {
@@ -130,7 +102,6 @@ async function initDatabase() {
     }
 }
 
-// Run initialization
 initDatabase();
 
 // =========================
@@ -172,7 +143,7 @@ async function getUserData() {
 }
 
 // =========================
-// TEST ROUTE - Check database connection
+// TEST ROUTE
 // =========================
 app.get('/api/test-db', async (req, res) => {
     try {
