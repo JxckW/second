@@ -35,9 +35,10 @@ let db;
 try {
     db = new Pool({
         connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
+        ssl: { rejectUnauthorized: false },
+        family: 4 // <-- THIS FORCES IPv4 AND FIXES THE ERROR
     });
-    console.log('✅ PostgreSQL connection pool created');
+    console.log('✅ PostgreSQL connection pool created (IPv4 forced)');
 } catch (error) {
     console.error('❌ Error creating PostgreSQL connection pool:', error.message);
     process.exit(1);
@@ -108,8 +109,6 @@ async function query(sql, params = []) {
         return result;
     } catch (error) {
         console.error('❌ Database query error:', error.message);
-        console.error('❌ SQL:', sql);
-        console.error('❌ Params:', params);
         throw error;
     }
 }
