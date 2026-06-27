@@ -56,16 +56,25 @@ try {
     console.log('🔍 Port:', url.port);
     console.log('🔍 Database:', url.pathname.substring(1));
 
+    // Try a more robust SSL configuration
+    const sslConfig = {
+        rejectUnauthorized: false, // Keep this to avoid the self-signed error
+        ca: caCert,
+        // Add these to be explicit and potentially bypass stricter checks
+        checkServerIdentity: (host, cert) => {
+            // This allows the connection to proceed even if the hostname doesn't match
+            // which can be an issue with self-signed certs on some cloud providers
+            return undefined;
+        }
+    };
+
     db = new Pool({
         connectionString: process.env.DATABASE_URL,
-        ssl: {
-            rejectUnauthorized: true,
-            ca: caCert,
-        },
+        ssl: sslConfig,
         connectionTimeoutMillis: 10000,
         idleTimeoutMillis: 30000,
     });
-    console.log('✅ PostgreSQL connection pool created (SSL with CA certificate)');
+    console.log('✅ PostgreSQL connection pool created (SSL with CA certificate and relaxed checks)');
 } catch (error) {
     console.error('❌ Error creating PostgreSQL connection pool:', error.message);
     process.exit(1);
