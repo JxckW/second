@@ -91,9 +91,11 @@ async function initDatabase() {
         console.log('✅ All database tables initialized successfully');
     } catch (error) {
         console.error('❌ Error initializing database:', error.message);
+        console.error('❌ Full error details:', error);
     }
 }
 
+// Run initialization
 initDatabase();
 
 // =========================
@@ -106,6 +108,8 @@ async function query(sql, params = []) {
         return result;
     } catch (error) {
         console.error('❌ Database query error:', error.message);
+        console.error('❌ SQL:', sql);
+        console.error('❌ Params:', params);
         throw error;
     }
 }
@@ -135,69 +139,7 @@ async function getUserData() {
 }
 
 // =========================
-// API ROUTES
-// =========================
-
-app.post('/api/rate/performer', async (req, res) => {
-    const { performerId, rating } = req.body;
-    try {
-        await query(
-            `INSERT INTO performer_ratings (performer_id, rating, updated_at) 
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT (performer_id) DO UPDATE SET rating = $2, updated_at = CURRENT_TIMESTAMP`,
-            [performerId, rating]
-        );
-        res.json({ success: true, rating });
-    } catch (error) {
-        console.error('❌ Error saving performer rating:', error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.post('/api/favorite/performer', async (req, res) => {
-    const { performerId } = req.body;
-    try {
-        const result = await query(
-            'SELECT performer_id FROM favorite_performers WHERE performer_id = $1',
-            [performerId]
-        );
-        
-        if (result.rows.length > 0) {
-            await query('DELETE FROM favorite_performers WHERE performer_id = $1', [performerId]);
-            res.json({ success: true, favorited: false });
-        } else {
-            await query('INSERT INTO favorite_performers (performer_id) VALUES ($1)', [performerId]);
-            res.json({ success: true, favorited: true });
-        }
-    } catch (error) {
-        console.error('❌ Error toggling performer favorite:', error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.post('/api/favorite/scene', async (req, res) => {
-    const { sceneId } = req.body;
-    try {
-        const result = await query(
-            'SELECT scene_id FROM favorite_scenes WHERE scene_id = $1',
-            [sceneId]
-        );
-        
-        if (result.rows.length > 0) {
-            await query('DELETE FROM favorite_scenes WHERE scene_id = $1', [sceneId]);
-            res.json({ success: true, favorited: false });
-        } else {
-            await query('INSERT INTO favorite_scenes (scene_id) VALUES ($1)', [sceneId]);
-            res.json({ success: true, favorited: true });
-        }
-    } catch (error) {
-        console.error('❌ Error toggling scene favorite:', error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// =========================
-// TEST ROUTE
+// TEST ROUTE - Check database connection
 // =========================
 app.get('/api/test-db', async (req, res) => {
     try {
@@ -209,11 +151,82 @@ app.get('/api/test-db', async (req, res) => {
             database: 'PostgreSQL (Supabase)'
         });
     } catch (error) {
+        console.error('❌ Database test failed:', error.message);
         res.status(500).json({ 
             success: false, 
             error: error.message,
             database: 'PostgreSQL (Supabase)'
         });
+    }
+});
+
+// =========================
+// API ROUTES
+// =========================
+
+app.post('/api/rate/performer', async (req, res) => {
+    const { performerId, rating } = req.body;
+    console.log(`🔍 Rating performer ${performerId} as ${rating}`);
+    try {
+        await query(
+            `INSERT INTO performer_ratings (performer_id, rating, updated_at) 
+             VALUES ($1, $2, CURRENT_TIMESTAMP)
+             ON CONFLICT (performer_id) DO UPDATE SET rating = $2, updated_at = CURRENT_TIMESTAMP`,
+            [performerId, rating]
+        );
+        console.log(`✅ Rating saved for ${performerId}`);
+        res.json({ success: true, rating });
+    } catch (error) {
+        console.error('❌ Error saving performer rating:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/favorite/performer', async (req, res) => {
+    const { performerId } = req.body;
+    console.log(`🔍 Toggling favorite performer ${performerId}`);
+    try {
+        const result = await query(
+            'SELECT performer_id FROM favorite_performers WHERE performer_id = $1',
+            [performerId]
+        );
+        
+        if (result.rows.length > 0) {
+            await query('DELETE FROM favorite_performers WHERE performer_id = $1', [performerId]);
+            console.log(`✅ Removed favorite for ${performerId}`);
+            res.json({ success: true, favorited: false });
+        } else {
+            await query('INSERT INTO favorite_performers (performer_id) VALUES ($1)', [performerId]);
+            console.log(`✅ Added favorite for ${performerId}`);
+            res.json({ success: true, favorited: true });
+        }
+    } catch (error) {
+        console.error('❌ Error toggling performer favorite:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/favorite/scene', async (req, res) => {
+    const { sceneId } = req.body;
+    console.log(`🔍 Toggling favorite scene ${sceneId}`);
+    try {
+        const result = await query(
+            'SELECT scene_id FROM favorite_scenes WHERE scene_id = $1',
+            [sceneId]
+        );
+        
+        if (result.rows.length > 0) {
+            await query('DELETE FROM favorite_scenes WHERE scene_id = $1', [sceneId]);
+            console.log(`✅ Removed favorite for scene ${sceneId}`);
+            res.json({ success: true, favorited: false });
+        } else {
+            await query('INSERT INTO favorite_scenes (scene_id) VALUES ($1)', [sceneId]);
+            console.log(`✅ Added favorite for scene ${sceneId}`);
+            res.json({ success: true, favorited: true });
+        }
+    } catch (error) {
+        console.error('❌ Error toggling scene favorite:', error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -243,6 +256,7 @@ app.post('/search', async (req, res) => {
     }
 
     try {
+        console.log(`🔍 Searching for: ${searchTerm}`);
         const performer = await scraper.findPerformer(searchTerm.trim());
 
         if (!performer) {
@@ -282,6 +296,7 @@ app.get('/performer/:id', async (req, res) => {
     const userData = await getUserData();
 
     try {
+        console.log(`🔍 Loading performer: ${performerId}`);
         const performer = await scraper.getPerformerDetails(performerId);
         const scenesData = await scraper.getScenes(performerId, page, perPage);
 
@@ -315,6 +330,7 @@ app.get('/scene/:id', async (req, res) => {
     const userData = await getUserData();
 
     try {
+        console.log(`🔍 Loading scene: ${sceneId}`);
         const query = `
         query SceneDetails($id: ID!) {
             findScene(id: $id) {
@@ -369,4 +385,13 @@ app.get('/scene/:id', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Server running at http://localhost:${PORT}`);
     console.log(`💾 Using PostgreSQL (Supabase) - NO SQLITE FALLBACK`);
+});
+
+// =========================
+// GRACEFUL SHUTDOWN
+// =========================
+process.on('SIGINT', () => {
+    console.log('🛑 Shutting down...');
+    db.end();
+    process.exit(0);
 });
