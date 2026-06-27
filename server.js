@@ -1,10 +1,14 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const { Pool } = require('pg');
 const scraper = require('./scraper');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// =========================
+// DEBUGGING: Check environment variables
+// =========================
 console.log('🔍 === DEBUGGING START ===');
 console.log('🔍 DATABASE_URL exists?', !!process.env.DATABASE_URL);
 if (process.env.DATABASE_URL) {
@@ -23,28 +27,64 @@ if (!process.env.DATABASE_URL) {
 }
 
 // =========================
+// LOAD CA CERTIFICATE (for Aiven SSL)
+// =========================
+let caCert = null;
+try {
+    const caPath = path.join(__dirname, 'ca.pem');
+    if (fs.existsSync(caPath)) {
+        caCert = fs.readFileSync(caPath).toString();
+        console.log('✅ CA certificate loaded from ca.pem');
+    } else {
+        console.log('⚠️ CA certificate not found at:', caPath);
+        console.log('⚠️ Download it from Aiven console and place it in the project root');
+        console.log('⚠️ Falling back to self-signed certificate mode');
+    }
+} catch (error) {
+    console.log('⚠️ Could not load CA certificate:', error.message);
+}
+
+// =========================
 // CREATE DATABASE CONNECTION
 // =========================
 let db;
 
 try {
-    // Parse the URL to check if it's IPv4
-    const url = new URL(process.env.DATABASE_URL);
+    let connectionString = process.env.DATABASE_URL;
+    
+    // Force SSL mode if not already set
+    if (!connectionString.includes('sslmode=')) {
+        if (connectionString.includes('?')) {
+            connectionString += '&sslmode=require';
+        } else {
+            connectionString += '?sslmode=require';
+        }
+        console.log('🔍 Added sslmode=require to connection string');
+    }
+    
+    // Parse URL for debugging
+    const url = new URL(connectionString);
     console.log('🔍 Host:', url.hostname);
     console.log('🔍 Port:', url.port);
     console.log('🔍 Database:', url.pathname.substring(1));
     
+    // SSL configuration
+    const sslConfig = caCert ? {
+        rejectUnauthorized: true,
+        ca: caCert,
+    } : {
+        rejectUnauthorized: false,  // Fallback for self-signed certificates
+    };
+    
     db = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-        // Force IPv4 by using the hostname directly
-        host: url.hostname,
-        port: parseInt(url.port) || 5432,
-        user: url.username,
-        password: url.password,
-        database: url.pathname.substring(1),
+        connectionString: connectionString,
+        ssl: sslConfig,
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 30000,
     });
+    
     console.log('✅ PostgreSQL connection pool created');
+    console.log('🔍 SSL mode:', caCert ? 'CA certificate (secure)' : 'self-signed (less secure)');
 } catch (error) {
     console.error('❌ Error creating PostgreSQL connection pool:', error.message);
     process.exit(1);
@@ -143,7 +183,7 @@ async function getUserData() {
 }
 
 // =========================
-// TEST ROUTE
+// TEST ROUTE - Check database connection
 // =========================
 app.get('/api/test-db', async (req, res) => {
     try {
@@ -152,14 +192,14 @@ app.get('/api/test-db', async (req, res) => {
             success: true, 
             message: 'Database connected!',
             time: result.rows[0].current_time,
-            database: 'PostgreSQL (Supabase)'
+            database: 'PostgreSQL (Aiven)'
         });
     } catch (error) {
         console.error('❌ Database test failed:', error.message);
         res.status(500).json({ 
             success: false, 
             error: error.message,
-            database: 'PostgreSQL (Supabase)'
+            database: 'PostgreSQL (Aiven)'
         });
     }
 });
@@ -388,7 +428,7 @@ app.get('/scene/:id', async (req, res) => {
 // =========================
 app.listen(PORT, () => {
     console.log(`🚀 Server running at http://localhost:${PORT}`);
-    console.log(`💾 Using PostgreSQL (Supabase) - NO SQLITE FALLBACK`);
+    console.log(`💾 Using PostgreSQL (Aiven) - NO SQLITE FALLBACK`);
 });
 
 // =========================
@@ -396,6 +436,6 @@ app.listen(PORT, () => {
 // =========================
 process.on('SIGINT', () => {
     console.log('🛑 Shutting down...');
-    db.end();
+    if (db) db.end();
     process.exit(0);
 });
