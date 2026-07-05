@@ -4,12 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 // =========================
-// CONFIGURATION
+// CONFIGURATION - REPLACE WITH YOUR GOOGLE DRIVE URLs
 // =========================
-// REPLACE THESE URLs WITH YOUR GOOGLE DRIVE OR DROPBOX LINKS
 const DATA_URLS = {
-    stashdb: 'https://drive.google.com/file/d/171gkUM20uL3nr_e5UzXiasyhxf3dQsZp/view?usp=sharing',
-    wowData: 'https://drive.google.com/file/d/1_3rI2aWZNOxqooRoAqEZ0e9tMYpa04Ee/view?usp=sharing'
+    stashdb: 'https://drive.google.com/uc?export=download&id=YOUR_STASHDB_FILE_ID',
+    wowData: 'https://drive.google.com/uc?export=download&id=YOUR_WOW_FILE_ID'
 };
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -17,6 +16,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
+    console.log('📁 Created data directory');
 }
 
 // =========================
@@ -30,7 +30,8 @@ async function fetchData(url, filename) {
         try {
             console.log(`📂 Loading ${filename} from local cache...`);
             const data = JSON.parse(fs.readFileSync(localPath, 'utf8'));
-            console.log(`✅ ${filename} loaded from cache`);
+            const sizeMB = (fs.statSync(localPath).size / 1024 / 1024).toFixed(1);
+            console.log(`✅ ${filename} loaded from cache (${sizeMB} MB)`);
             return data;
         } catch (error) {
             console.log(`⚠️ Local ${filename} is corrupt, downloading...`);
@@ -41,7 +42,7 @@ async function fetchData(url, filename) {
     console.log(`📡 Downloading ${filename} from URL...`);
     try {
         const response = await axios.get(url, {
-            timeout: 120000, // 2 minutes for large files
+            timeout: 180000, // 3 minutes for large files
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -49,11 +50,15 @@ async function fetchData(url, filename) {
         
         // Save locally for next time
         fs.writeFileSync(localPath, JSON.stringify(response.data, null, 2));
-        console.log(`💾 ${filename} saved to local cache (${(response.data.length / 1024 / 1024).toFixed(1)} MB)`);
+        const sizeMB = (fs.statSync(localPath).size / 1024 / 1024).toFixed(1);
+        console.log(`💾 ${filename} saved to local cache (${sizeMB} MB)`);
         
         return response.data;
     } catch (error) {
         console.error(`❌ Failed to download ${filename}: ${error.message}`);
+        if (error.response) {
+            console.error(`   Status: ${error.response.status}`);
+        }
         return null;
     }
 }

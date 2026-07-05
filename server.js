@@ -2,16 +2,53 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const { Pool } = require('pg');
+const axios = require('axios');
 
 // =========================
 // AUTHENTICATION MODULE
 // =========================
 const auth = require('./auth');
 
-
-
-// server.js - Add this at the top with other requires
+// =========================
+// DATA LOADER - Loads from URL or local cache
+// =========================
 const { fetchData, DATA_URLS } = require('./data-loader');
+
+// =========================
+// MANUALLY LOAD .env FILE
+// =========================
+const envPath = path.join(__dirname, '.env');
+console.log('🔍 Loading .env from:', envPath);
+
+if (fs.existsSync(envPath)) {
+    console.log('✅ .env file found');
+    let content = fs.readFileSync(envPath, 'utf8');
+    content = content.replace(/^\uFEFF/, '');
+    content.split('\n').forEach(line => {
+        if (line.trim() && !line.startsWith('#')) {
+            const [key, ...valueParts] = line.split('=');
+            const value = valueParts.join('=').trim();
+            if (key.trim()) {
+                const cleanValue = value.replace(/^["']|["']$/g, '');
+                process.env[key.trim()] = cleanValue;
+            }
+        }
+    });
+} else {
+    console.log('❌ .env file NOT found at:', envPath);
+}
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// =========================
+// DATA STORAGE (in-memory)
+// =========================
+let performerList = [];
+let performerMap = {};
+let studioMap = {};
+let sceneMap = {};
+let wowData = null;
 
 // =========================
 // LOAD STASHDB DATA
@@ -26,7 +63,7 @@ async function loadStashData() {
         return;
     }
     
-    // Parse the data (same as before)
+    // Parse the data
     let performerData = data;
     if (data.data && Array.isArray(data.data)) {
         performerData = data.data;
@@ -109,117 +146,6 @@ async function initializeData() {
     await loadWowData();
     console.log('✅ Data initialization complete!');
 }
-
-// =========================
-// MANUALLY LOAD .env FILE
-// =========================
-const envPath = path.join(__dirname, '.env');
-console.log('🔍 Loading .env from:', envPath);
-
-if (fs.existsSync(envPath)) {
-    console.log('✅ .env file found');
-    let content = fs.readFileSync(envPath, 'utf8');
-    content = content.replace(/^\uFEFF/, '');
-    content.split('\n').forEach(line => {
-        if (line.trim() && !line.startsWith('#')) {
-            const [key, ...valueParts] = line.split('=');
-            const value = valueParts.join('=').trim();
-            if (key.trim()) {
-                const cleanValue = value.replace(/^["']|["']$/g, '');
-                process.env[key.trim()] = cleanValue;
-            }
-        }
-    });
-} else {
-    console.log('❌ .env file NOT found at:', envPath);
-}
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// =========================
-// LOAD STASHDB DATA FROM JSON
-// =========================
-const DATA_FILE = path.join(__dirname, 'stashdb_data.json');
-console.log('📂 Loading StashDB data from:', DATA_FILE);
-
-let performerList = [];
-let performerMap = {};
-let studioMap = {};
-let sceneMap = {};
-
-function loadStashData() {
-    try {
-        if (!fs.existsSync(DATA_FILE)) {
-            console.error('❌ Data file not found:', DATA_FILE);
-            process.exit(1);
-        }
-        
-        const raw = fs.readFileSync(DATA_FILE, 'utf8');
-        const parsed = JSON.parse(raw);
-        
-        if (parsed.data && Array.isArray(parsed.data)) {
-            parsed.data.forEach(item => {
-                if (item.performer && item.performer.id) {
-                    performerMap[item.performer.id] = item;
-                    
-                    performerList.push({
-                        id: item.performer.id,
-                        name: item.performer.name,
-                        gender: item.performer.gender,
-                        age: item.performer.age,
-                        height: item.performer.height,
-                        scene_count: (item.scenes && Array.isArray(item.scenes)) ? item.scenes.length : 0,
-                        country: item.performer.country,
-                        ethnicity: item.performer.ethnicity,
-                        aliases: item.performer.aliases || [],
-                        is_favorite: item.performer.is_favorite || false,
-                        images: item.performer.images || []
-                    });
-                    
-                    if (item.scenes && Array.isArray(item.scenes)) {
-                        item.scenes.forEach(scene => {
-                            if (scene && scene.id) {
-                                sceneMap[scene.id] = scene;
-                                
-                                if (scene.studio && scene.studio.id) {
-                                    const studioId = scene.studio.id;
-                                    const studioName = scene.studio.name || 'Unknown Studio';
-                                    
-                                    if (!studioMap[studioId]) {
-                                        studioMap[studioId] = {
-                                            id: studioId,
-                                            name: studioName,
-                                            scenes: []
-                                        };
-                                    }
-                                    if (studioMap[studioId].name === 'Unknown Studio' && studioName !== 'Unknown Studio') {
-                                        studioMap[studioId].name = studioName;
-                                    }
-                                    if (!studioMap[studioId].scenes.includes(scene.id)) {
-                                        studioMap[studioId].scenes.push(scene.id);
-                                    }
-                                }
-                            }
-                        });
-                    }
-                }
-            });
-            
-            console.log(`✅ Loaded ${performerList.length} performers`);
-            console.log(`✅ ${Object.keys(sceneMap).length} scenes`);
-            console.log(`✅ ${Object.keys(studioMap).length} studios`);
-        } else {
-            console.error('❌ Unknown data format.');
-            process.exit(1);
-        }
-    } catch (error) {
-        console.error('❌ Error loading StashDB data:', error.message);
-        process.exit(1);
-    }
-}
-
-loadStashData();
 
 // =========================
 // VIEW ENGINE SETUP
@@ -405,7 +331,6 @@ app.get('/api/search/studios', auth.requireAuth, (req, res) => {
     const query = req.query.q || '';
     
     try {
-        // Get ALL studios from studioMap, not just first 100
         const studios = Object.values(studioMap)
             .filter(s => s && s.id && s.name)
             .map(s => ({
@@ -417,12 +342,10 @@ app.get('/api/search/studios', auth.requireAuth, (req, res) => {
         
         console.log(`📊 Total studios: ${studios.length}`);
         
-        // If no search query, return ALL studios
         if (!query || query.length < 2) {
             return res.json({ studios: studios });
         }
         
-        // Filter by search term
         const term = query.toLowerCase();
         const results = studios.filter(s => s.name.toLowerCase().includes(term));
         res.json({ studios: results });
@@ -431,7 +354,6 @@ app.get('/api/search/studios', auth.requireAuth, (req, res) => {
         res.json({ studios: [] });
     }
 });
-
 
 // =========================
 // WEB ROUTES (Protected)
@@ -499,9 +421,8 @@ app.post('/search', auth.requireAuth, async (req, res) => {
     }
 });
 
-
 // =========================
-// ADVANCED SEARCH API - WITH CORRECT MATCH LOGIC
+// ADVANCED SEARCH API
 // =========================
 app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
     const { studios = '', tier = '', favorite = '', match = 'any', page = 1, perPage = 50 } = req.query;
@@ -517,7 +438,6 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
         return res.json({ success: true, performers: [], total: 0, page: 1, totalPages: 0 });
     }
     
-    // Find performers who worked with these studios
     let results = [];
     
     for (const pid in performerMap) {
@@ -526,7 +446,6 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
             continue;
         }
         
-        // Check which selected studios this performer worked with
         const matchedStudios = [];
         for (const studioName of studioNames) {
             const hasStudio = item.scenes.some(scene => 
@@ -538,14 +457,13 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
             }
         }
         
-        // Apply match logic
         let include = false;
         if (match === 'any' && matchedStudios.length > 0) {
-            include = true;  // Any selected studio
+            include = true;
         } else if (match === 'all' && matchedStudios.length === studioNames.length) {
-            include = true;  // ALL selected studios
+            include = true;
         } else if (match === 'exact' && matchedStudios.length === studioNames.length && matchedStudios.length === studioNames.length) {
-            include = true;  // Exactly selected studios (no others)
+            include = true;
         }
         
         if (include) {
@@ -578,10 +496,8 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
     console.log(`📊 Found ${results.length} performers`);
     console.log(`📊 With ratings: ${results.filter(r => r.performer.rating !== null).length}`);
     
-    // Sort by most studios matched (useful for 'any' mode)
     results.sort((a, b) => b.matchedCount - a.matchedCount);
     
-    // Apply tier filter
     if (tier && tier !== 'all') {
         if (tier === 'rated') {
             results = results.filter(r => r.performer.rating !== null && r.performer.rating !== undefined);
@@ -592,7 +508,6 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
         }
     }
     
-    // Apply favorite filter
     if (favorite === 'true') {
         results = results.filter(r => r.performer.is_favorited === true);
     } else if (favorite === 'false') {
@@ -633,260 +548,6 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
         totalPages: Math.ceil(total / parseInt(perPage))
     });
 });
-
-// =========================
-// VIDEO MODE ROUTES
-// =========================
-
-// Load wow_rss_data.json
-const WOW_DATA_FILE = path.join(__dirname, 'wow.xxx', 'data', 'wow_rss_data.json');
-let wowData = null;
-
-function loadWowData() {
-    try {
-        if (fs.existsSync(WOW_DATA_FILE)) {
-            const raw = fs.readFileSync(WOW_DATA_FILE, 'utf8');
-            wowData = JSON.parse(raw);
-            console.log(`✅ Loaded wow.xxx data: ${wowData.totalScenes || 0} scenes`);
-        } else {
-            console.log('⚠️ wow_rss_data.json not found');
-        }
-    } catch (error) {
-        console.error('❌ Error loading wow data:', error.message);
-    }
-}
-
-// Load wow data on startup
-loadWowData();
-
-// Get performer's wow.xxx scenes
-app.get('/api/performer/:id/wow-scenes', auth.requireAuth, (req, res) => {
-    const performerId = req.params.id;
-    
-    try {
-        // Find performer in stashdb data to get name
-        const item = performerMap[performerId];
-        if (!item || !item.performer) {
-            return res.json({ success: false, error: 'Performer not found' });
-        }
-        
-        const performerName = item.performer.name;
-        
-        // Find this performer in wow data
-        if (!wowData || !wowData.results) {
-            return res.json({ success: true, scenes: [], performerName: performerName });
-        }
-        
-        const performerResult = wowData.results.find(r => 
-            r.performer && r.performer.name && 
-            r.performer.name.toLowerCase() === performerName.toLowerCase()
-        );
-        
-        if (!performerResult || !performerResult.scenes || performerResult.scenes.length === 0) {
-            return res.json({ success: true, scenes: [], performerName: performerName });
-        }
-        
-        // Format scenes for display
-        const scenes = performerResult.scenes.map(scene => ({
-            id: scene.videoId || 'unknown',
-            title: scene.title || 'Untitled Scene',
-            duration: scene.duration || '0:00',
-            date: null,
-            studio: scene.studio ? { name: scene.studio } : null,
-            images: scene.thumbnail ? [{ url: scene.thumbnail }] : [],
-            video720p: scene.video720p,
-            isFavorited: false,
-            performerName: performerName,
-            wowUrl: scene.url
-        }));
-        
-        res.json({
-            success: true,
-            scenes: scenes,
-            performerName: performerName,
-            totalScenes: scenes.length,
-            videosFound: performerResult.videosFound || 0
-        });
-        
-    } catch (error) {
-        console.error('❌ Error fetching wow scenes:', error.message);
-        res.json({ success: false, error: error.message, scenes: [] });
-    }
-});
-
-// Serve video proxy (for direct video URLs)
-app.get('/api/video/proxy', auth.requireAuth, async (req, res) => {
-    const videoUrl = req.query.url;
-    
-    if (!videoUrl) {
-        return res.status(400).json({ error: 'No video URL provided' });
-    }
-    
-    try {
-        // Just redirect to the actual video URL
-        // The video URL from wow.xxx will redirect to the CDN
-        res.redirect(videoUrl);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Video mode page for performer with pagination
-app.get('/performer/:id/videos', auth.requireAuth, async (req, res) => {
-    const performerId = req.params.id;
-    const page = parseInt(req.query.page) || 1;
-    const perPage = 24;
-    const item = performerMap[performerId];
-    
-    if (!item || !item.performer) {
-        return res.status(404).send('Performer not found');
-    }
-    
-    try {
-        const performerName = item.performer.name;
-        let wowScenes = [];
-        let totalWowScenes = 0;
-        let videosFound = 0;
-        let totalPages = 1;
-        
-        if (wowData && wowData.results) {
-            const performerResult = wowData.results.find(r => 
-                r.performer && r.performer.name && 
-                r.performer.name.toLowerCase() === performerName.toLowerCase()
-            );
-            
-            if (performerResult && performerResult.scenes) {
-                // Sort scenes (newest first if possible)
-                const allScenes = performerResult.scenes.map(scene => ({
-                    id: scene.videoId || 'unknown',
-                    title: scene.title || 'Untitled Scene',
-                    duration: scene.duration || '0:00',
-                    studio: scene.studio ? { name: scene.studio } : null,
-                    images: scene.thumbnail ? [{ url: scene.thumbnail }] : [],
-                    video720p: scene.video720p,
-                    url: scene.url,
-                    allQualities: scene.allQualities || []
-                }));
-                
-                totalWowScenes = allScenes.length;
-                videosFound = performerResult.videosFound || 0;
-                totalPages = Math.ceil(totalWowScenes / perPage);
-                
-                // Paginate
-                const startIndex = (page - 1) * perPage;
-                const endIndex = Math.min(startIndex + perPage, totalWowScenes);
-                wowScenes = allScenes.slice(startIndex, endIndex);
-            }
-        }
-        
-        res.render('performer-videos', {
-            title: `${item.performer.name} - Videos`,
-            performer: item.performer,
-            performerId: performerId,
-            wowScenes: wowScenes,
-            totalWowScenes: totalWowScenes,
-            videosFound: videosFound,
-            hasWowData: wowScenes.length > 0,
-            currentPage: page,
-            totalPages: totalPages,
-            perPage: perPage
-        });
-        
-    } catch (error) {
-        console.error('❌ Video mode error:', error.message);
-        res.status(500).send('Error loading videos');
-    }
-});
-
-
-// =========================
-// VIDEO PROXY - Follows the redirect to get the actual video URL
-// =========================
-app.get('/api/video/play', auth.requireAuth, async (req, res) => {
-    const videoUrl = req.query.url;
-    
-    if (!videoUrl) {
-        return res.status(400).json({ error: 'No video URL provided' });
-    }
-    
-    try {
-        // Follow the redirect to get the actual video URL
-        const response = await axios.get(videoUrl, {
-            maxRedirects: 0, // Don't auto-follow, we want to capture the redirect
-            validateStatus: function (status) {
-                return status >= 200 && status < 400;
-            },
-            timeout: 10000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'video/mp4, video/webm, video/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Referer': 'https://www.wow.xxx/',
-                'Origin': 'https://www.wow.xxx'
-            }
-        });
-        
-        // Check if we got a redirect
-        if (response.status === 302 || response.status === 301 || response.status === 307) {
-            const redirectUrl = response.headers.location;
-            if (redirectUrl) {
-                return res.json({
-                    success: true,
-                    videoUrl: redirectUrl,
-                    redirected: true
-                });
-            }
-        }
-        
-        // If no redirect, the video might be directly accessible
-        // Check if the response is a video
-        const contentType = response.headers['content-type'] || '';
-        if (contentType.includes('video/')) {
-            return res.json({
-                success: true,
-                videoUrl: videoUrl,
-                redirected: false,
-                contentType: contentType
-            });
-        }
-        
-        // If we got HTML or something else, try to extract the actual video URL
-        const $ = cheerio.load(response.data);
-        const videoSource = $('video source').first().attr('src');
-        if (videoSource) {
-            return res.json({
-                success: true,
-                videoUrl: videoSource,
-                redirected: true
-            });
-        }
-        
-        return res.status(404).json({
-            success: false,
-            error: 'No video URL found'
-        });
-        
-    } catch (error) {
-        // If we got a redirect error (which is expected)
-        if (error.response && (error.response.status === 302 || error.response.status === 301 || error.response.status === 307)) {
-            const redirectUrl = error.response.headers.location;
-            if (redirectUrl) {
-                return res.json({
-                    success: true,
-                    videoUrl: redirectUrl,
-                    redirected: true
-                });
-            }
-        }
-        
-        console.error('❌ Video proxy error:', error.message);
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
-
 
 // =========================
 // PERFORMER PROFILE
@@ -959,7 +620,6 @@ app.get('/scene/:id', auth.requireAuth, async (req, res) => {
         return res.status(404).send('Scene not found');
     }
     
-    // Find performers in this scene
     const performers = [];
     for (const pid in performerMap) {
         const item = performerMap[pid];
@@ -996,14 +656,11 @@ app.get('/studio/:id', auth.requireAuth, (req, res) => {
         return res.status(404).send('Studio not found');
     }
     
-    // Get all scenes for this studio
     const allScenes = studio.scenes
         .map(sceneId => sceneMap[sceneId])
         .filter(scene => scene !== undefined && scene !== null);
     
-    // Add performer ratings to scenes
     const scenesWithRatings = allScenes.map(scene => {
-        // Find performers in this scene by searching through performerMap
         const performersInScene = [];
         for (const pid in performerMap) {
             const item = performerMap[pid];
@@ -1025,14 +682,12 @@ app.get('/studio/:id', auth.requireAuth, (req, res) => {
         };
     });
     
-    // Paginate
     const total = scenesWithRatings.length;
     const startIndex = (page - 1) * perPage;
     const endIndex = Math.min(startIndex + perPage, total);
     const paginatedScenes = scenesWithRatings.slice(startIndex, endIndex);
     const totalPages = Math.ceil(total / perPage);
     
-    // Get unique performers count
     const performersSet = new Set();
     allScenes.forEach(scene => {
         for (const pid in performerMap) {
@@ -1043,7 +698,6 @@ app.get('/studio/:id', auth.requireAuth, (req, res) => {
         }
     });
     
-    // Get studio image (first scene's image)
     let studioImage = null;
     if (allScenes.length > 0 && allScenes[0].images && allScenes[0].images.length > 0) {
         studioImage = allScenes[0].images[0].url;
@@ -1072,48 +726,150 @@ app.get('/advanced-search', auth.requireAuth, (req, res) => {
     res.render('advanced-search', { title: 'Advanced Studio Search' });
 });
 
+// =========================
+// VIDEO MODE ROUTES
+// =========================
 
-app.get('/api/debug/studio/:id', auth.requireAuth, (req, res) => {
-    const studioId = req.params.id;
-    const studio = studioMap[studioId];
+// Get performer's wow.xxx scenes
+app.get('/api/performer/:id/wow-scenes', auth.requireAuth, (req, res) => {
+    const performerId = req.params.id;
     
-    if (!studio) {
-        return res.json({ error: 'Studio not found' });
-    }
-    
-    // Get first 5 scenes for this studio
-    const sampleScenes = studio.scenes.slice(0, 5).map(id => sceneMap[id]);
-    
-    // Find performers in first scene
-    const firstSceneId = studio.scenes[0];
-    const performersInScene = [];
-    for (const pid in performerMap) {
-        const item = performerMap[pid];
-        if (item.scenes && item.scenes.some(s => s.id === firstSceneId)) {
-            performersInScene.push(item.performer.name);
+    try {
+        const item = performerMap[performerId];
+        if (!item || !item.performer) {
+            return res.json({ success: false, error: 'Performer not found' });
         }
+        
+        const performerName = item.performer.name;
+        
+        if (!wowData || !wowData.results) {
+            return res.json({ success: true, scenes: [], performerName: performerName });
+        }
+        
+        const performerResult = wowData.results.find(r => 
+            r.performer && r.performer.name && 
+            r.performer.name.toLowerCase() === performerName.toLowerCase()
+        );
+        
+        if (!performerResult || !performerResult.scenes || performerResult.scenes.length === 0) {
+            return res.json({ success: true, scenes: [], performerName: performerName });
+        }
+        
+        const scenes = performerResult.scenes.map(scene => ({
+            id: scene.videoId || 'unknown',
+            title: scene.title || 'Untitled Scene',
+            duration: scene.duration || '0:00',
+            date: null,
+            studio: scene.studio ? { name: scene.studio } : null,
+            images: scene.thumbnail ? [{ url: scene.thumbnail }] : [],
+            video720p: scene.video720p,
+            isFavorited: false,
+            performerName: performerName,
+            wowUrl: scene.url,
+            allQualities: scene.allQualities || []
+        }));
+        
+        res.json({
+            success: true,
+            scenes: scenes,
+            performerName: performerName,
+            totalScenes: scenes.length,
+            videosFound: performerResult.videosFound || 0
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching wow scenes:', error.message);
+        res.json({ success: false, error: error.message, scenes: [] });
+    }
+});
+
+// Video mode page for performer with pagination
+app.get('/performer/:id/videos', auth.requireAuth, async (req, res) => {
+    const performerId = req.params.id;
+    const page = parseInt(req.query.page) || 1;
+    const perPage = 24;
+    const item = performerMap[performerId];
+    
+    if (!item || !item.performer) {
+        return res.status(404).send('Performer not found');
     }
     
-    res.json({
-        studio: {
-            id: studio.id,
-            name: studio.name,
-            totalScenes: studio.scenes.length
-        },
-        sampleScenes: sampleScenes.map(s => ({ id: s.id, title: s.title })),
-        performersInFirstScene: performersInScene
-    });
+    try {
+        const performerName = item.performer.name;
+        let wowScenes = [];
+        let totalWowScenes = 0;
+        let videosFound = 0;
+        let totalPages = 1;
+        
+        if (wowData && wowData.results) {
+            const performerResult = wowData.results.find(r => 
+                r.performer && r.performer.name && 
+                r.performer.name.toLowerCase() === performerName.toLowerCase()
+            );
+            
+            if (performerResult && performerResult.scenes) {
+                const allScenes = performerResult.scenes.map(scene => ({
+                    id: scene.videoId || 'unknown',
+                    title: scene.title || 'Untitled Scene',
+                    duration: scene.duration || '0:00',
+                    studio: scene.studio ? { name: scene.studio } : null,
+                    images: scene.thumbnail ? [{ url: scene.thumbnail }] : [],
+                    video720p: scene.video720p,
+                    url: scene.url,
+                    allQualities: scene.allQualities || []
+                }));
+                
+                totalWowScenes = allScenes.length;
+                videosFound = performerResult.videosFound || 0;
+                totalPages = Math.ceil(totalWowScenes / perPage);
+                
+                const startIndex = (page - 1) * perPage;
+                const endIndex = Math.min(startIndex + perPage, totalWowScenes);
+                wowScenes = allScenes.slice(startIndex, endIndex);
+            }
+        }
+        
+        res.render('performer-videos', {
+            title: `${item.performer.name} - Videos`,
+            performer: item.performer,
+            performerId: performerId,
+            wowScenes: wowScenes,
+            totalWowScenes: totalWowScenes,
+            videosFound: videosFound,
+            hasWowData: wowScenes.length > 0,
+            currentPage: page,
+            totalPages: totalPages,
+            perPage: perPage
+        });
+        
+    } catch (error) {
+        console.error('❌ Video mode error:', error.message);
+        res.status(500).send('Error loading videos');
+    }
 });
 
 // =========================
 // START SERVER
 // =========================
-app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
-    console.log(`💾 Using JSON data for performers/scenes, SQL for ratings/favorites`);
-    console.log(`🔒 Password protection enabled`);
-    console.log(`📊 Advanced Search: http://localhost:${PORT}/advanced-search`);
-});
+// Initialize data first, then start server
+async function startServer() {
+    try {
+        await initializeData();
+        
+        app.listen(PORT, () => {
+            console.log(`🚀 Server running at http://localhost:${PORT}`);
+            console.log(`💾 Using JSON data for performers/scenes, SQL for ratings/favorites`);
+            console.log(`🔒 Password protection enabled`);
+            console.log(`📊 Advanced Search: http://localhost:${PORT}/advanced-search`);
+            console.log(`🎬 Video Mode: http://localhost:${PORT}/performer/{id}/videos`);
+        });
+    } catch (error) {
+        console.error('❌ Failed to initialize data:', error.message);
+        process.exit(1);
+    }
+}
+
+startServer();
 
 process.on('SIGINT', () => {
     console.log('🛑 Shutting down...');
