@@ -2,17 +2,11 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const { Pool } = require('pg');
-const axios = require('axios');
 
 // =========================
 // AUTHENTICATION MODULE
 // =========================
 const auth = require('./auth');
-
-// =========================
-// DATA LOADER - Loads from URL or local cache
-// =========================
-const { fetchData, DATA_URLS } = require('./data-loader');
 
 // =========================
 // MANUALLY LOAD .env FILE
@@ -42,98 +36,369 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // =========================
-// DATA STORAGE (in-memory)
+// DATA STORAGE (in-memory cache)
 // =========================
 let performerList = [];
 let performerMap = {};
 let studioMap = {};
 let sceneMap = {};
 let wowData = null;
+let dataLoaded = false;
 
 // =========================
-// LOAD STASHDB DATA
+// DATABASE CONNECTIONS
 // =========================
-async function loadStashData() {
-    console.log('📂 Loading StashDB data...');
-    
-    const data = await fetchData(DATA_URLS.stashdb, 'stashdb_data.json');
-    
-    if (!data) {
-        console.error('❌ Failed to load StashDB data');
-        return;
-    }
-    
-    // Parse the data
-    let performerData = data;
-    if (data.data && Array.isArray(data.data)) {
-        performerData = data.data;
-    } else if (data.performers && Array.isArray(data.performers)) {
-        performerData = data.performers;
-    }
-    
-    if (Array.isArray(performerData)) {
-        performerData.forEach(item => {
-            const performer = item.performer || item;
-            if (performer && performer.id) {
-                performerMap[performer.id] = item;
-                
-                performerList.push({
-                    id: performer.id,
-                    name: performer.name,
-                    gender: performer.gender,
-                    age: performer.age,
-                    height: performer.height,
-                    scene_count: (item.scenes && Array.isArray(item.scenes)) ? item.scenes.length : 0,
-                    country: performer.country,
-                    ethnicity: performer.ethnicity,
-                    aliases: performer.aliases || [],
-                    is_favorite: performer.is_favorite || false,
-                    images: performer.images || []
-                });
-                
-                if (item.scenes && Array.isArray(item.scenes)) {
-                    item.scenes.forEach(scene => {
-                        if (scene && scene.id) {
-                            sceneMap[scene.id] = scene;
-                            
-                            if (scene.studio && scene.studio.id) {
-                                const studioId = scene.studio.id;
-                                const studioName = scene.studio.name || 'Unknown Studio';
-                                
-                                if (!studioMap[studioId]) {
-                                    studioMap[studioId] = {
-                                        id: studioId,
-                                        name: studioName,
-                                        scenes: []
-                                    };
-                                }
-                                if (!studioMap[studioId].scenes.includes(scene.id)) {
-                                    studioMap[studioId].scenes.push(scene.id);
-                                }
-                            }
-                        }
-                    });
-                }
-            }
+
+// 1. Miget PostgreSQL (for ratings/favorites - existing)
+let migetDb;
+
+try {
+    const url = new URL(process.env.DATABASE_URL);
+    console.log('🔍 Miget Host:', url.hostname);
+    console.log('🔍 Miget Port:', url.port);
+    console.log('🔍 Miget Database:', url.pathname.substring(1));
+
+    migetDb = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 30000,
+    });
+    console.log('✅ Miget PostgreSQL connection pool created (for ratings/favorites)');
+} catch (error) {
+    console.error('❌ Error creating Miget PostgreSQL connection pool:', error.message);
+    process.exit(1);
+}
+
+// 2. Neon PostgreSQL (for performer data)
+let neonDb;
+
+if (process.env.NEON_DATABASE_URL) {
+    try {
+        const neonUrl = new URL(process.env.NEON_DATABASE_URL);
+        console.log('🔍 Neon Host:', neonUrl.hostname);
+        console.log('🔍 Neon Database:', neonUrl.pathname.substring(1));
+
+        neonDb = new Pool({
+            connectionString: process.env.NEON_DATABASE_URL,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 30000,
+            max: 10,
         });
+        console.log('✅ Neon PostgreSQL connection pool created (for performer data)');
+    } catch (error) {
+        console.error('❌ Error creating Neon PostgreSQL connection pool:', error.message);
+        console.log('⚠️ Falling back to local JSON data');
+        neonDb = null;
+    }
+} else {
+    console.log('⚠️ NEON_DATABASE_URL not set - using local JSON data');
+    neonDb = null;
+}
+
+// =========================
+// DATABASE HELPER FUNCTIONS
+// =========================
+
+async function queryMiget(sql, params = []) {
+    try {
+        const result = await migetDb.query(sql, params);
+        return result;
+    } catch (error) {
+        console.error('❌ Miget query error:', error.message);
+        throw error;
+    }
+}
+
+async function queryNeon(sql, params = []) {
+    if (!neonDb) return [];
+    try {
+        const result = await neonDb.query(sql, params);
+        return result.rows;
+    } catch (error) {
+        console.error('❌ Neon query error:', error.message);
+        return [];
+    }
+}
+
+async function getUserData() {
+    try {
+        const ratings = await queryMiget('SELECT performer_id, rating FROM performer_ratings');
+        const favPerformers = await queryMiget('SELECT performer_id FROM favorite_performers');
+        const favScenes = await queryMiget('SELECT scene_id FROM favorite_scenes');
         
-        console.log(`✅ Loaded ${performerList.length} performers`);
-        console.log(`✅ ${Object.keys(sceneMap).length} scenes`);
-        console.log(`✅ ${Object.keys(studioMap).length} studios`);
+        return {
+            performerRatings: ratings.rows.reduce((acc, row) => {
+                acc[row.performer_id] = row.rating;
+                return acc;
+            }, {}),
+            favoritePerformers: favPerformers.rows.map(row => row.performer_id),
+            favoriteScenes: favScenes.rows.map(row => row.scene_id)
+        };
+    } catch (error) {
+        console.error('❌ Error getting user data:', error.message);
+        return {
+            performerRatings: {},
+            favoritePerformers: [],
+            favoriteScenes: []
+        };
     }
 }
 
 // =========================
-// LOAD WOW DATA
+// HELPER: Parse Aliases
 // =========================
-async function loadWowData() {
-    console.log('📂 Loading WOW data...');
+function parseAliases(aliases) {
+    if (!aliases) return [];
+    if (Array.isArray(aliases)) return aliases;
+    if (typeof aliases === 'string') {
+        try {
+            const parsed = JSON.parse(aliases);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
+    return [];
+}
+
+// =========================
+// LOAD DATA FROM NEON
+// =========================
+async function loadDataFromNeon() {
+    if (!neonDb) {
+        console.log('📂 Neon not available - using local JSON data');
+        return false;
+    }
+
+    try {
+        console.log('📂 Loading performer data from Neon...');
+        
+        const performers = await queryNeon('SELECT * FROM performers');
+        console.log(`   Loaded ${performers.length} performers from Neon`);
+        
+        const scenes = await queryNeon('SELECT * FROM scenes');
+        console.log(`   Loaded ${scenes.length} scenes from Neon`);
+        
+        const performerScenes = await queryNeon('SELECT * FROM performer_scenes');
+        console.log(`   Loaded ${performerScenes.length} performer-scene relationships from Neon`);
+        
+        const wowVideos = await queryNeon('SELECT * FROM wow_videos');
+        console.log(`   Loaded ${wowVideos.length} wow videos from Neon`);
+        
+        if (performers.length === 0) {
+            console.log('⚠️ No data found in Neon - check your upload');
+            return false;
+        }
+
+        performerMap = {};
+        performerList = [];
+        sceneMap = {};
+        studioMap = {};
+        
+        // 1. Process performers
+        performers.forEach(performer => {
+            performerMap[performer.id] = {
+                performer: performer,
+                scenes: []
+            };
+            performerList.push({
+                id: performer.id,
+                name: performer.name,
+                gender: performer.gender,
+                age: performer.age,
+                height: performer.height,
+                scene_count: 0,
+                country: performer.country,
+                ethnicity: performer.ethnicity,
+                aliases: parseAliases(performer.aliases),
+                is_favorite: performer.is_favorite || false,
+                images: performer.images ? JSON.parse(performer.images) : []
+            });
+        });
+
+        // 2. Process scenes
+        scenes.forEach(scene => {
+            sceneMap[scene.id] = {
+                id: scene.id,
+                title: scene.title,
+                date: scene.date,
+                duration: scene.duration,
+                studio: scene.studio_id ? {
+                    id: scene.studio_id,
+                    name: scene.studio_name
+                } : null,
+                images: scene.images ? JSON.parse(scene.images) : []
+            };
+            
+            if (scene.studio_id) {
+                if (!studioMap[scene.studio_id]) {
+                    studioMap[scene.studio_id] = {
+                        id: scene.studio_id,
+                        name: scene.studio_name || 'Unknown Studio',
+                        scenes: []
+                    };
+                }
+                studioMap[scene.studio_id].scenes.push(scene.id);
+            }
+        });
+
+        // 3. Build performer-scene relationships
+        console.log(`   Building performer-scene relationships...`);
+        let relationshipCount = 0;
+        
+        performerScenes.forEach(ps => {
+            if (performerMap[ps.performer_id]) {
+                const scene = sceneMap[ps.scene_id];
+                if (scene) {
+                    performerMap[ps.performer_id].scenes.push(scene);
+                    relationshipCount++;
+                }
+            }
+        });
+        console.log(`   Created ${relationshipCount} performer-scene links`);
+
+        // 4. Update performerList with correct scene counts
+        performerList.forEach(p => {
+            if (performerMap[p.id]) {
+                p.scene_count = performerMap[p.id].scenes.length;
+            }
+        });
+
+        // 5. Build wow data
+        if (wowVideos.length > 0) {
+            const wowResults = {};
+            wowVideos.forEach(video => {
+                const performerName = video.performer_name || 'Unknown';
+                if (!wowResults[performerName]) {
+                    wowResults[performerName] = {
+                        performer: { name: performerName },
+                        scenes: [],
+                        totalScenes: 0,
+                        videosFound: 0
+                    };
+                }
+                wowResults[performerName].scenes.push({
+                    videoId: null,
+                    title: video.title,
+                    url: video.url,
+                    thumbnail: video.thumbnail,
+                    duration: video.duration,
+                    studio: video.studio,
+                    video720p: video.video720p || video.video_url,
+                    allQualities: video.all_qualities ? JSON.parse(video.all_qualities) : []
+                });
+                wowResults[performerName].totalScenes++;
+                if (video.video720p) {
+                    wowResults[performerName].videosFound++;
+                }
+            });
+            
+            wowData = {
+                results: Object.values(wowResults),
+                totalScenes: wowVideos.length
+            };
+            console.log(`   Built wow data: ${wowData.totalScenes} scenes`);
+        }
+
+        console.log(`✅ Data loaded from Neon: ${performerList.length} performers, ${Object.keys(sceneMap).length} scenes, ${relationshipCount} links`);
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Error loading data from Neon:', error.message);
+        console.error(error.stack);
+        return false;
+    }
+}
+
+// =========================
+// LOAD DATA FROM LOCAL JSON (FALLBACK)
+// =========================
+function loadDataFromJSON() {
+    console.log('📂 Loading data from local JSON files...');
     
-    const data = await fetchData(DATA_URLS.wowData, 'wow_rss_data.json');
-    
-    if (data) {
-        wowData = data;
-        console.log(`✅ Loaded wow.xxx data: ${wowData.totalScenes || 0} scenes`);
+    const DATA_FILE = path.join(__dirname, 'stashdb_data.json');
+    const WOW_DATA_FILE = path.join(__dirname, 'wow.xxx/data/wow_rss_data.json');
+
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            const raw = fs.readFileSync(DATA_FILE, 'utf8');
+            const parsed = JSON.parse(raw);
+            
+            performerMap = {};
+            performerList = [];
+            sceneMap = {};
+            studioMap = {};
+            
+            let performerData = parsed;
+            if (parsed.data && Array.isArray(parsed.data)) {
+                performerData = parsed.data;
+            } else if (parsed.performers && Array.isArray(parsed.performers)) {
+                performerData = parsed.performers;
+            }
+            
+            if (Array.isArray(performerData)) {
+                performerData.forEach(item => {
+                    const performer = item.performer || item;
+                    if (performer && performer.id) {
+                        performerMap[performer.id] = item;
+                        performerList.push({
+                            id: performer.id,
+                            name: performer.name,
+                            gender: performer.gender,
+                            age: performer.age,
+                            height: performer.height,
+                            scene_count: (item.scenes && Array.isArray(item.scenes)) ? item.scenes.length : 0,
+                            country: performer.country,
+                            ethnicity: performer.ethnicity,
+                            aliases: performer.aliases || [],
+                            is_favorite: performer.is_favorite || false,
+                            images: performer.images || []
+                        });
+                        
+                        if (item.scenes && Array.isArray(item.scenes)) {
+                            item.scenes.forEach(scene => {
+                                if (scene && scene.id) {
+                                    sceneMap[scene.id] = scene;
+                                    if (scene.studio && scene.studio.id) {
+                                        const studioId = scene.studio.id;
+                                        const studioName = scene.studio.name || 'Unknown Studio';
+                                        if (!studioMap[studioId]) {
+                                            studioMap[studioId] = {
+                                                id: studioId,
+                                                name: studioName,
+                                                scenes: []
+                                            };
+                                        }
+                                        if (!studioMap[studioId].scenes.includes(scene.id)) {
+                                            studioMap[studioId].scenes.push(scene.id);
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+            
+            console.log(`✅ Loaded ${performerList.length} performers from JSON`);
+            console.log(`✅ ${Object.keys(sceneMap).length} scenes from JSON`);
+            console.log(`✅ ${Object.keys(studioMap).length} studios from JSON`);
+        } else {
+            console.log('⚠️ stashdb_data.json not found');
+        }
+        
+        if (fs.existsSync(WOW_DATA_FILE)) {
+            const wowRaw = fs.readFileSync(WOW_DATA_FILE, 'utf8');
+            wowData = JSON.parse(wowRaw);
+            console.log(`✅ Loaded wow.xxx data: ${wowData.totalScenes || 0} scenes`);
+        } else {
+            console.log('⚠️ wow_rss_data.json not found');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error loading local JSON data:', error.message);
     }
 }
 
@@ -142,9 +407,19 @@ async function loadWowData() {
 // =========================
 async function initializeData() {
     console.log('🚀 Initializing data...');
-    await loadStashData();
-    await loadWowData();
-    console.log('✅ Data initialization complete!');
+    
+    if (neonDb) {
+        const neonSuccess = await loadDataFromNeon();
+        if (neonSuccess) {
+            dataLoaded = true;
+            console.log('✅ Data initialization complete (from Neon)');
+            return;
+        }
+    }
+    
+    loadDataFromJSON();
+    dataLoaded = true;
+    console.log('✅ Data initialization complete (from local JSON)');
 }
 
 // =========================
@@ -175,85 +450,13 @@ auth.setupAuthRoutes(app);
 // =========================
 console.log('🔍 === DEBUGGING START ===');
 console.log('🔍 DATABASE_URL exists?', !!process.env.DATABASE_URL);
-if (process.env.DATABASE_URL) {
-    const shortUrl = process.env.DATABASE_URL.substring(0, 30) + '...';
-    console.log('🔍 DATABASE_URL (truncated):', shortUrl);
-} else {
-    console.log('❌ DATABASE_URL is NOT SET!');
-}
+console.log('🔍 NEON_DATABASE_URL exists?', !!process.env.NEON_DATABASE_URL);
 console.log('🔍 NODE_ENV:', process.env.NODE_ENV || 'not set');
 console.log('🔍 PORT:', PORT);
 console.log('🔍 === DEBUGGING END ===');
 
 // =========================
-// DATABASE CONNECTION (for ratings/favorites only)
-// =========================
-if (!process.env.DATABASE_URL) {
-    console.error('❌ FATAL ERROR: DATABASE_URL environment variable is required!');
-    process.exit(1);
-}
-
-let db;
-
-try {
-    const url = new URL(process.env.DATABASE_URL);
-    console.log('🔍 Host:', url.hostname);
-    console.log('🔍 Port:', url.port);
-    console.log('🔍 Database:', url.pathname.substring(1));
-
-    const { Pool } = require('pg');
-    db = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 10000,
-        idleTimeoutMillis: 30000,
-    });
-    console.log('✅ PostgreSQL connection pool created (for ratings/favorites)');
-} catch (error) {
-    console.error('❌ Error creating PostgreSQL connection pool:', error.message);
-    process.exit(1);
-}
-
-// =========================
-// DATABASE HELPER FUNCTIONS
-// =========================
-
-async function query(sql, params = []) {
-    try {
-        const result = await db.query(sql, params);
-        return result;
-    } catch (error) {
-        console.error('❌ Database query error:', error.message);
-        throw error;
-    }
-}
-
-async function getUserData() {
-    try {
-        const ratings = await query('SELECT performer_id, rating FROM performer_ratings');
-        const favPerformers = await query('SELECT performer_id FROM favorite_performers');
-        const favScenes = await query('SELECT scene_id FROM favorite_scenes');
-        
-        return {
-            performerRatings: ratings.rows.reduce((acc, row) => {
-                acc[row.performer_id] = row.rating;
-                return acc;
-            }, {}),
-            favoritePerformers: favPerformers.rows.map(row => row.performer_id),
-            favoriteScenes: favScenes.rows.map(row => row.scene_id)
-        };
-    } catch (error) {
-        console.error('❌ Error getting user data:', error.message);
-        return {
-            performerRatings: {},
-            favoritePerformers: [],
-            favoriteScenes: []
-        };
-    }
-}
-
-// =========================
-// SEARCH FUNCTIONS (LOCAL JSON)
+// SEARCH FUNCTIONS
 // =========================
 
 function searchPerformersLocal(searchTerm) {
@@ -274,7 +477,7 @@ function searchPerformersLocal(searchTerm) {
 app.post('/api/rate/performer', auth.requireAuth, async (req, res) => {
     const { performerId, rating } = req.body;
     try {
-        await query(
+        await queryMiget(
             `INSERT INTO performer_ratings (performer_id, rating, updated_at) 
              VALUES ($1, $2, CURRENT_TIMESTAMP)
              ON CONFLICT (performer_id) DO UPDATE SET rating = $2, updated_at = CURRENT_TIMESTAMP`,
@@ -289,15 +492,15 @@ app.post('/api/rate/performer', auth.requireAuth, async (req, res) => {
 app.post('/api/favorite/performer', auth.requireAuth, async (req, res) => {
     const { performerId } = req.body;
     try {
-        const result = await query(
+        const result = await queryMiget(
             'SELECT performer_id FROM favorite_performers WHERE performer_id = $1',
             [performerId]
         );
         if (result.rows.length > 0) {
-            await query('DELETE FROM favorite_performers WHERE performer_id = $1', [performerId]);
+            await queryMiget('DELETE FROM favorite_performers WHERE performer_id = $1', [performerId]);
             res.json({ success: true, favorited: false });
         } else {
-            await query('INSERT INTO favorite_performers (performer_id) VALUES ($1)', [performerId]);
+            await queryMiget('INSERT INTO favorite_performers (performer_id) VALUES ($1)', [performerId]);
             res.json({ success: true, favorited: true });
         }
     } catch (error) {
@@ -308,15 +511,15 @@ app.post('/api/favorite/performer', auth.requireAuth, async (req, res) => {
 app.post('/api/favorite/scene', auth.requireAuth, async (req, res) => {
     const { sceneId } = req.body;
     try {
-        const result = await query(
+        const result = await queryMiget(
             'SELECT scene_id FROM favorite_scenes WHERE scene_id = $1',
             [sceneId]
         );
         if (result.rows.length > 0) {
-            await query('DELETE FROM favorite_scenes WHERE scene_id = $1', [sceneId]);
+            await queryMiget('DELETE FROM favorite_scenes WHERE scene_id = $1', [sceneId]);
             res.json({ success: true, favorited: false });
         } else {
-            await query('INSERT INTO favorite_scenes (scene_id) VALUES ($1)', [sceneId]);
+            await queryMiget('INSERT INTO favorite_scenes (scene_id) VALUES ($1)', [sceneId]);
             res.json({ success: true, favorited: true });
         }
     } catch (error) {
@@ -325,7 +528,7 @@ app.post('/api/favorite/scene', auth.requireAuth, async (req, res) => {
 });
 
 // =========================
-// SEARCH STUDIOS API - SHOW ALL STUDIOS
+// SEARCH STUDIOS API
 // =========================
 app.get('/api/search/studios', auth.requireAuth, (req, res) => {
     const query = req.query.q || '';
@@ -339,8 +542,6 @@ app.get('/api/search/studios', auth.requireAuth, (req, res) => {
                 scene_count: s.scenes ? s.scenes.length : 0
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
-        
-        console.log(`📊 Total studios: ${studios.length}`);
         
         if (!query || query.length < 2) {
             return res.json({ studios: studios });
@@ -359,7 +560,6 @@ app.get('/api/search/studios', auth.requireAuth, (req, res) => {
 // WEB ROUTES (Protected)
 // =========================
 
-// Homepage
 app.get('/', auth.requireAuth, (req, res) => {
     res.render('index', {
         title: 'Performer Viewer',
@@ -370,7 +570,7 @@ app.get('/', auth.requireAuth, (req, res) => {
 });
 
 // =========================
-// SEARCH PERFORMER - POST ROUTE
+// SEARCH PERFORMER
 // =========================
 app.post('/search', auth.requireAuth, async (req, res) => {
     const { searchTerm } = req.body;
@@ -430,10 +630,6 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
     const studioNames = studios ? studios.split(',') : [];
     const offset = (parseInt(page) - 1) * parseInt(perPage);
     
-    console.log(`🔍 Searching for performers in studios: ${studioNames.join(', ')}`);
-    console.log(`📊 Match type: ${match}`);
-    console.log(`📊 SQL Ratings count: ${Object.keys(userData.performerRatings).length}`);
-    
     if (studioNames.length === 0) {
         return res.json({ success: true, performers: [], total: 0, page: 1, totalPages: 0 });
     }
@@ -462,7 +658,7 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
             include = true;
         } else if (match === 'all' && matchedStudios.length === studioNames.length) {
             include = true;
-        } else if (match === 'exact' && matchedStudios.length === studioNames.length && matchedStudios.length === studioNames.length) {
+        } else if (match === 'exact' && matchedStudios.length === studioNames.length) {
             include = true;
         }
         
@@ -492,9 +688,6 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
             });
         }
     }
-    
-    console.log(`📊 Found ${results.length} performers`);
-    console.log(`📊 With ratings: ${results.filter(r => r.performer.rating !== null).length}`);
     
     results.sort((a, b) => b.matchedCount - a.matchedCount);
     
@@ -531,11 +724,6 @@ app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
         studios: r.matchedStudios
     }));
     
-    if (formattedResults.length > 0) {
-        console.log(`📊 First result: ${formattedResults[0].name}, rating: ${formattedResults[0].rating}`);
-        console.log(`📊 Matched studios: ${formattedResults[0].studios.join(', ')}`);
-    }
-    
     const total = formattedResults.length;
     const paginated = formattedResults.slice(offset, offset + parseInt(perPage));
     
@@ -564,6 +752,15 @@ app.get('/performer/:id', auth.requireAuth, async (req, res) => {
             return res.status(404).send('Performer not found');
         }
         
+        let aliases = item.performer.aliases || [];
+        if (typeof aliases === 'string') {
+            try {
+                aliases = JSON.parse(aliases);
+            } catch (e) {
+                aliases = [];
+            }
+        }
+        
         const performer = {
             id: item.performer.id,
             name: item.performer.name,
@@ -573,7 +770,7 @@ app.get('/performer/:id', auth.requireAuth, async (req, res) => {
             scene_count: (item.scenes && Array.isArray(item.scenes)) ? item.scenes.length : 0,
             country: item.performer.country,
             ethnicity: item.performer.ethnicity,
-            aliases: item.performer.aliases || [],
+            aliases: aliases,
             is_favorite: item.performer.is_favorite || false,
             images: item.performer.images || []
         };
@@ -730,7 +927,6 @@ app.get('/advanced-search', auth.requireAuth, (req, res) => {
 // VIDEO MODE ROUTES
 // =========================
 
-// Get performer's wow.xxx scenes
 app.get('/api/performer/:id/wow-scenes', auth.requireAuth, (req, res) => {
     const performerId = req.params.id;
     
@@ -783,7 +979,64 @@ app.get('/api/performer/:id/wow-scenes', auth.requireAuth, (req, res) => {
     }
 });
 
-// Video mode page for performer with pagination
+// =========================
+// VIDEO PROXY - Streams video from wow.xxx
+// =========================
+app.get('/api/video/proxy', auth.requireAuth, async (req, res) => {
+    const videoUrl = req.query.url;
+    
+    if (!videoUrl) {
+        return res.status(400).json({ error: 'No video URL provided' });
+    }
+    
+    try {
+        console.log(`📹 Proxying video: ${videoUrl.substring(0, 80)}...`);
+        
+        const response = await fetch(videoUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.wow.xxx/',
+                'Origin': 'https://www.wow.xxx',
+                'Accept': 'video/mp4, video/webm, video/*',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+        
+        // Set headers for video streaming
+        res.setHeader('Content-Type', response.headers.get('content-type') || 'video/mp4');
+        res.setHeader('Content-Length', response.headers.get('content-length'));
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        
+        // Stream the video
+        const reader = response.body.getReader();
+        const stream = new ReadableStream({
+            start(controller) {
+                function push() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            controller.close();
+                            return;
+                        }
+                        controller.enqueue(value);
+                        push();
+                    });
+                }
+                push();
+            }
+        });
+        
+        stream.pipeTo(res);
+        
+    } catch (error) {
+        console.error('❌ Video proxy error:', error.message);
+        res.status(500).json({ error: 'Failed to proxy video' });
+    }
+});
+
+// =========================
+// VIDEO MODE PAGE
+// =========================
 app.get('/performer/:id/videos', auth.requireAuth, async (req, res) => {
     const performerId = req.params.id;
     const page = parseInt(req.query.page) || 1;
@@ -851,14 +1104,13 @@ app.get('/performer/:id/videos', auth.requireAuth, async (req, res) => {
 // =========================
 // START SERVER
 // =========================
-// Initialize data first, then start server
 async function startServer() {
     try {
         await initializeData();
         
         app.listen(PORT, () => {
             console.log(`🚀 Server running at http://localhost:${PORT}`);
-            console.log(`💾 Using JSON data for performers/scenes, SQL for ratings/favorites`);
+            console.log(`💾 Data source: ${neonDb ? 'Neon (primary) + Miget (ratings)' : 'Local JSON + Miget (ratings)'}`);
             console.log(`🔒 Password protection enabled`);
             console.log(`📊 Advanced Search: http://localhost:${PORT}/advanced-search`);
             console.log(`🎬 Video Mode: http://localhost:${PORT}/performer/{id}/videos`);
@@ -873,6 +1125,7 @@ startServer();
 
 process.on('SIGINT', () => {
     console.log('🛑 Shutting down...');
-    if (db) db.end();
+    if (migetDb) migetDb.end();
+    if (neonDb) neonDb.end();
     process.exit(0);
 });

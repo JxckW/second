@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><%= title %></title>
     
-    <!-- Video.js CSS -->
-    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet">
-    
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -245,9 +242,12 @@
             font-family: Arial, sans-serif;
             background: none;
             border: none;
+            padding: 10px;
+            line-height: 1;
         }
         .video-modal .close-modal:hover {
             color: #667eea;
+            transform: scale(1.2);
         }
         .video-modal .video-container {
             width: 90%;
@@ -255,25 +255,12 @@
             max-height: 90vh;
             position: relative;
         }
-        
-        /* Video.js player styles */
-        .video-js {
-            width: 100% !important;
-            height: auto !important;
-            aspect-ratio: 16/9;
+        .video-modal video {
+            width: 100%;
+            max-height: 80vh;
             background: #000;
             border-radius: 8px;
         }
-        .video-js .vjs-big-play-button {
-            top: 50% !important;
-            left: 50% !important;
-            margin-top: -1.5em !important;
-            margin-left: -1.5em !important;
-        }
-        .video-js .vjs-control-bar {
-            border-radius: 0 0 8px 8px;
-        }
-        
         .video-modal .video-title {
             color: #fff;
             font-size: 18px;
@@ -403,7 +390,6 @@
             <div class="video-grid">
                 <% wowScenes.forEach(scene => { %>
                     <% 
-                        // Safely escape data for JavaScript
                         const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
                         const safeUrl = JSON.stringify(scene.video720p || '');
                         const safeThumbnail = JSON.stringify(scene.thumbnail || '');
@@ -435,7 +421,6 @@
                 <% }) %>
             </div>
 
-            <!-- Pagination -->
             <% if (totalPages > 1) { %>
                 <div class="pagination">
                     <% if (currentPage > 1) { %>
@@ -465,24 +450,16 @@
         <% } %>
     </div>
 
-    <!-- Video Player Modal with Video.js -->
+    <!-- Video Player Modal -->
     <div class="video-modal" id="videoModal">
         <button class="close-modal" onclick="closeVideoModal()">✕</button>
         <div class="video-container">
             <div id="videoLoading" class="video-loading">⏳ Loading video...</div>
             <div id="videoError" class="video-error" style="display:none;"></div>
             
-            <!-- Video.js player -->
-            <video id="videoPlayer" class="video-js vjs-big-play-centered" 
-                   controls 
-                   preload="metadata"
-                   playsinline
-                   poster="">
+            <video id="videoPlayer" width="100%" controls preload="metadata" playsinline>
                 <source id="videoSource" src="" type="video/mp4">
-                <p class="vjs-no-js">
-                    To view this video please enable JavaScript, and consider upgrading to a web browser that
-                    <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-                </p>
+                Your browser does not support the video tag.
             </video>
             
             <div id="videoTitle" class="video-title">Video</div>
@@ -495,16 +472,11 @@
         </div>
     </div>
 
-    <!-- Video.js JS -->
-    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
-
     <script>
-        let videojsPlayer = null;
+        let currentVideoUrl = null;
         
         function openVideoModal(videoUrl, title, thumbnail) {
-            console.log('🎬 Opening video with Video.js:', videoUrl);
-            console.log('📝 Title:', title);
-            console.log('🖼️ Thumbnail:', thumbnail);
+            console.log('🎬 Opening video:', videoUrl);
             
             if (!videoUrl || videoUrl === 'null' || videoUrl === 'undefined' || videoUrl === '') {
                 alert('No video URL available for this scene');
@@ -512,134 +484,98 @@
             }
             
             const modal = document.getElementById('videoModal');
+            const video = document.getElementById('videoPlayer');
+            const source = document.getElementById('videoSource');
+            const titleEl = document.getElementById('videoTitle');
             const loading = document.getElementById('videoLoading');
             const errorEl = document.getElementById('videoError');
-            const titleEl = document.getElementById('videoTitle');
-            const videoEl = document.getElementById('videoPlayer');
-            const source = document.getElementById('videoSource');
             
             // Reset
             loading.style.display = 'block';
             loading.textContent = '⏳ Loading video...';
             errorEl.style.display = 'none';
-            errorEl.innerHTML = '';
+            errorEl.textContent = '';
             titleEl.textContent = title || 'Video';
             
             // Show modal
             modal.classList.add('active');
+            currentVideoUrl = videoUrl;
             
-            // If there's an existing player, dispose it
-            if (videojsPlayer) {
-                videojsPlayer.dispose();
-                videojsPlayer = null;
-            }
-            
-            // Set poster image
-            videoEl.poster = thumbnail || '';
-            
-            // Set source
+            // Try direct URL first (like wow.xxx does)
             source.src = videoUrl;
+            video.load();
             
-            // Initialize Video.js player
-            videojsPlayer = videojs(videoEl, {
-                controls: true,
-                autoplay: true,
-                preload: 'metadata',
-                fluid: true,
-                playbackRates: [0.5, 1, 1.5, 2],
-                controlBar: {
-                    volumePanel: {
-                        inline: false
-                    }
-                }
-            });
-            
-            // Handle player ready
-            videojsPlayer.ready(function() {
-                console.log('✅ Video.js player ready');
+            // Set up event handlers
+            video.oncanplay = function() {
+                console.log('✅ Video can play (direct)');
                 loading.style.display = 'none';
+                video.play().catch(e => console.log('Autoplay prevented:', e));
+            };
+            
+            video.onerror = function(e) {
+                console.error('❌ Direct video error, trying proxy...', e);
                 
-                // Auto-play
-                try {
-                    videojsPlayer.play().catch(function(e) {
-                        console.log('Autoplay prevented:', e);
-                    });
-                } catch (e) {
-                    console.log('Play error:', e);
-                }
-            });
-            
-            // Handle errors
-            videojsPlayer.on('error', function() {
-                var error = videojsPlayer.error();
-                console.error('❌ Video.js error:', error);
-                loading.style.display = 'none';
-                errorEl.style.display = 'block';
-                errorEl.innerHTML = `
-                    ❌ Error loading video: ${error ? error.message : 'Unknown error'}
-                    <br><br>
-                    <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
-                        📥 Download Video (opens in new tab)
-                    </a>
-                    <br><br>
-                    <span style="font-size: 13px; color: #888;">
-                        Copy the URL and paste in VLC player if needed
-                    </span>
-                `;
-            });
-            
-            // Handle waiting/buffering
-            videojsPlayer.on('waiting', function() {
-                loading.textContent = '⏳ Buffering...';
-                loading.style.display = 'block';
-            });
-            
-            videojsPlayer.on('canplay', function() {
-                loading.style.display = 'none';
-            });
-            
-            videojsPlayer.on('playing', function() {
-                loading.style.display = 'none';
-                errorEl.style.display = 'none';
-            });
+                // Fallback to proxy
+                const proxyUrl = `/api/video/proxy?url=${encodeURIComponent(videoUrl)}`;
+                console.log('   Proxy URL:', proxyUrl.substring(0, 80) + '...');
+                source.src = proxyUrl;
+                video.load();
+                
+                video.oncanplay = function() {
+                    console.log('✅ Video can play (proxy)');
+                    loading.style.display = 'none';
+                    video.play().catch(err => console.log('Autoplay prevented:', err));
+                };
+                
+                video.onerror = function(err2) {
+                    console.error('❌ Proxy error too:', err2);
+                    loading.style.display = 'none';
+                    errorEl.style.display = 'block';
+                    errorEl.innerHTML = `
+                        ❌ Error loading video
+                        <br><br>
+                        <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                            📥 Open video in new tab
+                        </a>
+                        <br><br>
+                        <span style="font-size: 13px; color: #888;">
+                            If the video doesn't open, copy the URL and paste in VLC player
+                        </span>
+                    `;
+                };
+            };
         }
         
         function closeVideoModal() {
+            console.log('🔒 Closing video modal');
             const modal = document.getElementById('videoModal');
+            const video = document.getElementById('videoPlayer');
             
-            // Dispose Video.js player
-            if (videojsPlayer) {
-                videojsPlayer.dispose();
-                videojsPlayer = null;
-            }
+            video.pause();
+            video.currentTime = 0;
             
-            // Reset video element
-            const videoEl = document.getElementById('videoPlayer');
             const source = document.getElementById('videoSource');
             source.src = '';
-            videoEl.load();
+            video.load();
             
             modal.classList.remove('active');
+            
+            document.getElementById('videoLoading').style.display = 'block';
+            document.getElementById('videoLoading').textContent = '⏳ Loading video...';
+            
+            currentVideoUrl = null;
         }
         
-        // Close with Escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeVideoModal();
             }
         });
         
-        // Close clicking background
         document.getElementById('videoModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeVideoModal();
             }
-        });
-        
-        // Also close with the close button
-        document.querySelector('.close-modal').addEventListener('click', function(e) {
-            e.stopPropagation();
-            closeVideoModal();
         });
     </script>
 </body>
