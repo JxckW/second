@@ -8,6 +8,108 @@ const { Pool } = require('pg');
 // =========================
 const auth = require('./auth');
 
+
+
+// server.js - Add this at the top with other requires
+const { fetchData, DATA_URLS } = require('./data-loader');
+
+// =========================
+// LOAD STASHDB DATA
+// =========================
+async function loadStashData() {
+    console.log('📂 Loading StashDB data...');
+    
+    const data = await fetchData(DATA_URLS.stashdb, 'stashdb_data.json');
+    
+    if (!data) {
+        console.error('❌ Failed to load StashDB data');
+        return;
+    }
+    
+    // Parse the data (same as before)
+    let performerData = data;
+    if (data.data && Array.isArray(data.data)) {
+        performerData = data.data;
+    } else if (data.performers && Array.isArray(data.performers)) {
+        performerData = data.performers;
+    }
+    
+    if (Array.isArray(performerData)) {
+        performerData.forEach(item => {
+            const performer = item.performer || item;
+            if (performer && performer.id) {
+                performerMap[performer.id] = item;
+                
+                performerList.push({
+                    id: performer.id,
+                    name: performer.name,
+                    gender: performer.gender,
+                    age: performer.age,
+                    height: performer.height,
+                    scene_count: (item.scenes && Array.isArray(item.scenes)) ? item.scenes.length : 0,
+                    country: performer.country,
+                    ethnicity: performer.ethnicity,
+                    aliases: performer.aliases || [],
+                    is_favorite: performer.is_favorite || false,
+                    images: performer.images || []
+                });
+                
+                if (item.scenes && Array.isArray(item.scenes)) {
+                    item.scenes.forEach(scene => {
+                        if (scene && scene.id) {
+                            sceneMap[scene.id] = scene;
+                            
+                            if (scene.studio && scene.studio.id) {
+                                const studioId = scene.studio.id;
+                                const studioName = scene.studio.name || 'Unknown Studio';
+                                
+                                if (!studioMap[studioId]) {
+                                    studioMap[studioId] = {
+                                        id: studioId,
+                                        name: studioName,
+                                        scenes: []
+                                    };
+                                }
+                                if (!studioMap[studioId].scenes.includes(scene.id)) {
+                                    studioMap[studioId].scenes.push(scene.id);
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        });
+        
+        console.log(`✅ Loaded ${performerList.length} performers`);
+        console.log(`✅ ${Object.keys(sceneMap).length} scenes`);
+        console.log(`✅ ${Object.keys(studioMap).length} studios`);
+    }
+}
+
+// =========================
+// LOAD WOW DATA
+// =========================
+async function loadWowData() {
+    console.log('📂 Loading WOW data...');
+    
+    const data = await fetchData(DATA_URLS.wowData, 'wow_rss_data.json');
+    
+    if (data) {
+        wowData = data;
+        console.log(`✅ Loaded wow.xxx data: ${wowData.totalScenes || 0} scenes`);
+    }
+}
+
+// =========================
+// INITIALIZE DATA ON STARTUP
+// =========================
+async function initializeData() {
+    console.log('🚀 Initializing data...');
+    await loadStashData();
+    await loadWowData();
+    console.log('✅ Data initialization complete!');
+}
+
 // =========================
 // MANUALLY LOAD .env FILE
 // =========================
