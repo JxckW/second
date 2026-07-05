@@ -10,7 +10,7 @@ const HEADERS = {
   'ApiKey': API_KEY
 };
 
-// GraphQL client
+// GraphQL client - kept for future data fetching
 async function gql(query, variables = {}) {
   try {
     const response = await axios.post(GRAPHQL_URL, {
@@ -35,33 +35,7 @@ async function gql(query, variables = {}) {
   }
 }
 
-// =========================
-// SEARCH PERFORMER - SINGLE RESULT
-// =========================
-
-async function findPerformer(name) {
-  const query = `
-  query SearchPerformer($term: String!) {
-    searchPerformer(term: $term) {
-      id
-      name
-      images {
-        url
-      }
-    }
-  }`;
-
-  const data = await gql(query, {
-    term: name
-  });
-
-  return data.searchPerformer?.[0] || null;
-}
-
-// =========================
-// SEARCH PERFORMERS - ALL RESULTS
-// =========================
-
+// Search performer - kept for future updates
 async function searchPerformers(term) {
   const query = `
   query SearchPerformer($term: String!) {
@@ -81,10 +55,7 @@ async function searchPerformers(term) {
   return data.searchPerformer || [];
 }
 
-// =========================
-// GET PERFORMER DETAILS
-// =========================
-
+// Get performer details - kept for future updates
 async function getPerformerDetails(performerId) {
   const query = `
   query PerformerDetails($id: ID!) {
@@ -109,164 +80,8 @@ async function getPerformerDetails(performerId) {
   return data.findPerformer;
 }
 
-// =========================
-// GET ALL SCENES WITH PAGINATION (FIXED)
-// =========================
-
-async function getScenes(performerID, page = 1, perPage = 24) {
-  const query = `
-  query PerformerScenes($input: SceneQueryInput!) {
-    queryScenes(input: $input) {
-      count
-      scenes {
-        id
-        title
-        date
-        duration
-        details
-        director
-        studio {
-          id
-          name
-        }
-        images {
-          url
-        }
-        performers {
-          performer {
-            id
-            name
-          }
-        }
-        tags {
-          id
-          name
-        }
-      }
-    }
-  }`;
-
-  const data = await gql(query, {
-    input: {
-      performers: {
-        value: performerID,
-        modifier: "INCLUDES"
-      },
-      page,
-      per_page: perPage,  // <-- FIXED: added comma here
-      sort: 'DATE',
-      direction: 'DESC'
-    }
-  });
-
-  return {
-    count: data.queryScenes.count,
-    scenes: data.queryScenes.scenes
-  };
-}
-
-// =========================
-// SEARCH SCENES BY PERFORMER - FETCHES ALL SCENES
-// =========================
-
-async function searchPerformerScenes(performerId, searchTerm, page = 1, perPage = 24) {
-  // Fetch ALL scenes by paginating through results
-  const query = `
-  query PerformerScenes($input: SceneQueryInput!) {
-    queryScenes(input: $input) {
-      count
-      scenes {
-        id
-        title
-        date
-        duration
-        details
-        director
-        studio {
-          id
-          name
-        }
-        images {
-          url
-        }
-        performers {
-          performer {
-            id
-            name
-          }
-        }
-        tags {
-          id
-          name
-        }
-      }
-    }
-  }`;
-
-  let allScenes = [];
-  let currentPage = 1;
-  const perPageFetch = 100;
-  let hasMore = true;
-
-  // Fetch all pages of scenes
-  while (hasMore) {
-    const data = await gql(query, {
-      input: {
-        performers: {
-          value: performerId,
-          modifier: "INCLUDES"
-        },
-        page: currentPage,
-        per_page: perPageFetch
-      }
-    });
-
-    const scenes = data.queryScenes.scenes || [];
-    allScenes = allScenes.concat(scenes);
-
-    // Check if we've fetched all scenes
-    const totalCount = data.queryScenes.count || 0;
-    hasMore = allScenes.length < totalCount;
-    currentPage++;
-
-    // Safety limit - prevent infinite loops (max 1000 scenes)
-    if (allScenes.length >= 1000 || currentPage > 20) {
-      hasMore = false;
-    }
-  }
-
-  console.log(`📊 Fetched ${allScenes.length} total scenes for performer`);
-
-  // Filter scenes by title or studio name
-  const searchTermLower = searchTerm ? searchTerm.trim().toLowerCase() : '';
-  let filteredScenes = allScenes;
-
-  if (searchTermLower) {
-    filteredScenes = allScenes.filter(scene => {
-      const title = (scene.title || '').toLowerCase();
-      const studioName = (scene.studio?.name || '').toLowerCase();
-      return title.includes(searchTermLower) || studioName.includes(searchTermLower);
-    });
-    console.log(`🔍 Found ${filteredScenes.length} scenes matching "${searchTerm}"`);
-  }
-
-  // Paginate the filtered results
-  const totalCount = filteredScenes.length;
-  const startIndex = (page - 1) * perPage;
-  const endIndex = Math.min(startIndex + perPage, totalCount);
-  const paginatedScenes = filteredScenes.slice(startIndex, endIndex);
-
-  return {
-    count: totalCount,
-    scenes: paginatedScenes
-  };
-}
-
 module.exports = {
-  findPerformer,
   searchPerformers,
   getPerformerDetails,
-  getScenes,
-  searchPerformerScenes,
   gql
 };

@@ -18,12 +18,11 @@
         .studio-logo img { width: 100%; height: 100%; object-fit: contain; }
         .studio-info h2 { font-size: 28px; color: #fff; }
         .studio-info p { color: #888; font-size: 14px; margin-top: 4px; }
-        .studio-info .favorite-badge { display: inline-block; background: #764ba2; padding: 2px 12px; border-radius: 12px; font-size: 12px; margin-left: 8px; }
 
         .filter-section { background: #1a1a1a; border-radius: 16px; padding: 16px 20px; margin-bottom: 24px; border: 1px solid #2a2a2a; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
         .filter-section label { color: #888; font-size: 13px; font-weight: 600; }
-        .filter-section select, .filter-section input { padding: 8px 14px; border-radius: 8px; background: #252525; color: #e0e0e0; border: 1px solid #333; font-size: 13px; cursor: pointer; }
-        .filter-section select:focus, .filter-section input:focus { outline: none; border-color: #667eea; }
+        .filter-section select { padding: 8px 14px; border-radius: 8px; background: #252525; color: #e0e0e0; border: 1px solid #333; font-size: 13px; cursor: pointer; }
+        .filter-section select:focus { outline: none; border-color: #667eea; }
         .filter-section .filter-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         .filter-count { color: #888; font-size: 13px; margin-left: auto; }
         .filter-btn { padding: 6px 16px; border-radius: 20px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer; font-size: 12px; transition: all 0.2s; }
@@ -53,7 +52,6 @@
         .page-link.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-color: #667eea; color: #fff; }
 
         .no-results { text-align: center; padding: 60px; color: #888; }
-        .no-results h3 { color: #fff; margin-bottom: 8px; }
         .loading { text-align: center; padding: 40px; color: #888; }
 
         footer { text-align: center; color: #444; font-size: 12px; padding: 20px; margin-top: 20px; }
@@ -72,19 +70,10 @@
 
         <div class="studio-header">
             <div class="studio-logo">
-                <% if (studioImage) { %>
-                    <img src="<%= studioImage %>" alt="<%= studioName %>">
-                <% } else { %>
-                    <div style="font-size:32px;color:#555;">🏢</div>
-                <% } %>
+                <div style="font-size:32px;color:#555;">🏢</div>
             </div>
             <div class="studio-info">
-                <h2>
-                    <%= studioName %>
-                    <% if (isFavorite) { %>
-                        <span class="favorite-badge">❤️ Favorite</span>
-                    <% } %>
-                </h2>
+                <h2><%= studioName %></h2>
                 <p><%= totalScenes %> scenes • <%= performersCount %> performers</p>
             </div>
         </div>
@@ -152,9 +141,6 @@
                                 <% if (scene.date) { %>
                                     <span class="date">📅 <%= new Date(scene.date).toLocaleDateString() %></span>
                                 <% } %>
-                                <% if (scene.performers && scene.performers.length > 0) { %>
-                                    <span class="performer-names">👥 <%= scene.performers.map(p => p.performer.name).join(', ') %></span>
-                                <% } %>
                             </div>
                         </div>
                     </a>
@@ -170,13 +156,13 @@
         <div class="pagination" id="paginationContainer">
             <% if (totalPages > 1) { %>
                 <% if (currentPage > 1) { %>
-                    <a href="#" onclick="goToPage(<%= currentPage - 1 %>)" class="page-link">← Previous</a>
+                    <a href="#" onclick="event.preventDefault(); goToPage(<%= currentPage - 1 %>)" class="page-link">← Previous</a>
                 <% } %>
                 <% for (let i = 1; i <= totalPages; i++) { %>
                     <% if (i === currentPage) { %>
                         <span class="page-link active"><%= i %></span>
                     <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
-                        <a href="#" onclick="goToPage(<%= i %>)" class="page-link"><%= i %></a>
+                        <a href="#" onclick="event.preventDefault(); goToPage(<%= i %>)" class="page-link"><%= i %></a>
                     <% } else if (i === 4 && currentPage > 5) { %>
                         <span class="page-link">…</span>
                     <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
@@ -184,260 +170,228 @@
                     <% } %>
                 <% } %>
                 <% if (currentPage < totalPages) { %>
-                    <a href="#" onclick="goToPage(<%= currentPage + 1 %>)" class="page-link">Next →</a>
+                    <a href="#" onclick="event.preventDefault(); goToPage(<%= currentPage + 1 %>)" class="page-link">Next →</a>
                 <% } %>
             <% } %>
         </div>
 
         <footer>
-            <p>Data from StashDB</p>
+            <p>Data from StashDB (cached locally)</p>
         </footer>
     </div>
 
-    <!-- Store all scenes for client-side filtering -->
-<div id="allScenesData" data-scenes='<%- JSON.stringify(allScenes) %>' style="display: none;"></div>
-
     <script>
-    // =========================
-    // ALL SCENES DATA - Load from server
-    // =========================
-    var allScenes = <%- JSON.stringify(allScenes) %>;
-    var currentPage = <%= currentPage %>;
-    var studioId = '<%= studioId %>';
-    var perPage = 24;
+        // =========================
+        // ALL SCENES DATA
+        // =========================
+        var allScenes = <%- JSON.stringify(allScenes) %>;
+        var currentPage = <%= currentPage %>;
+        var studioId = '<%= studioId %>';
+        var perPage = 24;
 
-    // Debug: Log the number of scenes loaded
-    console.log('📊 Loaded ' + allScenes.length + ' scenes for studio');
+        // =========================
+        // FILTERING STATE
+        // =========================
+        var currentFilters = {
+            tier: 'all',
+            favorites: 'all'
+        };
 
-    // =========================
-    // FILTERING STATE
-    // =========================
-    var currentFilters = {
-        tier: 'all',
-        favorites: 'all'
-    };
-
-    // =========================
-    // TOGGLE FAVORITE SCENE
-    // =========================
-    function toggleFavoriteScene(sceneId, button) {
-        event.preventDefault();
-        event.stopPropagation();
-        fetch('/api/favorite/scene', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sceneId: sceneId })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                // Update the scene in allScenes
-                var scene = allScenes.find(s => s.id === sceneId);
-                if (scene) {
-                    scene.isFavorited = data.favorited;
-                }
-                if (data.favorited) {
-                    button.textContent = '⭐';
-                    button.style.color = '#f0c040';
-                } else {
-                    button.textContent = '☆';
-                    button.style.color = '#555';
-                }
-                applyFilters();
-            }
-        })
-        .catch(err => console.error('Error toggling scene favorite:', err));
-    }
-
-    // =========================
-    // FILTER FUNCTIONS
-    // =========================
-    function toggleFilter(type) {
-        if (type === 'favorites') {
-            var btn = document.querySelector('[data-filter="favorites"]');
-            if (currentFilters.favorites === 'favorited') {
-                currentFilters.favorites = 'all';
-                btn.classList.remove('active');
-            } else {
-                currentFilters.favorites = 'favorited';
-                btn.classList.add('active');
-                document.querySelector('[data-filter="unfavorites"]').classList.remove('active');
-            }
-        } else if (type === 'unfavorites') {
-            var btn = document.querySelector('[data-filter="unfavorites"]');
-            if (currentFilters.favorites === 'unfavorited') {
-                currentFilters.favorites = 'all';
-                btn.classList.remove('active');
-            } else {
-                currentFilters.favorites = 'unfavorited';
-                btn.classList.add('active');
-                document.querySelector('[data-filter="favorites"]').classList.remove('active');
-            }
-        }
-        applyFilters();
-    }
-
-    function applyFilters() {
-        var tier = document.getElementById('tierFilter').value;
-        currentFilters.tier = tier;
-        
-        // Debug
-        console.log('🔍 Filtering with tier:', tier, 'favorites:', currentFilters.favorites);
-        
-        // Filter allScenes
-        var filteredScenes = allScenes.filter(function(scene) {
-            var sceneTier = scene.performerRating || 'unrated';
-            var isFavorited = scene.isFavorited || false;
-            var show = true;
-
-            // Tier filter
-            if (tier !== 'all') {
-                if (tier === 'rated' && sceneTier === 'unrated') show = false;
-                else if (tier === 'unrated' && sceneTier !== 'unrated') show = false;
-                else if (tier !== 'rated' && tier !== 'unrated' && sceneTier !== tier) show = false;
-            }
-
-            // Favorites filter
-            if (currentFilters.favorites === 'favorited' && !isFavorited) show = false;
-            if (currentFilters.favorites === 'unfavorited' && isFavorited) show = false;
-
-            return show;
-        });
-
-        // Debug
-        console.log('🔍 Found ' + filteredScenes.length + ' scenes matching filters');
-
-        // Paginate
-        var totalCount = filteredScenes.length;
-        var startIndex = (currentPage - 1) * perPage;
-        var endIndex = Math.min(startIndex + perPage, totalCount);
-        var paginatedScenes = filteredScenes.slice(startIndex, endIndex);
-
-        // Update count
-        var countSpan = document.getElementById('filterCount');
-        if (countSpan) {
-            countSpan.textContent = 'Showing ' + totalCount + ' of ' + allScenes.length + ' scenes';
-        }
-
-        // Render scenes
-        var grid = document.getElementById('sceneGrid');
-        var noResults = document.getElementById('noResults');
-
-        if (grid) {
-            if (paginatedScenes.length === 0) {
-                grid.innerHTML = '';
-                if (noResults) noResults.style.display = 'block';
-            } else {
-                if (noResults) noResults.style.display = 'none';
-                grid.innerHTML = paginatedScenes.map(function(scene) {
-                    return `
-                        <div class="scene-card" 
-                             data-scene-id="${scene.id}"
-                             data-tier="${scene.performerRating || 'unrated'}"
-                             data-favorited="${scene.isFavorited ? 'true' : 'false'}">
-                            <a href="/scene/${scene.id}" style="text-decoration: none; color: inherit; display: block; height: 100%;">
-                                <div class="scene-thumbnail">
-                                    ${scene.images && scene.images.length > 0 && scene.images[0].url ? 
-                                        `<img src="${scene.images[0].url}" alt="${scene.title || 'Scene'}" loading="lazy">` :
-                                        '<div class="no-image">🎬</div>'
-                                    }
-                                    ${scene.duration ? `<div class="scene-duration">${Math.floor(scene.duration / 60)}m</div>` : ''}
-                                    <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavoriteScene('${scene.id}', this)" 
-                                            class="scene-favorite-btn" 
-                                            style="color: ${scene.isFavorited ? '#f0c040' : '#555'};">
-                                        ${scene.isFavorited ? '⭐' : '☆'}
-                                    </button>
-                                    ${scene.performerRating ? `
-                                        <div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.8);padding:2px 10px;border-radius:12px;font-size:12px;color:#f0c040;border:1px solid #f0c040;">
-                                            ${scene.performerRating}
-                                        </div>
-                                    ` : ''}
-                                </div>
-                                <div class="scene-info">
-                                    <h4>${scene.title || 'Untitled Scene'}</h4>
-                                    <div class="scene-meta">
-                                        ${scene.date ? `<span class="date">📅 ${new Date(scene.date).toLocaleDateString()}</span>` : ''}
-                                        ${scene.performers && scene.performers.length > 0 ? 
-                                            `<span class="performer-names">👥 ${scene.performers.map(p => p.performer.name).join(', ')}</span>` : ''
-                                        }
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-                    `;
-                }).join('');
-            }
-        }
-
-        // Update pagination
-        updatePagination(totalCount);
-    }
-
-    function updatePagination(totalCount) {
-        var totalPages = Math.ceil(totalCount / perPage);
-        var paginationContainer = document.getElementById('paginationContainer');
-        
-        if (paginationContainer) {
-            if (totalPages > 1) {
-                var paginationHtml = '<div class="pagination">';
-                if (currentPage > 1) {
-                    paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${currentPage - 1});" class="page-link">← Previous</a>`;
-                }
-                for (var i = 1; i <= totalPages; i++) {
-                    if (i === currentPage) {
-                        paginationHtml += `<span class="page-link active">${i}</span>`;
-                    } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) {
-                        paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${i});" class="page-link">${i}</a>`;
-                    } else if (i === 4 && currentPage > 5) {
-                        paginationHtml += '<span class="page-link">…</span>';
-                    } else if (i === totalPages - 3 && currentPage < totalPages - 4) {
-                        paginationHtml += '<span class="page-link">…</span>';
+        // =========================
+        // TOGGLE FAVORITE SCENE
+        // =========================
+        function toggleFavoriteScene(sceneId, button) {
+            event.preventDefault();
+            event.stopPropagation();
+            fetch('/api/favorite/scene', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sceneId: sceneId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    var scene = allScenes.find(s => s.id === sceneId);
+                    if (scene) scene.isFavorited = data.favorited;
+                    if (data.favorited) {
+                        button.textContent = '⭐';
+                        button.style.color = '#f0c040';
+                    } else {
+                        button.textContent = '☆';
+                        button.style.color = '#555';
                     }
+                    applyFilters();
                 }
-                if (currentPage < totalPages) {
-                    paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${currentPage + 1});" class="page-link">Next →</a>`;
+            })
+            .catch(err => console.error('Error toggling scene favorite:', err));
+        }
+
+        // =========================
+        // FILTER FUNCTIONS
+        // =========================
+        function toggleFilter(type) {
+            if (type === 'favorites') {
+                var btn = document.querySelector('[data-filter="favorites"]');
+                if (currentFilters.favorites === 'favorited') {
+                    currentFilters.favorites = 'all';
+                    btn.classList.remove('active');
+                } else {
+                    currentFilters.favorites = 'favorited';
+                    btn.classList.add('active');
+                    document.querySelector('[data-filter="unfavorites"]').classList.remove('active');
                 }
-                paginationHtml += '</div>';
-                paginationContainer.innerHTML = paginationHtml;
-            } else {
-                paginationContainer.innerHTML = '';
+            } else if (type === 'unfavorites') {
+                var btn = document.querySelector('[data-filter="unfavorites"]');
+                if (currentFilters.favorites === 'unfavorited') {
+                    currentFilters.favorites = 'all';
+                    btn.classList.remove('active');
+                } else {
+                    currentFilters.favorites = 'unfavorited';
+                    btn.classList.add('active');
+                    document.querySelector('[data-filter="favorites"]').classList.remove('active');
+                }
+            }
+            applyFilters();
+        }
+
+        function applyFilters() {
+            var tier = document.getElementById('tierFilter').value;
+            currentFilters.tier = tier;
+            
+            var filteredScenes = allScenes.filter(function(scene) {
+                var sceneTier = scene.performerRating || 'unrated';
+                var isFavorited = scene.isFavorited || false;
+                var show = true;
+
+                if (tier !== 'all') {
+                    if (tier === 'rated' && sceneTier === 'unrated') show = false;
+                    else if (tier === 'unrated' && sceneTier !== 'unrated') show = false;
+                    else if (tier !== 'rated' && tier !== 'unrated' && sceneTier !== tier) show = false;
+                }
+
+                if (currentFilters.favorites === 'favorited' && !isFavorited) show = false;
+                if (currentFilters.favorites === 'unfavorited' && isFavorited) show = false;
+
+                return show;
+            });
+
+            var totalCount = filteredScenes.length;
+            var startIndex = (currentPage - 1) * perPage;
+            var endIndex = Math.min(startIndex + perPage, totalCount);
+            var paginatedScenes = filteredScenes.slice(startIndex, endIndex);
+
+            var countSpan = document.getElementById('filterCount');
+            if (countSpan) {
+                countSpan.textContent = 'Showing ' + totalCount + ' of ' + allScenes.length + ' scenes';
+            }
+
+            var grid = document.getElementById('sceneGrid');
+            var noResults = document.getElementById('noResults');
+
+            if (grid) {
+                if (paginatedScenes.length === 0) {
+                    grid.innerHTML = '';
+                    if (noResults) noResults.style.display = 'block';
+                } else {
+                    if (noResults) noResults.style.display = 'none';
+                    grid.innerHTML = paginatedScenes.map(function(scene) {
+                        return `
+                            <div class="scene-card" 
+                                 data-scene-id="${scene.id}"
+                                 data-tier="${scene.performerRating || 'unrated'}"
+                                 data-favorited="${scene.isFavorited ? 'true' : 'false'}">
+                                <a href="/scene/${scene.id}" style="text-decoration: none; color: inherit; display: block; height: 100%;">
+                                    <div class="scene-thumbnail">
+                                        ${scene.images && scene.images.length > 0 && scene.images[0].url ? 
+                                            `<img src="${scene.images[0].url}" alt="${scene.title || 'Scene'}" loading="lazy">` :
+                                            '<div class="no-image">🎬</div>'
+                                        }
+                                        ${scene.duration ? `<div class="scene-duration">${Math.floor(scene.duration / 60)}m</div>` : ''}
+                                        <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavoriteScene('${scene.id}', this)" 
+                                                class="scene-favorite-btn" 
+                                                style="color: ${scene.isFavorited ? '#f0c040' : '#555'};">
+                                            ${scene.isFavorited ? '⭐' : '☆'}
+                                        </button>
+                                        ${scene.performerRating ? `
+                                            <div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.8);padding:2px 10px;border-radius:12px;font-size:12px;color:#f0c040;border:1px solid #f0c040;">
+                                                ${scene.performerRating}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                    <div class="scene-info">
+                                        <h4>${scene.title || 'Untitled Scene'}</h4>
+                                        <div class="scene-meta">
+                                            ${scene.date ? `<span class="date">📅 ${new Date(scene.date).toLocaleDateString()}</span>` : ''}
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            updatePagination(totalCount);
+        }
+
+        function updatePagination(totalCount) {
+            var totalPages = Math.ceil(totalCount / perPage);
+            var paginationContainer = document.getElementById('paginationContainer');
+            
+            if (paginationContainer) {
+                if (totalPages > 1) {
+                    var paginationHtml = '<div class="pagination">';
+                    if (currentPage > 1) {
+                        paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${currentPage - 1});" class="page-link">← Previous</a>`;
+                    }
+                    for (var i = 1; i <= totalPages; i++) {
+                        if (i === currentPage) {
+                            paginationHtml += `<span class="page-link active">${i}</span>`;
+                        } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) {
+                            paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${i});" class="page-link">${i}</a>`;
+                        } else if (i === 4 && currentPage > 5) {
+                            paginationHtml += '<span class="page-link">…</span>';
+                        } else if (i === totalPages - 3 && currentPage < totalPages - 4) {
+                            paginationHtml += '<span class="page-link">…</span>';
+                        }
+                    }
+                    if (currentPage < totalPages) {
+                        paginationHtml += `<a href="#" onclick="event.preventDefault(); goToPage(${currentPage + 1});" class="page-link">Next →</a>`;
+                    }
+                    paginationHtml += '</div>';
+                    paginationContainer.innerHTML = paginationHtml;
+                } else {
+                    paginationContainer.innerHTML = '';
+                }
             }
         }
-    }
 
-    function goToPage(page) {
-        if (page === currentPage) return;
-        currentPage = page;
-        applyFilters();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function clearFilters() {
-        document.getElementById('tierFilter').value = 'all';
-        currentFilters.favorites = 'all';
-        document.querySelectorAll('.filter-btn[data-filter]').forEach(function(btn) {
-            btn.classList.remove('active');
-        });
-        currentPage = 1;
-        applyFilters();
-    }
-
-    // =========================
-    // KEYBOARD SHORTCUTS
-    // =========================
-    document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape') {
-            clearFilters();
+        function goToPage(page) {
+            if (page === currentPage) return;
+            currentPage = page;
+            applyFilters();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-    });
 
-    // =========================
-    // INITIALIZE - Apply filters on page load
-    // =========================
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('📊 Initializing studio page with ' + allScenes.length + ' scenes');
+        function clearFilters() {
+            document.getElementById('tierFilter').value = 'all';
+            currentFilters.favorites = 'all';
+            document.querySelectorAll('.filter-btn[data-filter]').forEach(function(btn) {
+                btn.classList.remove('active');
+            });
+            currentPage = 1;
+            applyFilters();
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                clearFilters();
+            }
+        });
+
+        // Initialize
         applyFilters();
-    });
-</script>
+    </script>
 </body>
 </html>

@@ -78,6 +78,21 @@
         <% if (performer) { %>
             <div class="performer-profile">
                 <div class="profile-header">
+
+                    <!-- Add this button in the performer profile header -->
+<a href="/performer/<%= performerId %>/videos" class="mode-btn" style="
+    display: inline-block;
+    padding: 8px 20px;
+    border-radius: 20px;
+    border: 1px solid #667eea;
+    background: transparent;
+    color: #667eea;
+    text-decoration: none;
+    transition: all 0.2s;
+    margin-left: 10px;
+">
+    🎬 Video Mode
+</a>
                     <div class="profile-image-container">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <button onclick="changeImage(-1)" class="image-nav-btn">❮</button>

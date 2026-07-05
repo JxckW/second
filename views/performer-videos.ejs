@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title><%= title %></title>
+    
+    <!-- Video.js CSS -->
+    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #0a0a0a; 
+            color: #e0e0e0; 
+            min-height: 100vh;
+        }
+        .app { max-width: 1400px; margin: 0 auto; padding: 16px; }
+        
+        header { 
+            margin-bottom: 20px; 
+            padding: 16px 0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        header h1 { 
+            font-size: 24px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent;
+        }
+        .back-link { 
+            display: inline-block; 
+            color: #667eea; 
+            text-decoration: none; 
+            font-size: 14px;
+            padding: 8px 16px;
+            border: 1px solid #667eea;
+            border-radius: 8px;
+        }
+        .back-link:hover { 
+            background: #667eea; 
+            color: #fff;
+        }
+
+        .performer-header {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .performer-header .name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #fff;
+        }
+        .performer-header .stats {
+            color: #888;
+            font-size: 14px;
+        }
+        .performer-header .stats span {
+            margin-left: 16px;
+        }
+
+        .mode-switcher {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .mode-btn {
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            background: transparent;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .mode-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+        .mode-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: #fff;
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .video-card {
+            background: #1a1a1a;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #2a2a2a;
+            transition: transform 0.2s, border-color 0.2s;
+            cursor: pointer;
+        }
+        .video-card:hover {
+            transform: translateY(-4px);
+            border-color: #667eea;
+        }
+
+        .video-thumbnail {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            background: #111;
+            overflow: hidden;
+        }
+        .video-thumbnail img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-thumbnail .no-image {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 40px;
+            opacity: 0.3;
+        }
+        .video-thumbnail .duration {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.8);
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #fff;
+        }
+        .video-thumbnail .play-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            background: rgba(102, 126, 234, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: #fff;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .video-card:hover .play-btn {
+            opacity: 1;
+        }
+        .video-thumbnail .quality-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0,0,0,0.8);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #f0c040;
+            border: 1px solid #f0c040;
+        }
+
+        .video-info {
+            padding: 12px;
+        }
+        .video-info .title {
+            font-size: 14px;
+            color: #fff;
+            margin-bottom: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.3;
+        }
+        .video-info .meta {
+            font-size: 12px;
+            color: #888;
+        }
+        .video-info .studio {
+            color: #667eea;
+        }
+
+        .no-videos {
+            text-align: center;
+            padding: 60px;
+            color: #888;
+        }
+        .no-videos h3 { color: #fff; margin-bottom: 8px; }
+        
+        .video-stats {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        /* Video Player Modal */
+        .video-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .video-modal.active {
+            display: flex;
+        }
+        .video-modal .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 40px;
+            color: #fff;
+            cursor: pointer;
+            z-index: 1001;
+            font-family: Arial, sans-serif;
+            background: none;
+            border: none;
+        }
+        .video-modal .close-modal:hover {
+            color: #667eea;
+        }
+        .video-modal .video-container {
+            width: 90%;
+            max-width: 1000px;
+            max-height: 90vh;
+            position: relative;
+        }
+        
+        /* Video.js player styles */
+        .video-js {
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 8px;
+        }
+        .video-js .vjs-big-play-button {
+            top: 50% !important;
+            left: 50% !important;
+            margin-top: -1.5em !important;
+            margin-left: -1.5em !important;
+        }
+        .video-js .vjs-control-bar {
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .video-modal .video-title {
+            color: #fff;
+            font-size: 18px;
+            margin-top: 12px;
+            text-align: center;
+            max-width: 90%;
+        }
+        .video-modal .video-controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .video-modal .video-controls button {
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #667eea;
+            background: transparent;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .video-modal .video-controls button:hover {
+            background: #667eea;
+            color: #fff;
+        }
+        .video-modal .video-loading {
+            color: #888;
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .video-modal .video-error {
+            color: #ff6b6b;
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .video-modal .video-error a {
+            color: #667eea;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+        .page-link {
+            display: inline-block;
+            padding: 8px 14px;
+            border-radius: 8px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            text-decoration: none;
+            border: 1px solid #2a2a2a;
+            font-size: 14px;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .page-link:hover {
+            background: #2a2a2a;
+            border-color: #667eea;
+        }
+        .page-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .video-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+            .performer-header .name { font-size: 20px; }
+            .performer-header .stats { font-size: 12px; }
+            .video-modal .video-container { width: 98%; }
+            .video-modal .close-modal { top: 10px; right: 20px; font-size: 30px; }
+            .mode-btn { font-size: 12px; padding: 6px 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <div>
+                <a href="/performer/<%= performerId %>" class="back-link">← Back to Profile</a>
+                <h1>🎬 Video Mode</h1>
+            </div>
+            <div>
+                <span style="color: #888; font-size: 14px;">
+                    <%= totalWowScenes %> videos found
+                </span>
+            </div>
+        </header>
+
+        <div class="performer-header">
+            <div>
+                <div class="name"><%= performer.name %></div>
+                <div class="stats">
+                    <span>🎬 <%= totalWowScenes %> scenes</span>
+                    <span>📹 <%= videosFound %> with 720p</span>
+                </div>
+            </div>
+            <div class="mode-switcher">
+                <a href="/performer/<%= performerId %>" class="mode-btn">📋 Profile Mode</a>
+                <a href="/performer/<%= performerId %>/videos" class="mode-btn active">🎬 Video Mode</a>
+            </div>
+        </div>
+
+        <% if (hasWowData && wowScenes && wowScenes.length > 0) { %>
+            <div class="video-stats">
+                Showing <%= (currentPage - 1) * perPage + 1 %> - <%= Math.min(currentPage * perPage, totalWowScenes) %> of <%= totalWowScenes %> videos
+            </div>
+
+            <div class="video-grid">
+                <% wowScenes.forEach(scene => { %>
+                    <% 
+                        // Safely escape data for JavaScript
+                        const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
+                        const safeUrl = JSON.stringify(scene.video720p || '');
+                        const safeThumbnail = JSON.stringify(scene.thumbnail || '');
+                    %>
+                    <div class="video-card" onclick="openVideoModal(<%= safeUrl %>, <%= safeTitle %>, <%= safeThumbnail %>)">
+                        <div class="video-thumbnail">
+                            <% if (scene.images && scene.images.length > 0 && scene.images[0].url) { %>
+                                <img src="<%= scene.images[0].url %>" alt="<%= scene.title %>" loading="lazy">
+                            <% } else { %>
+                                <div class="no-image">🎬</div>
+                            <% } %>
+                            <div class="duration"><%= scene.duration %></div>
+                            <div class="play-btn">▶</div>
+                            <% if (scene.allQualities && scene.allQualities.includes('2160')) { %>
+                                <div class="quality-badge">4K</div>
+                            <% } else if (scene.allQualities && scene.allQualities.some(q => q === '1080' || q === '1080p')) { %>
+                                <div class="quality-badge">HD</div>
+                            <% } %>
+                        </div>
+                        <div class="video-info">
+                            <div class="title"><%= scene.title %></div>
+                            <div class="meta">
+                                <% if (scene.studio) { %>
+                                    <span class="studio">🏢 <%= scene.studio.name %></span>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+
+            <!-- Pagination -->
+            <% if (totalPages > 1) { %>
+                <div class="pagination">
+                    <% if (currentPage > 1) { %>
+                        <a href="/performer/<%= performerId %>/videos?page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
+                    <% } %>
+                    <% for (let i = 1; i <= totalPages; i++) { %>
+                        <% if (i === currentPage) { %>
+                            <span class="page-link active"><%= i %></span>
+                        <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
+                            <a href="/performer/<%= performerId %>/videos?page=<%= i %>" class="page-link"><%= i %></a>
+                        <% } else if (i === 4 && currentPage > 5) { %>
+                            <span class="page-link">…</span>
+                        <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
+                            <span class="page-link">…</span>
+                        <% } %>
+                    <% } %>
+                    <% if (currentPage < totalPages) { %>
+                        <a href="/performer/<%= performerId %>/videos?page=<%= currentPage + 1 %>" class="page-link">Next →</a>
+                    <% } %>
+                </div>
+            <% } %>
+        <% } else { %>
+            <div class="no-videos">
+                <h3>🎬 No Videos Found</h3>
+                <p>No wow.xxx videos found for <%= performer.name %></p>
+            </div>
+        <% } %>
+    </div>
+
+    <!-- Video Player Modal with Video.js -->
+    <div class="video-modal" id="videoModal">
+        <button class="close-modal" onclick="closeVideoModal()">✕</button>
+        <div class="video-container">
+            <div id="videoLoading" class="video-loading">⏳ Loading video...</div>
+            <div id="videoError" class="video-error" style="display:none;"></div>
+            
+            <!-- Video.js player -->
+            <video id="videoPlayer" class="video-js vjs-big-play-centered" 
+                   controls 
+                   preload="metadata"
+                   playsinline
+                   poster="">
+                <source id="videoSource" src="" type="video/mp4">
+                <p class="vjs-no-js">
+                    To view this video please enable JavaScript, and consider upgrading to a web browser that
+                    <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+                </p>
+            </video>
+            
+            <div id="videoTitle" class="video-title">Video</div>
+            <div class="video-controls">
+                <button onclick="closeVideoModal()">✕ Close</button>
+                <button onclick="document.getElementById('videoPlayer').requestFullscreen()">⛶ Fullscreen</button>
+                <button onclick="document.getElementById('videoPlayer').play()">▶ Play</button>
+                <button onclick="document.getElementById('videoPlayer').pause()">⏸ Pause</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video.js JS -->
+    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+
+    <script>
+        let videojsPlayer = null;
+        
+        function openVideoModal(videoUrl, title, thumbnail) {
+            console.log('🎬 Opening video with Video.js:', videoUrl);
+            console.log('📝 Title:', title);
+            console.log('🖼️ Thumbnail:', thumbnail);
+            
+            if (!videoUrl || videoUrl === 'null' || videoUrl === 'undefined' || videoUrl === '') {
+                alert('No video URL available for this scene');
+                return;
+            }
+            
+            const modal = document.getElementById('videoModal');
+            const loading = document.getElementById('videoLoading');
+            const errorEl = document.getElementById('videoError');
+            const titleEl = document.getElementById('videoTitle');
+            const videoEl = document.getElementById('videoPlayer');
+            const source = document.getElementById('videoSource');
+            
+            // Reset
+            loading.style.display = 'block';
+            loading.textContent = '⏳ Loading video...';
+            errorEl.style.display = 'none';
+            errorEl.innerHTML = '';
+            titleEl.textContent = title || 'Video';
+            
+            // Show modal
+            modal.classList.add('active');
+            
+            // If there's an existing player, dispose it
+            if (videojsPlayer) {
+                videojsPlayer.dispose();
+                videojsPlayer = null;
+            }
+            
+            // Set poster image
+            videoEl.poster = thumbnail || '';
+            
+            // Set source
+            source.src = videoUrl;
+            
+            // Initialize Video.js player
+            videojsPlayer = videojs(videoEl, {
+                controls: true,
+                autoplay: true,
+                preload: 'metadata',
+                fluid: true,
+                playbackRates: [0.5, 1, 1.5, 2],
+                controlBar: {
+                    volumePanel: {
+                        inline: false
+                    }
+                }
+            });
+            
+            // Handle player ready
+            videojsPlayer.ready(function() {
+                console.log('✅ Video.js player ready');
+                loading.style.display = 'none';
+                
+                // Auto-play
+                try {
+                    videojsPlayer.play().catch(function(e) {
+                        console.log('Autoplay prevented:', e);
+                    });
+                } catch (e) {
+                    console.log('Play error:', e);
+                }
+            });
+            
+            // Handle errors
+            videojsPlayer.on('error', function() {
+                var error = videojsPlayer.error();
+                console.error('❌ Video.js error:', error);
+                loading.style.display = 'none';
+                errorEl.style.display = 'block';
+                errorEl.innerHTML = `
+                    ❌ Error loading video: ${error ? error.message : 'Unknown error'}
+                    <br><br>
+                    <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                        📥 Download Video (opens in new tab)
+                    </a>
+                    <br><br>
+                    <span style="font-size: 13px; color: #888;">
+                        Copy the URL and paste in VLC player if needed
+                    </span>
+                `;
+            });
+            
+            // Handle waiting/buffering
+            videojsPlayer.on('waiting', function() {
+                loading.textContent = '⏳ Buffering...';
+                loading.style.display = 'block';
+            });
+            
+            videojsPlayer.on('canplay', function() {
+                loading.style.display = 'none';
+            });
+            
+            videojsPlayer.on('playing', function() {
+                loading.style.display = 'none';
+                errorEl.style.display = 'none';
+            });
+        }
+        
+        function closeVideoModal() {
+            const modal = document.getElementById('videoModal');
+            
+            // Dispose Video.js player
+            if (videojsPlayer) {
+                videojsPlayer.dispose();
+                videojsPlayer = null;
+            }
+            
+            // Reset video element
+            const videoEl = document.getElementById('videoPlayer');
+            const source = document.getElementById('videoSource');
+            source.src = '';
+            videoEl.load();
+            
+            modal.classList.remove('active');
+        }
+        
+        // Close with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeVideoModal();
+            }
+        });
+        
+        // Close clicking background
+        document.getElementById('videoModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeVideoModal();
+            }
+        });
+        
+        // Also close with the close button
+        document.querySelector('.close-modal').addEventListener('click', function(e) {
+            e.stopPropagation();
+            closeVideoModal();
+        });
+    </script>
+</body>
+</html>
