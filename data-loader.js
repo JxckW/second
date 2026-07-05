@@ -7,8 +7,8 @@ const path = require('path');
 // CONFIGURATION - REPLACE WITH YOUR GOOGLE DRIVE URLs
 // =========================
 const DATA_URLS = {
-    stashdb: 'https://drive.google.com/file/d/171gkUM20uL3nr_e5UzXiasyhxf3dQsZp/view?usp=sharing',
-    wowData: 'https://drive.google.com/file/d/1_3rI2aWZNOxqooRoAqEZ0e9tMYpa04Ee/view?usp=sharing'
+    stashdb: 'https://drive.google.com/uc?export=download&id=171gkUM20uL3nr_e5UzXiasyhxf3dQsZp&confirm=t',
+    wowData: 'https://drive.google.com/uc?export=download&id=1_3rI2aWZNOxqooRoAqEZ0e9tMYpa04Ee&confirm=t'
 };
 
 const DATA_DIR = path.join(__dirname, 'data');
