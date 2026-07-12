@@ -943,7 +943,7 @@ function extractSlugFromUrl(sceneUrl) {
 }
 
 // =========================
-// FETCH TOKEN AND STREAM VIDEO ENDPOINT
+// FETCH TOKEN ENDPOINT - Returns CDN URL
 // =========================
 app.get('/api/video/fetch-token', async (req, res) => {
     const { sceneUrl } = req.query;
@@ -1001,6 +1001,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(404).json({ error: 'No video URL found in page' });
         }
         
+        // Fetch the get_file URL to get the CDN redirect
         console.log('📡 Fetching get_file URL for CDN redirect...');
         const cdnResponse = await fetch(getFileUrl, {
             headers: {
@@ -1018,9 +1019,9 @@ app.get('/api/video/fetch-token', async (req, res) => {
             cdnUrl = cdnResponse.headers.get('location');
             console.log('✅ Got CDN redirect');
         } else if (cdnResponse.ok || cdnResponse.status === 206) {
-            console.log('✅ Video served directly (no redirect)');
-            // Proxy the video through Render
-            return streamVideoThroughRender(cdnResponse, res);
+            // If video is served directly, use the getFileUrl
+            cdnUrl = getFileUrl;
+            console.log('✅ Video served directly');
         } else {
             console.log('❌ CDN fetch failed:', cdnResponse.status);
             return res.status(cdnResponse.status).json({ 
@@ -1032,31 +1033,26 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(404).json({ error: 'No CDN URL found' });
         }
         
-        console.log('📡 Fetching CDN video through Render...');
-        const videoResponse = await fetch(cdnUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.wow.xxx/',
-                'Accept': 'video/mp4, video/webm, video/*',
-                'Accept-Language': 'en-US,en;q=0.9'
-            }
+        // Extract token for reference
+        const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
+        const token = tokenMatch ? tokenMatch[1] : null;
+        
+        console.log('✅ Returning CDN URL to client');
+        
+        // Return the CDN URL - the browser will fetch it directly
+        res.json({
+            success: true,
+            token: token,
+            cdnUrl: cdnUrl,
+            videoUrl: cdnUrl,
+            message: 'Use this CDN URL to play the video'
         });
-        
-        if (!videoResponse.ok && videoResponse.status !== 206) {
-            console.log('❌ Video fetch failed:', videoResponse.status);
-            return res.status(videoResponse.status).json({ 
-                error: `Video fetch failed: ${videoResponse.status}`
-            });
-        }
-        
-        return streamVideoThroughRender(videoResponse, res);
         
     } catch (error) {
         console.error('❌ Error fetching token:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
-
 // =========================
 // VIDEO MODE PAGE
 // =========================
