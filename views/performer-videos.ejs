@@ -389,19 +389,22 @@
 
             <div class="video-grid">
                 <% wowScenes.forEach(scene => { %>
-                    <% 
+                    <%
                         const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
-                        const safeUrl = JSON.stringify(scene.video720p || '');
                         const safeThumbnail = JSON.stringify(scene.thumbnail || '');
+                        // Use the scene URL from the data
+                        const sceneUrl = scene.url || scene.scene_url || '';
+                        const safeSceneUrl = JSON.stringify(sceneUrl);
+                        const videoId = scene.videoId || '';
                     %>
-                    <div class="video-card" onclick="openVideoModal(<%= safeUrl %>, <%= safeTitle %>, <%= safeThumbnail %>)">
+                    <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>)">
                         <div class="video-thumbnail">
-                            <% if (scene.images && scene.images.length > 0 && scene.images[0].url) { %>
-                                <img src="<%= scene.images[0].url %>" alt="<%= scene.title %>" loading="lazy">
+                            <% if (scene.thumbnail) { %>
+                                <img src="<%= scene.thumbnail %>" alt="<%= scene.title %>" loading="lazy">
                             <% } else { %>
                                 <div class="no-image">🎬</div>
                             <% } %>
-                            <div class="duration"><%= scene.duration %></div>
+                            <div class="duration"><%= scene.duration || 'N/A' %></div>
                             <div class="play-btn">▶</div>
                             <% if (scene.allQualities && scene.allQualities.includes('2160')) { %>
                                 <div class="quality-badge">4K</div>
@@ -413,12 +416,22 @@
                             <div class="title"><%= scene.title %></div>
                             <div class="meta">
                                 <% if (scene.studio) { %>
-                                    <span class="studio">🏢 <%= scene.studio.name %></span>
+                                    <span class="studio">🏢 <%= scene.studio.name || scene.studio %></span>
                                 <% } %>
                             </div>
                         </div>
                     </div>
                 <% }) %>
+            </div>
+
+            <!-- Test/Dev Tool -->
+            <div style="margin: 20px 0; padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #2a2a2a;">
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <input type="text" id="testSceneUrl" placeholder="Paste scene URL to test..." style="flex: 1; min-width: 200px; padding: 10px; background: #252525; color: #e0e0e0; border: 1px solid #333; border-radius: 6px; font-size: 13px;">
+                    <button onclick="testVideoUrl()" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🔍 Test</button>
+                    <button onclick="document.getElementById('testSceneUrl').value=''; document.getElementById('testResult').textContent=''" style="padding: 10px 16px; background: #333; color: #888; border: none; border-radius: 6px; cursor: pointer;">✕</button>
+                </div>
+                <div id="testResult" style="margin-top: 8px; font-size: 13px; color: #888; min-height: 20px;"></div>
             </div>
 
             <% if (totalPages > 1) { %>
@@ -473,109 +486,174 @@
     </div>
 
     <script>
-        let currentVideoUrl = null;
+        // =========================
+        // VIDEO PLAYER - Uses fresh token from scene URL
+        // =========================
         
-        function openVideoModal(videoUrl, title, thumbnail) {
-            console.log('🎬 Opening video:', videoUrl);
+        // Current video URL for reference
+        let currentVideoUrl = null;
+
+        // Main play function - called when user clicks a video card
+        async function playVideo(sceneUrl, title, thumbnail) {
+            console.log('🎬 Playing video:', title);
+            console.log('   Scene URL:', sceneUrl);
             
-            if (!videoUrl || videoUrl === 'null' || videoUrl === 'undefined' || videoUrl === '') {
-                alert('No video URL available for this scene');
-                return;
-            }
-            
+            // Show loading state
             const modal = document.getElementById('videoModal');
-            const video = document.getElementById('videoPlayer');
-            const source = document.getElementById('videoSource');
-            const titleEl = document.getElementById('videoTitle');
             const loading = document.getElementById('videoLoading');
             const errorEl = document.getElementById('videoError');
+            const video = document.getElementById('videoPlayer');
+            const titleEl = document.getElementById('videoTitle');
+            const source = document.getElementById('videoSource');
             
-            // Reset
+            // Reset modal
+            modal.classList.add('active');
             loading.style.display = 'block';
-            loading.textContent = '⏳ Loading video...';
+            loading.textContent = '⏳ Fetching fresh video token...';
             errorEl.style.display = 'none';
             errorEl.textContent = '';
             titleEl.textContent = title || 'Video';
-            
-            // Show modal
-            modal.classList.add('active');
-            currentVideoUrl = videoUrl;
-            
-            // Try direct URL first (like wow.xxx does)
-            source.src = videoUrl;
+            video.pause();
+            video.currentTime = 0;
+            source.src = '';
             video.load();
+            currentVideoUrl = null;
             
-            // Set up event handlers
-            video.oncanplay = function() {
-                console.log('✅ Video can play (direct)');
-                loading.style.display = 'none';
-                video.play().catch(e => console.log('Autoplay prevented:', e));
-            };
-            
-            video.onerror = function(e) {
-                console.error('❌ Direct video error, trying proxy...', e);
+            try {
+                // Step 1: Get fresh video URL from server
+                const response = await fetch(
+                    `/api/video/fresh?sceneUrl=${encodeURIComponent(sceneUrl)}`
+                );
                 
-                // Fallback to proxy
-                const proxyUrl = `/api/video/proxy?url=${encodeURIComponent(videoUrl)}`;
-                console.log('   Proxy URL:', proxyUrl.substring(0, 80) + '...');
-                source.src = proxyUrl;
+                const data = await response.json();
+                
+                if (!data.success || !data.videoUrl) {
+                    throw new Error(data.error || 'Could not get video URL');
+                }
+                
+                currentVideoUrl = data.videoUrl;
+                console.log('✅ Fresh video URL:', currentVideoUrl.substring(0, 80) + '...');
+                
+                // Step 2: Load the video
+                loading.textContent = '⏳ Loading video...';
+                
+                source.src = currentVideoUrl;
                 video.load();
                 
+                // Step 3: Handle video events
                 video.oncanplay = function() {
-                    console.log('✅ Video can play (proxy)');
+                    console.log('✅ Video can play');
                     loading.style.display = 'none';
-                    video.play().catch(err => console.log('Autoplay prevented:', err));
+                    video.play().catch(e => console.log('Autoplay prevented:', e));
                 };
                 
-                video.onerror = function(err2) {
-                    console.error('❌ Proxy error too:', err2);
+                video.onerror = function(e) {
+                    console.error('❌ Video error:', e);
                     loading.style.display = 'none';
                     errorEl.style.display = 'block';
                     errorEl.innerHTML = `
                         ❌ Error loading video
                         <br><br>
-                        <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
-                            📥 Open video in new tab
+                        <a href="${currentVideoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                            📥 Try opening directly in new tab
                         </a>
                         <br><br>
                         <span style="font-size: 13px; color: #888;">
-                            If the video doesn't open, copy the URL and paste in VLC player
+                            If the video doesn't open, the token may have expired.
+                            Try refreshing the page and clicking again.
                         </span>
                     `;
                 };
-            };
+                
+            } catch (error) {
+                console.error('❌ Error:', error.message);
+                loading.style.display = 'none';
+                errorEl.style.display = 'block';
+                errorEl.innerHTML = `
+                    ❌ Failed to get video: ${error.message}
+                    <br><br>
+                    <button onclick="closeVideoModal()" style="
+                        padding: 8px 20px;
+                        border-radius: 8px;
+                        border: 1px solid #667eea;
+                        background: transparent;
+                        color: #667eea;
+                        cursor: pointer;
+                    ">Close</button>
+                `;
+            }
         }
-        
+
+        // Close video modal
         function closeVideoModal() {
             console.log('🔒 Closing video modal');
             const modal = document.getElementById('videoModal');
             const video = document.getElementById('videoPlayer');
+            const source = document.getElementById('videoSource');
             
             video.pause();
             video.currentTime = 0;
-            
-            const source = document.getElementById('videoSource');
             source.src = '';
             video.load();
-            
             modal.classList.remove('active');
+            currentVideoUrl = null;
             
             document.getElementById('videoLoading').style.display = 'block';
             document.getElementById('videoLoading').textContent = '⏳ Loading video...';
-            
-            currentVideoUrl = null;
+            document.getElementById('videoError').style.display = 'none';
         }
-        
+
+        // Test function for debugging
+        async function testVideoUrl() {
+            const sceneUrl = document.getElementById('testSceneUrl').value.trim();
+            const result = document.getElementById('testResult');
+            
+            if (!sceneUrl) {
+                result.textContent = '❌ Please enter a scene URL';
+                result.style.color = '#ff6b6b';
+                return;
+            }
+            
+            result.textContent = '⏳ Testing...';
+            result.style.color = '#888';
+            
+            try {
+                const response = await fetch(`/api/video/fresh?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                const data = await response.json();
+                
+                if (data.success && data.videoUrl) {
+                    result.innerHTML = `✅ Success! <a href="${data.videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">Open video</a>`;
+                    result.style.color = '#4caf50';
+                    
+                    // Optionally play the video
+                    playVideo(sceneUrl, 'Test Video', '');
+                } else {
+                    result.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
+                    result.style.color = '#ff6b6b';
+                }
+            } catch (error) {
+                result.textContent = '❌ Error: ' + error.message;
+                result.style.color = '#ff6b6b';
+            }
+        }
+
+        // Keyboard shortcut: Escape to close
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeVideoModal();
             }
         });
-        
+
+        // Click outside to close
         document.getElementById('videoModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeVideoModal();
             }
+        });
+
+        // Handle page unload - clean up
+        window.addEventListener('beforeunload', function() {
+            closeVideoModal();
         });
     </script>
 </body>

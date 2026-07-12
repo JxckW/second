@@ -4,11 +4,6 @@ const express = require('express');
 const { Pool } = require('pg');
 
 // =========================
-// AUTHENTICATION MODULE
-// =========================
-const auth = require('./auth');
-
-// =========================
 // MANUALLY LOAD .env FILE
 // =========================
 const envPath = path.join(__dirname, '.env');
@@ -36,16 +31,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // =========================
-// DATA STORAGE (in-memory cache)
-// =========================
-let performerList = [];
-let performerMap = {};
-let studioMap = {};
-let sceneMap = {};
-let wowData = null;
-let dataLoaded = false;
-
-// =========================
 // DATABASE CONNECTIONS
 // =========================
 
@@ -70,7 +55,7 @@ try {
     process.exit(1);
 }
 
-// 2. Neon PostgreSQL (for performer data)
+// 2. Neon PostgreSQL (for performer data - QUERIED ON DEMAND)
 let neonDb;
 
 if (process.env.NEON_DATABASE_URL) {
@@ -86,7 +71,7 @@ if (process.env.NEON_DATABASE_URL) {
             idleTimeoutMillis: 30000,
             max: 10,
         });
-        console.log('✅ Neon PostgreSQL connection pool created (for performer data)');
+        console.log('✅ Neon PostgreSQL connection pool created (for performer data - on-demand queries)');
     } catch (error) {
         console.error('❌ Error creating Neon PostgreSQL connection pool:', error.message);
         console.log('⚠️ Falling back to local JSON data');
@@ -164,262 +149,95 @@ function parseAliases(aliases) {
 }
 
 // =========================
-// LOAD DATA FROM NEON
+// NEON QUERY FUNCTIONS (ON DEMAND)
 // =========================
-async function loadDataFromNeon() {
-    if (!neonDb) {
-        console.log('📂 Neon not available - using local JSON data');
-        return false;
-    }
 
-    try {
-        console.log('📂 Loading performer data from Neon...');
-        
-        const performers = await queryNeon('SELECT * FROM performers');
-        console.log(`   Loaded ${performers.length} performers from Neon`);
-        
-        const scenes = await queryNeon('SELECT * FROM scenes');
-        console.log(`   Loaded ${scenes.length} scenes from Neon`);
-        
-        const performerScenes = await queryNeon('SELECT * FROM performer_scenes');
-        console.log(`   Loaded ${performerScenes.length} performer-scene relationships from Neon`);
-        
-        const wowVideos = await queryNeon('SELECT * FROM wow_videos');
-        console.log(`   Loaded ${wowVideos.length} wow videos from Neon`);
-        
-        if (performers.length === 0) {
-            console.log('⚠️ No data found in Neon - check your upload');
-            return false;
-        }
-
-        performerMap = {};
-        performerList = [];
-        sceneMap = {};
-        studioMap = {};
-        
-        // 1. Process performers
-        performers.forEach(performer => {
-            performerMap[performer.id] = {
-                performer: performer,
-                scenes: []
-            };
-            performerList.push({
-                id: performer.id,
-                name: performer.name,
-                gender: performer.gender,
-                age: performer.age,
-                height: performer.height,
-                scene_count: 0,
-                country: performer.country,
-                ethnicity: performer.ethnicity,
-                aliases: parseAliases(performer.aliases),
-                is_favorite: performer.is_favorite || false,
-                images: performer.images ? JSON.parse(performer.images) : []
-            });
-        });
-
-        // 2. Process scenes
-        scenes.forEach(scene => {
-            sceneMap[scene.id] = {
-                id: scene.id,
-                title: scene.title,
-                date: scene.date,
-                duration: scene.duration,
-                studio: scene.studio_id ? {
-                    id: scene.studio_id,
-                    name: scene.studio_name
-                } : null,
-                images: scene.images ? JSON.parse(scene.images) : []
-            };
-            
-            if (scene.studio_id) {
-                if (!studioMap[scene.studio_id]) {
-                    studioMap[scene.studio_id] = {
-                        id: scene.studio_id,
-                        name: scene.studio_name || 'Unknown Studio',
-                        scenes: []
-                    };
-                }
-                studioMap[scene.studio_id].scenes.push(scene.id);
-            }
-        });
-
-        // 3. Build performer-scene relationships
-        console.log(`   Building performer-scene relationships...`);
-        let relationshipCount = 0;
-        
-        performerScenes.forEach(ps => {
-            if (performerMap[ps.performer_id]) {
-                const scene = sceneMap[ps.scene_id];
-                if (scene) {
-                    performerMap[ps.performer_id].scenes.push(scene);
-                    relationshipCount++;
-                }
-            }
-        });
-        console.log(`   Created ${relationshipCount} performer-scene links`);
-
-        // 4. Update performerList with correct scene counts
-        performerList.forEach(p => {
-            if (performerMap[p.id]) {
-                p.scene_count = performerMap[p.id].scenes.length;
-            }
-        });
-
-        // 5. Build wow data
-        if (wowVideos.length > 0) {
-            const wowResults = {};
-            wowVideos.forEach(video => {
-                const performerName = video.performer_name || 'Unknown';
-                if (!wowResults[performerName]) {
-                    wowResults[performerName] = {
-                        performer: { name: performerName },
-                        scenes: [],
-                        totalScenes: 0,
-                        videosFound: 0
-                    };
-                }
-                wowResults[performerName].scenes.push({
-                    videoId: null,
-                    title: video.title,
-                    url: video.url,
-                    thumbnail: video.thumbnail,
-                    duration: video.duration,
-                    studio: video.studio,
-                    video720p: video.video720p || video.video_url,
-                    allQualities: video.all_qualities ? JSON.parse(video.all_qualities) : []
-                });
-                wowResults[performerName].totalScenes++;
-                if (video.video720p) {
-                    wowResults[performerName].videosFound++;
-                }
-            });
-            
-            wowData = {
-                results: Object.values(wowResults),
-                totalScenes: wowVideos.length
-            };
-            console.log(`   Built wow data: ${wowData.totalScenes} scenes`);
-        }
-
-        console.log(`✅ Data loaded from Neon: ${performerList.length} performers, ${Object.keys(sceneMap).length} scenes, ${relationshipCount} links`);
-        return true;
-        
-    } catch (error) {
-        console.error('❌ Error loading data from Neon:', error.message);
-        console.error(error.stack);
-        return false;
-    }
+// Get single performer by ID
+async function getPerformerById(id) {
+    const result = await queryNeon('SELECT * FROM performers WHERE id = $1', [id]);
+    if (result.length === 0) return null;
+    return result[0];
 }
 
-// =========================
-// LOAD DATA FROM LOCAL JSON (FALLBACK)
-// =========================
-function loadDataFromJSON() {
-    console.log('📂 Loading data from local JSON files...');
+// Get scenes for a performer with pagination
+async function getPerformerScenes(performerId, page = 1, perPage = 24) {
+    const offset = (page - 1) * perPage;
     
-    const DATA_FILE = path.join(__dirname, 'stashdb_data.json');
-    const WOW_DATA_FILE = path.join(__dirname, 'wow.xxx/data/wow_rss_data.json');
-
-    try {
-        if (fs.existsSync(DATA_FILE)) {
-            const raw = fs.readFileSync(DATA_FILE, 'utf8');
-            const parsed = JSON.parse(raw);
-            
-            performerMap = {};
-            performerList = [];
-            sceneMap = {};
-            studioMap = {};
-            
-            let performerData = parsed;
-            if (parsed.data && Array.isArray(parsed.data)) {
-                performerData = parsed.data;
-            } else if (parsed.performers && Array.isArray(parsed.performers)) {
-                performerData = parsed.performers;
-            }
-            
-            if (Array.isArray(performerData)) {
-                performerData.forEach(item => {
-                    const performer = item.performer || item;
-                    if (performer && performer.id) {
-                        performerMap[performer.id] = item;
-                        performerList.push({
-                            id: performer.id,
-                            name: performer.name,
-                            gender: performer.gender,
-                            age: performer.age,
-                            height: performer.height,
-                            scene_count: (item.scenes && Array.isArray(item.scenes)) ? item.scenes.length : 0,
-                            country: performer.country,
-                            ethnicity: performer.ethnicity,
-                            aliases: performer.aliases || [],
-                            is_favorite: performer.is_favorite || false,
-                            images: performer.images || []
-                        });
-                        
-                        if (item.scenes && Array.isArray(item.scenes)) {
-                            item.scenes.forEach(scene => {
-                                if (scene && scene.id) {
-                                    sceneMap[scene.id] = scene;
-                                    if (scene.studio && scene.studio.id) {
-                                        const studioId = scene.studio.id;
-                                        const studioName = scene.studio.name || 'Unknown Studio';
-                                        if (!studioMap[studioId]) {
-                                            studioMap[studioId] = {
-                                                id: studioId,
-                                                name: studioName,
-                                                scenes: []
-                                            };
-                                        }
-                                        if (!studioMap[studioId].scenes.includes(scene.id)) {
-                                            studioMap[studioId].scenes.push(scene.id);
-                                        }
-                                    }
-                                }
-                            });
-                        }
-                    }
-                });
-            }
-            
-            console.log(`✅ Loaded ${performerList.length} performers from JSON`);
-            console.log(`✅ ${Object.keys(sceneMap).length} scenes from JSON`);
-            console.log(`✅ ${Object.keys(studioMap).length} studios from JSON`);
-        } else {
-            console.log('⚠️ stashdb_data.json not found');
-        }
-        
-        if (fs.existsSync(WOW_DATA_FILE)) {
-            const wowRaw = fs.readFileSync(WOW_DATA_FILE, 'utf8');
-            wowData = JSON.parse(wowRaw);
-            console.log(`✅ Loaded wow.xxx data: ${wowData.totalScenes || 0} scenes`);
-        } else {
-            console.log('⚠️ wow_rss_data.json not found');
-        }
-        
-    } catch (error) {
-        console.error('❌ Error loading local JSON data:', error.message);
-    }
+    // Get total count
+    const countResult = await queryNeon(
+        'SELECT COUNT(*) FROM performer_scenes WHERE performer_id = $1',
+        [performerId]
+    );
+    const total = parseInt(countResult[0]?.count || 0);
+    
+    // Get paginated scenes
+    const scenes = await queryNeon(`
+        SELECT s.* 
+        FROM scenes s
+        JOIN performer_scenes ps ON s.id = ps.scene_id
+        WHERE ps.performer_id = $1
+        LIMIT $2 OFFSET $3
+    `, [performerId, perPage, offset]);
+    
+    return {
+        scenes: scenes.map(s => ({
+            ...s,
+            images: s.images ? JSON.parse(s.images) : []
+        })),
+        total,
+        totalPages: Math.ceil(total / perPage),
+        currentPage: page
+    };
 }
 
-// =========================
-// INITIALIZE DATA ON STARTUP
-// =========================
-async function initializeData() {
-    console.log('🚀 Initializing data...');
+// Search performers
+async function searchPerformers(term) {
+    return await queryNeon(
+        "SELECT * FROM performers WHERE name ILIKE $1 OR aliases ILIKE $1 LIMIT 20",
+        [`%${term}%`]
+    );
+}
+
+// Get studio by ID
+async function getStudio(id) {
+    const result = await queryNeon('SELECT * FROM studios WHERE id = $1', [id]);
+    return result.length > 0 ? result[0] : null;
+}
+
+// Get scenes for a studio
+async function getStudioScenes(studioId, page = 1, perPage = 24) {
+    const offset = (page - 1) * perPage;
     
-    if (neonDb) {
-        const neonSuccess = await loadDataFromNeon();
-        if (neonSuccess) {
-            dataLoaded = true;
-            console.log('✅ Data initialization complete (from Neon)');
-            return;
-        }
-    }
+    const countResult = await queryNeon(
+        'SELECT COUNT(*) FROM scenes WHERE studio_id = $1',
+        [studioId]
+    );
+    const total = parseInt(countResult[0]?.count || 0);
     
-    loadDataFromJSON();
-    dataLoaded = true;
-    console.log('✅ Data initialization complete (from local JSON)');
+    const scenes = await queryNeon(`
+        SELECT * FROM scenes 
+        WHERE studio_id = $1
+        LIMIT $2 OFFSET $3
+    `, [studioId, perPage, offset]);
+    
+    return {
+        scenes: scenes.map(s => ({
+            ...s,
+            images: s.images ? JSON.parse(s.images) : []
+        })),
+        total,
+        totalPages: Math.ceil(total / perPage),
+        currentPage: page
+    };
+}
+
+// Get wow videos for performer
+async function getWowVideos(performerName) {
+    const result = await queryNeon(
+        "SELECT * FROM wow_videos WHERE performer_name = $1",
+        [performerName]
+    );
+    return result;
 }
 
 // =========================
@@ -436,16 +254,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // =========================
-// SETUP SESSION (from auth module)
-// =========================
-auth.setupSession(app);
-
-// =========================
-// SETUP LOGIN ROUTES (from auth module)
-// =========================
-auth.setupAuthRoutes(app);
-
-// =========================
 // DEBUGGING
 // =========================
 console.log('🔍 === DEBUGGING START ===');
@@ -456,25 +264,10 @@ console.log('🔍 PORT:', PORT);
 console.log('🔍 === DEBUGGING END ===');
 
 // =========================
-// SEARCH FUNCTIONS
+// API ROUTES
 // =========================
 
-function searchPerformersLocal(searchTerm) {
-    if (!searchTerm || searchTerm.length < 2) return [];
-    
-    const term = searchTerm.toLowerCase();
-    return performerList.filter(p => {
-        const nameMatch = p.name.toLowerCase().includes(term);
-        const aliasMatch = p.aliases && p.aliases.some(a => a.toLowerCase().includes(term));
-        return nameMatch || aliasMatch;
-    });
-}
-
-// =========================
-// API ROUTES (Protected)
-// =========================
-
-app.post('/api/rate/performer', auth.requireAuth, async (req, res) => {
+app.post('/api/rate/performer', async (req, res) => {
     const { performerId, rating } = req.body;
     try {
         await queryMiget(
@@ -489,7 +282,7 @@ app.post('/api/rate/performer', auth.requireAuth, async (req, res) => {
     }
 });
 
-app.post('/api/favorite/performer', auth.requireAuth, async (req, res) => {
+app.post('/api/favorite/performer', async (req, res) => {
     const { performerId } = req.body;
     try {
         const result = await queryMiget(
@@ -508,7 +301,7 @@ app.post('/api/favorite/performer', auth.requireAuth, async (req, res) => {
     }
 });
 
-app.post('/api/favorite/scene', auth.requireAuth, async (req, res) => {
+app.post('/api/favorite/scene', async (req, res) => {
     const { sceneId } = req.body;
     try {
         const result = await queryMiget(
@@ -528,28 +321,38 @@ app.post('/api/favorite/scene', auth.requireAuth, async (req, res) => {
 });
 
 // =========================
-// SEARCH STUDIOS API
+// SEARCH STUDIOS API - SHOW ALL STUDIOS
 // =========================
-app.get('/api/search/studios', auth.requireAuth, (req, res) => {
+app.get('/api/search/studios', async (req, res) => {
     const query = req.query.q || '';
     
     try {
-        const studios = Object.values(studioMap)
-            .filter(s => s && s.id && s.name)
-            .map(s => ({
-                id: s.id,
-                name: s.name,
-                scene_count: s.scenes ? s.scenes.length : 0
-            }))
-            .sort((a, b) => a.name.localeCompare(b.name));
+        console.time('⏱️ Studio search time');
         
-        if (!query || query.length < 2) {
-            return res.json({ studios: studios });
+        let sql = `
+            SELECT DISTINCT studio_name as name, COUNT(*) as scene_count
+            FROM scenes 
+            WHERE studio_name IS NOT NULL 
+              AND studio_name != ''
+              AND studio_name != 'null'
+              AND studio_name != 'undefined'
+        `;
+        
+        let params = [];
+        
+        if (query && query.length >= 2) {
+            sql += ` AND LOWER(studio_name) LIKE LOWER($1)`;
+            params.push(`%${query}%`);
         }
         
-        const term = query.toLowerCase();
-        const results = studios.filter(s => s.name.toLowerCase().includes(term));
-        res.json({ studios: results });
+        // NO LIMIT - show ALL studios
+        sql += ` GROUP BY studio_name ORDER BY studio_name`;
+        
+        const studios = await queryNeon(sql, params);
+        console.timeEnd('⏱️ Studio search time');
+        console.log(`📊 Found ${studios.length} studios`);
+        
+        res.json({ studios: studios });
     } catch (error) {
         console.error('❌ Studio search error:', error.message);
         res.json({ studios: [] });
@@ -557,10 +360,10 @@ app.get('/api/search/studios', auth.requireAuth, (req, res) => {
 });
 
 // =========================
-// WEB ROUTES (Protected)
+// WEB ROUTES
 // =========================
 
-app.get('/', auth.requireAuth, (req, res) => {
+app.get('/', (req, res) => {
     res.render('index', {
         title: 'Performer Viewer',
         performers: [],
@@ -572,7 +375,7 @@ app.get('/', auth.requireAuth, (req, res) => {
 // =========================
 // SEARCH PERFORMER
 // =========================
-app.post('/search', auth.requireAuth, async (req, res) => {
+app.post('/search', async (req, res) => {
     const { searchTerm } = req.body;
     
     if (!searchTerm || searchTerm.trim().length < 2) {
@@ -586,7 +389,7 @@ app.post('/search', auth.requireAuth, async (req, res) => {
     
     try {
         const userData = await getUserData();
-        const searchResults = searchPerformersLocal(searchTerm.trim());
+        const searchResults = await searchPerformers(searchTerm.trim());
         
         if (searchResults.length === 0) {
             return res.render('index', {
@@ -597,10 +400,20 @@ app.post('/search', auth.requireAuth, async (req, res) => {
             });
         }
         
-        const performers = searchResults.slice(0, 20).map(performer => ({
-            ...performer,
-            rating: userData.performerRatings[performer.id] || null,
-            isFavorited: userData.favoritePerformers.includes(performer.id)
+        const performers = searchResults.map(p => ({
+            id: p.id,
+            name: p.name,
+            gender: p.gender,
+            age: p.age,
+            height: p.height,
+            scene_count: parseInt(p.scene_count) || 0,
+            country: p.country,
+            ethnicity: p.ethnicity,
+            aliases: parseAliases(p.aliases),
+            is_favorite: p.is_favorite === 'true' || p.is_favorite === true,
+            images: p.images ? JSON.parse(p.images) : [],
+            rating: userData.performerRatings[p.id] || null,
+            isFavorited: userData.favoritePerformers.includes(p.id)
         }));
         
         res.render('index', {
@@ -622,174 +435,299 @@ app.post('/search', auth.requireAuth, async (req, res) => {
 });
 
 // =========================
-// ADVANCED SEARCH API
+// ADVANCED SEARCH API - FIXED FOR ALL MATCH TYPES
 // =========================
-app.get('/api/search/advanced', auth.requireAuth, async (req, res) => {
+app.get('/api/search/advanced', async (req, res) => {
     const { studios = '', tier = '', favorite = '', match = 'any', page = 1, perPage = 50 } = req.query;
     const userData = await getUserData();
-    const studioNames = studios ? studios.split(',') : [];
+    const studioNames = studios ? studios.split(',').map(s => s.trim()) : [];
     const offset = (parseInt(page) - 1) * parseInt(perPage);
     
     if (studioNames.length === 0) {
         return res.json({ success: true, performers: [], total: 0, page: 1, totalPages: 0 });
     }
     
-    let results = [];
-    
-    for (const pid in performerMap) {
-        const item = performerMap[pid];
-        if (!item || !item.performer || !item.scenes || !Array.isArray(item.scenes)) {
-            continue;
+    try {
+        console.log(`🔍 Searching for studios: ${studioNames.join(', ')}`);
+        console.log(`📄 Match type: ${match}`);
+        console.time('⏱️ Advanced search total time');
+        
+        // Build the query with placeholders
+        let params = [];
+        let paramIndex = 1;
+        
+        // Studio conditions - using scenes table
+        const studioConditions = studioNames.map(name => {
+            return `LOWER(s.studio_name) = LOWER($${paramIndex++})`;
+        });
+        studioNames.forEach(name => params.push(name));
+        
+        // Different match types - FIXED
+        let performerQuery = '';
+        let queryParams = [...params];
+        
+        if (match === 'any') {
+            // ANY: Performer has at least one of the selected studios
+            performerQuery = `
+                SELECT 
+                    p.id,
+                    p.name,
+                    p.gender,
+                    p.age,
+                    p.height,
+                    p.scene_count,
+                    p.country,
+                    p.ethnicity,
+                    p.aliases,
+                    p.is_favorite,
+                    p.images,
+                    COUNT(DISTINCT s.studio_name) as studio_count
+                FROM performers p
+                JOIN performer_scenes ps ON p.id = ps.performer_id
+                JOIN scenes s ON ps.scene_id = s.id
+                WHERE ${studioConditions.join(' OR ')}
+                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images
+            `;
+        } else if (match === 'all') {
+            // ALL: Performer has ALL of the selected studios (and may have others)
+            // We need to find performers where the count of DISTINCT matched studios = number of studios searched
+            const allConditions = studioConditions.join(' AND ');
+            
+            performerQuery = `
+                SELECT 
+                    p.id,
+                    p.name,
+                    p.gender,
+                    p.age,
+                    p.height,
+                    p.scene_count,
+                    p.country,
+                    p.ethnicity,
+                    p.aliases,
+                    p.is_favorite,
+                    p.images,
+                    COUNT(DISTINCT s.studio_name) as studio_count
+                FROM performers p
+                JOIN performer_scenes ps ON p.id = ps.performer_id
+                JOIN scenes s ON ps.scene_id = s.id
+                WHERE s.studio_name IS NOT NULL AND s.studio_name != ''
+                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images
+                HAVING 
+                    COUNT(DISTINCT CASE WHEN ${studioConditions.join(' OR ')} THEN s.studio_name END) = ${studioNames.length}
+                    AND COUNT(DISTINCT s.studio_name) >= ${studioNames.length}
+            `;
+        } else if (match === 'exact') {
+            // EXACT: Performer has EXACTLY the selected studios (no others)
+            performerQuery = `
+                SELECT 
+                    p.id,
+                    p.name,
+                    p.gender,
+                    p.age,
+                    p.height,
+                    p.scene_count,
+                    p.country,
+                    p.ethnicity,
+                    p.aliases,
+                    p.is_favorite,
+                    p.images,
+                    COUNT(DISTINCT s.studio_name) as studio_count
+                FROM performers p
+                JOIN performer_scenes ps ON p.id = ps.performer_id
+                JOIN scenes s ON ps.scene_id = s.id
+                WHERE s.studio_name IS NOT NULL AND s.studio_name != ''
+                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images
+                HAVING 
+                    COUNT(DISTINCT CASE WHEN ${studioConditions.join(' OR ')} THEN s.studio_name END) = ${studioNames.length}
+                    AND COUNT(DISTINCT s.studio_name) = ${studioNames.length}
+            `;
         }
         
-        const matchedStudios = [];
-        for (const studioName of studioNames) {
-            const hasStudio = item.scenes.some(scene => 
-                scene && scene.studio && scene.studio.name && 
-                scene.studio.name.toLowerCase() === studioName.toLowerCase()
-            );
-            if (hasStudio) {
-                matchedStudios.push(studioName);
+        console.time('⏱️ Main query');
+        console.log('📝 Query type:', match);
+        const matchedPerformers = await queryNeon(performerQuery, queryParams);
+        console.timeEnd('⏱️ Main query');
+        
+        if (matchedPerformers.length === 0) {
+            console.log('📊 No performers found matching criteria');
+            return res.json({ 
+                success: true, 
+                performers: [], 
+                total: 0, 
+                page: parseInt(page), 
+                totalPages: 0 
+            });
+        }
+        
+        console.log(`📊 Found ${matchedPerformers.length} performers matching studios`);
+        
+        // Get performer IDs for filtering
+        const performerIdList = matchedPerformers.map(p => p.id);
+        
+        // Step 2: Apply tier and favorite filters using Miget
+        let filteredPerformers = matchedPerformers;
+        
+        // Tier filter
+        if (tier && tier !== 'all') {
+            const ids = performerIdList.map(id => `'${id}'`).join(',');
+            
+            if (tier === 'rated') {
+                const ratedIds = await queryMiget(
+                    `SELECT performer_id FROM performer_ratings WHERE performer_id IN (${ids})`
+                );
+                const ratedSet = new Set(ratedIds.rows.map(r => r.performer_id));
+                filteredPerformers = filteredPerformers.filter(p => ratedSet.has(p.id));
+            } else if (tier === 'unrated') {
+                const ratedIds = await queryMiget(
+                    `SELECT performer_id FROM performer_ratings WHERE performer_id IN (${ids})`
+                );
+                const ratedSet = new Set(ratedIds.rows.map(r => r.performer_id));
+                filteredPerformers = filteredPerformers.filter(p => !ratedSet.has(p.id));
+            } else {
+                const ratedIds = await queryMiget(
+                    `SELECT performer_id FROM performer_ratings WHERE performer_id IN (${ids}) AND rating = $1`,
+                    [tier]
+                );
+                const ratedSet = new Set(ratedIds.rows.map(r => r.performer_id));
+                filteredPerformers = filteredPerformers.filter(p => ratedSet.has(p.id));
             }
         }
         
-        let include = false;
-        if (match === 'any' && matchedStudios.length > 0) {
-            include = true;
-        } else if (match === 'all' && matchedStudios.length === studioNames.length) {
-            include = true;
-        } else if (match === 'exact' && matchedStudios.length === studioNames.length) {
-            include = true;
+        // Favorite filter
+        if (favorite === 'true') {
+            const ids = filteredPerformers.map(p => `'${p.id}'`).join(',');
+            const favIds = await queryMiget(
+                `SELECT performer_id FROM favorite_performers WHERE performer_id IN (${ids})`
+            );
+            const favSet = new Set(favIds.rows.map(r => r.performer_id));
+            filteredPerformers = filteredPerformers.filter(p => favSet.has(p.id));
+        } else if (favorite === 'false') {
+            const ids = filteredPerformers.map(p => `'${p.id}'`).join(',');
+            const favIds = await queryMiget(
+                `SELECT performer_id FROM favorite_performers WHERE performer_id IN (${ids})`
+            );
+            const favSet = new Set(favIds.rows.map(r => r.performer_id));
+            filteredPerformers = filteredPerformers.filter(p => !favSet.has(p.id));
         }
         
-        if (include) {
-            const rating = userData.performerRatings ? userData.performerRatings[pid] : null;
-            const isFavorited = userData.favoritePerformers ? userData.favoritePerformers.includes(pid) : false;
-            
-            results.push({
-                performer: {
-                    id: item.performer.id,
-                    name: item.performer.name,
-                    gender: item.performer.gender,
-                    age: item.performer.age,
-                    height: item.performer.height,
-                    scene_count: item.scenes.length,
-                    country: item.performer.country,
-                    ethnicity: item.performer.ethnicity,
-                    aliases: item.performer.aliases || [],
-                    is_favorite: item.performer.is_favorite || false,
-                    images: item.performer.images || [],
-                    rating: rating,
-                    is_favorited: isFavorited
-                },
-                matchedStudios: matchedStudios,
-                matchedCount: matchedStudios.length,
-                performerId: pid
+        const total = filteredPerformers.length;
+        console.log(`📊 After filters: ${total} performers`);
+        
+        if (total === 0) {
+            return res.json({ 
+                success: true, 
+                performers: [], 
+                total: 0, 
+                page: parseInt(page), 
+                totalPages: 0 
             });
         }
-    }
-    
-    results.sort((a, b) => b.matchedCount - a.matchedCount);
-    
-    if (tier && tier !== 'all') {
-        if (tier === 'rated') {
-            results = results.filter(r => r.performer.rating !== null && r.performer.rating !== undefined);
-        } else if (tier === 'unrated') {
-            results = results.filter(r => r.performer.rating === null || r.performer.rating === undefined);
-        } else {
-            results = results.filter(r => r.performer.rating === tier);
+        
+        // Step 3: Paginate
+        const paginatedPerformers = filteredPerformers.slice(offset, offset + parseInt(perPage));
+        
+        // Step 4: Get ratings for the paginated performers
+        const paginatedIds = paginatedPerformers.map(p => p.id);
+        let performerRatings = {};
+        let favoritePerformers = [];
+        
+        if (paginatedIds.length > 0) {
+            const ids = paginatedIds.map(id => `'${id}'`).join(',');
+            
+            const ratingsResult = await queryMiget(
+                `SELECT performer_id, rating FROM performer_ratings WHERE performer_id IN (${ids})`
+            );
+            ratingsResult.rows.forEach(row => {
+                performerRatings[row.performer_id] = row.rating;
+            });
+            
+            const favResult = await queryMiget(
+                `SELECT performer_id FROM favorite_performers WHERE performer_id IN (${ids})`
+            );
+            favoritePerformers = favResult.rows.map(row => row.performer_id);
         }
+        
+        // Step 5: Format results
+        const formattedResults = paginatedPerformers.map(p => {
+            const images = p.images ? JSON.parse(p.images) : [];
+            const aliases = parseAliases(p.aliases);
+            
+            return {
+                id: p.id,
+                name: p.name,
+                gender: p.gender || '',
+                age: p.age || '',
+                height: p.height || '',
+                scene_count: parseInt(p.scene_count) || 0,
+                country: p.country || '',
+                ethnicity: p.ethnicity || '',
+                aliases: aliases,
+                is_favorite: p.is_favorite === 'true' || p.is_favorite === true,
+                images: images.slice(0, 1),
+                rating: performerRatings[p.id] || null,
+                is_favorited: favoritePerformers.includes(p.id),
+                studio_count: parseInt(p.studio_count) || 0
+            };
+        });
+        
+        console.timeEnd('⏱️ Advanced search total time');
+        
+        res.json({
+            success: true,
+            performers: formattedResults,
+            total: total,
+            page: parseInt(page),
+            perPage: parseInt(perPage),
+            totalPages: Math.ceil(total / parseInt(perPage))
+        });
+        
+    } catch (error) {
+        console.error('❌ Advanced search error:', error.message);
+        console.error('Stack:', error.stack);
+        res.json({ success: false, error: error.message, performers: [] });
     }
-    
-    if (favorite === 'true') {
-        results = results.filter(r => r.performer.is_favorited === true);
-    } else if (favorite === 'false') {
-        results = results.filter(r => r.performer.is_favorited === false);
-    }
-    
-    const formattedResults = results.map(r => ({
-        id: r.performer.id,
-        name: r.performer.name,
-        gender: r.performer.gender,
-        age: r.performer.age,
-        height: r.performer.height,
-        scene_count: r.performer.scene_count,
-        country: r.performer.country,
-        ethnicity: r.performer.ethnicity,
-        aliases: r.performer.aliases || [],
-        is_favorite: r.performer.is_favorite || false,
-        images: r.performer.images || [],
-        rating: r.performer.rating,
-        is_favorited: r.performer.is_favorited,
-        studios: r.matchedStudios
-    }));
-    
-    const total = formattedResults.length;
-    const paginated = formattedResults.slice(offset, offset + parseInt(perPage));
-    
-    res.json({
-        success: true,
-        performers: paginated,
-        total: total,
-        page: parseInt(page),
-        perPage: parseInt(perPage),
-        totalPages: Math.ceil(total / parseInt(perPage))
-    });
 });
+
 
 // =========================
 // PERFORMER PROFILE
 // =========================
-app.get('/performer/:id', auth.requireAuth, async (req, res) => {
+app.get('/performer/:id', async (req, res) => {
     const performerId = req.params.id;
     const page = parseInt(req.query.page) || 1;
     const perPage = 24;
     const userData = await getUserData();
     
     try {
-        const item = performerMap[performerId];
-        if (!item || !item.performer) {
+        const performer = await getPerformerById(performerId);
+        if (!performer) {
             return res.status(404).send('Performer not found');
         }
         
-        let aliases = item.performer.aliases || [];
-        if (typeof aliases === 'string') {
-            try {
-                aliases = JSON.parse(aliases);
-            } catch (e) {
-                aliases = [];
-            }
-        }
+        const { scenes, total, totalPages } = await getPerformerScenes(performerId, page, perPage);
         
-        const performer = {
-            id: item.performer.id,
-            name: item.performer.name,
-            gender: item.performer.gender,
-            age: item.performer.age,
-            height: item.performer.height,
-            scene_count: (item.scenes && Array.isArray(item.scenes)) ? item.scenes.length : 0,
-            country: item.performer.country,
-            ethnicity: item.performer.ethnicity,
-            aliases: aliases,
-            is_favorite: item.performer.is_favorite || false,
-            images: item.performer.images || []
+        const performerObj = {
+            id: performer.id,
+            name: performer.name,
+            gender: performer.gender,
+            age: performer.age,
+            height: performer.height,
+            scene_count: parseInt(performer.scene_count) || total,
+            country: performer.country,
+            ethnicity: performer.ethnicity,
+            aliases: parseAliases(performer.aliases),
+            is_favorite: performer.is_favorite === 'true' || performer.is_favorite === true,
+            images: performer.images ? JSON.parse(performer.images) : []
         };
         
-        const allScenes = (item.scenes && Array.isArray(item.scenes)) ? item.scenes : [];
-        const total = allScenes.length;
-        const startIndex = (page - 1) * perPage;
-        const endIndex = Math.min(startIndex + perPage, total);
-        const paginatedScenes = allScenes.slice(startIndex, endIndex);
-        const totalPages = Math.ceil(total / perPage) || 1;
-        
-        const scenesWithUserData = paginatedScenes.map(scene => ({
+        const scenesWithUserData = scenes.map(scene => ({
             ...scene,
             isFavorited: userData.favoriteScenes.includes(scene.id)
         }));
         
         res.render('performer', {
             title: performer.name,
-            performer: performer,
+            performer: performerObj,
             scenes: scenesWithUserData,
             currentPage: page,
             totalPages: totalPages,
@@ -808,118 +746,124 @@ app.get('/performer/:id', auth.requireAuth, async (req, res) => {
 // =========================
 // SCENE DETAILS
 // =========================
-app.get('/scene/:id', auth.requireAuth, async (req, res) => {
+app.get('/scene/:id', async (req, res) => {
     const sceneId = req.params.id;
     const userData = await getUserData();
     
-    const scene = sceneMap[sceneId];
-    if (!scene) {
-        return res.status(404).send('Scene not found');
-    }
-    
-    const performers = [];
-    for (const pid in performerMap) {
-        const item = performerMap[pid];
-        if (item.scenes && Array.isArray(item.scenes) && item.scenes.some(s => s && s.id === sceneId)) {
-            performers.push({
-                id: item.performer.id,
-                name: item.performer.name,
-                images: item.performer.images || []
-            });
+    try {
+        const sceneResult = await queryNeon('SELECT * FROM scenes WHERE id = $1', [sceneId]);
+        if (sceneResult.length === 0) {
+            return res.status(404).send('Scene not found');
         }
+        
+        const scene = sceneResult[0];
+        
+        // Get performers in this scene
+        const performers = await queryNeon(`
+            SELECT p.* 
+            FROM performers p
+            JOIN performer_scenes ps ON p.id = ps.performer_id
+            WHERE ps.scene_id = $1
+        `, [sceneId]);
+        
+        const formattedScene = {
+            id: scene.id,
+            title: scene.title,
+            date: scene.date,
+            duration: scene.duration,
+            studio: scene.studio_id ? { id: scene.studio_id, name: scene.studio_name } : null,
+            images: scene.images ? JSON.parse(scene.images) : [],
+            performers: performers.map(p => ({ 
+                performer: {
+                    id: p.id,
+                    name: p.name,
+                    images: p.images ? JSON.parse(p.images) : []
+                }
+            }))
+        };
+        
+        res.render('scene', {
+            title: scene.title || 'Scene',
+            scene: formattedScene,
+            isFavorited: userData.favoriteScenes.includes(sceneId)
+        });
+        
+    } catch (error) {
+        console.error('❌ Scene error:', error.message);
+        res.status(404).send('Scene not found');
     }
-    
-    res.render('scene', {
-        title: scene.title || 'Scene',
-        scene: {
-            ...scene,
-            performers: performers.map(p => ({ performer: p }))
-        },
-        isFavorited: userData.favoriteScenes.includes(sceneId)
-    });
 });
 
 // =========================
 // STUDIO DETAILS PAGE
 // =========================
-app.get('/studio/:id', auth.requireAuth, (req, res) => {
+app.get('/studio/:id', async (req, res) => {
     const studioId = req.params.id;
     const page = parseInt(req.query.page) || 1;
     const perPage = 24;
-    const userData = getUserData();
+    const userData = await getUserData();
     
-    const studio = studioMap[studioId];
-    if (!studio) {
-        return res.status(404).send('Studio not found');
-    }
-    
-    const allScenes = studio.scenes
-        .map(sceneId => sceneMap[sceneId])
-        .filter(scene => scene !== undefined && scene !== null);
-    
-    const scenesWithRatings = allScenes.map(scene => {
-        const performersInScene = [];
-        for (const pid in performerMap) {
-            const item = performerMap[pid];
-            if (item.scenes && Array.isArray(item.scenes) && item.scenes.some(s => s && s.id === scene.id)) {
-                performersInScene.push(pid);
+    try {
+        const studio = await getStudio(studioId);
+        if (!studio) {
+            return res.status(404).send('Studio not found');
+        }
+        
+        const { scenes, total, totalPages } = await getStudioScenes(studioId, page, perPage);
+        
+        // Get performers count
+        const performersResult = await queryNeon(`
+            SELECT COUNT(DISTINCT ps.performer_id) 
+            FROM performer_scenes ps
+            JOIN scenes s ON ps.scene_id = s.id
+            WHERE s.studio_id = $1
+        `, [studioId]);
+        const performersCount = parseInt(performersResult[0]?.count || 0);
+        
+        // Get studio image
+        let studioImage = null;
+        if (scenes.length > 0 && scenes[0].images) {
+            const images = JSON.parse(scenes[0].images);
+            if (images.length > 0) {
+                studioImage = images[0].url;
             }
         }
         
-        const performerRatings = performersInScene
-            .map(pid => userData.performerRatings[pid] || null)
-            .filter(r => r !== null);
+        const scenesWithRatings = scenes.map(scene => {
+            // Get performer ratings for this scene
+            const performersInScene = [];
+            // This would need another query, but for now just return the scene
+            return {
+                ...scene,
+                performerRating: null,
+                isFavorited: userData.favoriteScenes.includes(scene.id)
+            };
+        });
         
-        const tier = performerRatings.length > 0 ? performerRatings.sort()[0] : null;
+        res.render('studio', {
+            title: studio.name,
+            studioName: studio.name,
+            studioId: studio.id,
+            studioImage: studioImage,
+            totalScenes: total,
+            performersCount: performersCount,
+            scenes: scenesWithRatings,
+            currentPage: page,
+            totalPages: totalPages,
+            studioId: studioId,
+            isFavorite: false
+        });
         
-        return {
-            ...scene,
-            performerRating: tier,
-            isFavorited: userData.favoriteScenes.includes(scene.id)
-        };
-    });
-    
-    const total = scenesWithRatings.length;
-    const startIndex = (page - 1) * perPage;
-    const endIndex = Math.min(startIndex + perPage, total);
-    const paginatedScenes = scenesWithRatings.slice(startIndex, endIndex);
-    const totalPages = Math.ceil(total / perPage);
-    
-    const performersSet = new Set();
-    allScenes.forEach(scene => {
-        for (const pid in performerMap) {
-            const item = performerMap[pid];
-            if (item.scenes && Array.isArray(item.scenes) && item.scenes.some(s => s && s.id === scene.id)) {
-                performersSet.add(pid);
-            }
-        }
-    });
-    
-    let studioImage = null;
-    if (allScenes.length > 0 && allScenes[0].images && allScenes[0].images.length > 0) {
-        studioImage = allScenes[0].images[0].url;
+    } catch (error) {
+        console.error('❌ Studio error:', error.message);
+        res.status(404).send('Studio not found');
     }
-    
-    res.render('studio', {
-        title: studio.name,
-        studioName: studio.name,
-        studioId: studio.id,
-        studioImage: studioImage,
-        totalScenes: total,
-        performersCount: performersSet.size,
-        scenes: paginatedScenes,
-        allScenes: scenesWithRatings.slice(0, 500),
-        currentPage: page,
-        totalPages: totalPages,
-        studioId: studioId,
-        isFavorite: false
-    });
 });
 
 // =========================
 // ADVANCED SEARCH PAGE
 // =========================
-app.get('/advanced-search', auth.requireAuth, (req, res) => {
+app.get('/advanced-search', (req, res) => {
     res.render('advanced-search', { title: 'Advanced Studio Search' });
 });
 
@@ -927,42 +871,30 @@ app.get('/advanced-search', auth.requireAuth, (req, res) => {
 // VIDEO MODE ROUTES
 // =========================
 
-app.get('/api/performer/:id/wow-scenes', auth.requireAuth, (req, res) => {
+app.get('/api/performer/:id/wow-scenes', async (req, res) => {
     const performerId = req.params.id;
     
     try {
-        const item = performerMap[performerId];
-        if (!item || !item.performer) {
+        const performer = await getPerformerById(performerId);
+        if (!performer) {
             return res.json({ success: false, error: 'Performer not found' });
         }
         
-        const performerName = item.performer.name;
+        const performerName = performer.name;
+        const wowVideos = await getWowVideos(performerName);
         
-        if (!wowData || !wowData.results) {
-            return res.json({ success: true, scenes: [], performerName: performerName });
-        }
-        
-        const performerResult = wowData.results.find(r => 
-            r.performer && r.performer.name && 
-            r.performer.name.toLowerCase() === performerName.toLowerCase()
-        );
-        
-        if (!performerResult || !performerResult.scenes || performerResult.scenes.length === 0) {
-            return res.json({ success: true, scenes: [], performerName: performerName });
-        }
-        
-        const scenes = performerResult.scenes.map(scene => ({
-            id: scene.videoId || 'unknown',
-            title: scene.title || 'Untitled Scene',
-            duration: scene.duration || '0:00',
+        const scenes = wowVideos.map(video => ({
+            id: video.video_id || 'unknown',
+            title: video.title || 'Untitled Scene',
+            duration: video.duration || '0:00',
             date: null,
-            studio: scene.studio ? { name: scene.studio } : null,
-            images: scene.thumbnail ? [{ url: scene.thumbnail }] : [],
-            video720p: scene.video720p,
+            studio: video.studio ? { name: video.studio } : null,
+            images: video.thumbnail ? [{ url: video.thumbnail }] : [],
+            video720p: video.video720p,
             isFavorited: false,
             performerName: performerName,
-            wowUrl: scene.url,
-            allQualities: scene.allQualities || []
+            wowUrl: video.url,
+            allQualities: video.all_qualities ? JSON.parse(video.all_qualities) : []
         }));
         
         res.json({
@@ -970,7 +902,7 @@ app.get('/api/performer/:id/wow-scenes', auth.requireAuth, (req, res) => {
             scenes: scenes,
             performerName: performerName,
             totalScenes: scenes.length,
-            videosFound: performerResult.videosFound || 0
+            videosFound: scenes.filter(s => s.video720p).length
         });
         
     } catch (error) {
@@ -980,9 +912,9 @@ app.get('/api/performer/:id/wow-scenes', auth.requireAuth, (req, res) => {
 });
 
 // =========================
-// VIDEO PROXY - Streams video from wow.xxx
+// IMPROVED VIDEO PROXY - With Range Support & Better Error Handling
 // =========================
-app.get('/api/video/proxy', auth.requireAuth, async (req, res) => {
+app.get('/api/video/proxy', async (req, res) => {
     const videoUrl = req.query.url;
     
     if (!videoUrl) {
@@ -992,21 +924,71 @@ app.get('/api/video/proxy', auth.requireAuth, async (req, res) => {
     try {
         console.log(`📹 Proxying video: ${videoUrl.substring(0, 80)}...`);
         
-        const response = await fetch(videoUrl, {
+        // Get the range header for partial content (supports seeking)
+        const range = req.headers.range;
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://www.wow.xxx/',
+            'Origin': 'https://www.wow.xxx',
+            'Accept': 'video/mp4, video/webm, video/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive'
+        };
+        
+        // Add range header if present (for seeking)
+        if (range) {
+            headers['Range'] = range;
+            console.log(`   Range: ${range}`);
+        }
+        
+        // First, make a HEAD request to get video info
+        const headResponse = await fetch(videoUrl, {
+            method: 'HEAD',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.wow.xxx/',
-                'Origin': 'https://www.wow.xxx',
-                'Accept': 'video/mp4, video/webm, video/*',
-                'Accept-Language': 'en-US,en;q=0.9'
+                'User-Agent': headers['User-Agent'],
+                'Referer': headers['Referer'],
+                'Origin': headers['Origin']
             }
         });
         
-        // Set headers for video streaming
-        res.setHeader('Content-Type', response.headers.get('content-type') || 'video/mp4');
-        res.setHeader('Content-Length', response.headers.get('content-length'));
+        const contentLength = headResponse.headers.get('content-length');
+        const contentType = headResponse.headers.get('content-type') || 'video/mp4';
+        const acceptRanges = headResponse.headers.get('accept-ranges');
+        
+        console.log(`   Content-Type: ${contentType}`);
+        console.log(`   Content-Length: ${contentLength}`);
+        console.log(`   Accept-Ranges: ${acceptRanges}`);
+        
+        // Now make the actual request
+        const response = await fetch(videoUrl, { headers });
+        
+        if (!response.ok && response.status !== 206) {
+            console.error(`   ❌ Failed to fetch: ${response.status}`);
+            return res.status(response.status).json({ 
+                error: `Failed to fetch video: ${response.status}` 
+            });
+        }
+        
+        // Set response headers
+        res.setHeader('Content-Type', contentType);
         res.setHeader('Accept-Ranges', 'bytes');
         res.setHeader('Cache-Control', 'public, max-age=3600');
+        
+        // Handle range requests
+        if (range) {
+            const contentRange = response.headers.get('content-range');
+            if (contentRange) {
+                res.setHeader('Content-Range', contentRange);
+            }
+            res.status(206); // Partial Content
+        }
+        
+        // Set content length if available
+        const length = response.headers.get('content-length');
+        if (length) {
+            res.setHeader('Content-Length', length);
+        }
         
         // Stream the video
         const reader = response.body.getReader();
@@ -1020,9 +1002,15 @@ app.get('/api/video/proxy', auth.requireAuth, async (req, res) => {
                         }
                         controller.enqueue(value);
                         push();
+                    }).catch(err => {
+                        console.error('Stream error:', err);
+                        controller.error(err);
                     });
                 }
                 push();
+            },
+            cancel() {
+                reader.cancel();
             }
         });
         
@@ -1030,61 +1018,249 @@ app.get('/api/video/proxy', auth.requireAuth, async (req, res) => {
         
     } catch (error) {
         console.error('❌ Video proxy error:', error.message);
-        res.status(500).json({ error: 'Failed to proxy video' });
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to proxy video: ' + error.message });
+        }
+    }
+});
+
+// =========================
+// VIDEO TOKEN FETCHER - Using scene URLs from Neon
+// =========================
+
+// Extract slug from scene URL
+function extractSlugFromUrl(sceneUrl) {
+    const match = sceneUrl.match(/\/videos\/([^\/]+)\//);
+    return match ? match[1] : null;
+}
+
+// Fetch fresh token from wow.xxx page
+async function fetchFreshTokenFromPage(slug) {
+    const pageUrl = `https://www.wow.xxx/videos/${slug}/`;
+    
+    try {
+        console.log(`📡 Fetching fresh token from: ${pageUrl}`);
+        
+        const response = await fetch(pageUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.wow.xxx/',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        if (!response.ok) {
+            console.error(`❌ Page fetch failed: ${response.status}`);
+            return null;
+        }
+        
+        const html = await response.text();
+        
+        // Check for Cloudflare
+        if (html.includes('cf-browser-verification') || 
+            html.includes('Checking your browser') ||
+            html.includes('Just a moment')) {
+            console.log('⚠️ Cloudflare detected, waiting...');
+            await new Promise(r => setTimeout(r, 3000));
+            
+            // Retry once
+            const retryResponse = await fetch(pageUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.wow.xxx/'
+                }
+            });
+            
+            if (!retryResponse.ok) return null;
+            const retryHtml = await retryResponse.text();
+            return extractVideoUrlFromHTML(retryHtml);
+        }
+        
+        return extractVideoUrlFromHTML(html);
+        
+    } catch (error) {
+        console.error('❌ Error fetching token:', error.message);
+        return null;
+    }
+}
+
+function extractVideoUrlFromHTML(html) {
+    // Try to find 2160p first (highest quality)
+    let match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*2160[^\s"']*/);
+    if (match) {
+        console.log('✅ Found 2160p URL');
+        return match[0];
+    }
+    
+    // Try 1080p
+    match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*1080[^\s"']*/);
+    if (match) {
+        console.log('✅ Found 1080p URL');
+        return match[0];
+    }
+    
+    // Try 720p
+    match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*720[^\s"']*/);
+    if (match) {
+        console.log('✅ Found 720p URL');
+        return match[0];
+    }
+    
+    // Fallback: any get_file URL
+    match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']+/);
+    if (match) {
+        console.log('✅ Found fallback URL');
+        return match[0];
+    }
+    
+    console.log('❌ No video URL found in page');
+    return null;
+}
+
+// =========================
+// API ENDPOINT - Get fresh video URL from scene URL
+// =========================
+app.get('/api/video/fresh', async (req, res) => {
+    const { sceneUrl } = req.query;
+    
+    if (!sceneUrl) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'No scene URL provided' 
+        });
+    }
+    
+    try {
+        console.log(`🎬 Getting fresh video for: ${sceneUrl}`);
+        
+        // Step 1: Extract slug from scene URL
+        const slug = extractSlugFromUrl(sceneUrl);
+        if (!slug) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Invalid scene URL - could not extract slug' 
+            });
+        }
+        
+        console.log(`   📌 Slug: ${slug}`);
+        
+        // Step 2: Fetch fresh token from the scene page
+        const videoUrl = await fetchFreshTokenFromPage(slug);
+        
+        if (!videoUrl) {
+            return res.status(500).json({ 
+                success: false, 
+                error: 'Could not fetch video token from scene page',
+                message: 'The video page might be blocked or the video is unavailable'
+            });
+        }
+        
+        console.log(`   ✅ Fresh video URL: ${videoUrl.substring(0, 80)}...`);
+        
+        res.json({ 
+            success: true, 
+            videoUrl: videoUrl
+        });
+        
+    } catch (error) {
+        console.error('❌ Error:', error.message);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to get fresh video URL',
+            message: error.message 
+        });
+    }
+});
+
+// Optional: Get fresh token only (for debugging)
+app.get('/api/video/token', async (req, res) => {
+    const { sceneUrl } = req.query;
+    
+    if (!sceneUrl) {
+        return res.status(400).json({ error: 'No scene URL provided' });
+    }
+    
+    try {
+        const slug = extractSlugFromUrl(sceneUrl);
+        if (!slug) {
+            return res.status(400).json({ error: 'Invalid scene URL' });
+        }
+        
+        const videoUrl = await fetchFreshTokenFromPage(slug);
+        
+        // Extract just the token from the URL
+        const tokenMatch = videoUrl?.match(/get_file\/\d+\/([a-f0-9]+)\//);
+        const token = tokenMatch ? tokenMatch[1] : null;
+        
+        res.json({ 
+            success: true, 
+            token: token,
+            fullUrl: videoUrl,
+            slug: slug
+        });
+        
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 
 // =========================
 // VIDEO MODE PAGE
 // =========================
-app.get('/performer/:id/videos', auth.requireAuth, async (req, res) => {
+app.get('/performer/:id/videos', async (req, res) => {
     const performerId = req.params.id;
     const page = parseInt(req.query.page) || 1;
     const perPage = 24;
-    const item = performerMap[performerId];
-    
-    if (!item || !item.performer) {
-        return res.status(404).send('Performer not found');
-    }
     
     try {
-        const performerName = item.performer.name;
-        let wowScenes = [];
-        let totalWowScenes = 0;
-        let videosFound = 0;
-        let totalPages = 1;
-        
-        if (wowData && wowData.results) {
-            const performerResult = wowData.results.find(r => 
-                r.performer && r.performer.name && 
-                r.performer.name.toLowerCase() === performerName.toLowerCase()
-            );
-            
-            if (performerResult && performerResult.scenes) {
-                const allScenes = performerResult.scenes.map(scene => ({
-                    id: scene.videoId || 'unknown',
-                    title: scene.title || 'Untitled Scene',
-                    duration: scene.duration || '0:00',
-                    studio: scene.studio ? { name: scene.studio } : null,
-                    images: scene.thumbnail ? [{ url: scene.thumbnail }] : [],
-                    video720p: scene.video720p,
-                    url: scene.url,
-                    allQualities: scene.allQualities || []
-                }));
-                
-                totalWowScenes = allScenes.length;
-                videosFound = performerResult.videosFound || 0;
-                totalPages = Math.ceil(totalWowScenes / perPage);
-                
-                const startIndex = (page - 1) * perPage;
-                const endIndex = Math.min(startIndex + perPage, totalWowScenes);
-                wowScenes = allScenes.slice(startIndex, endIndex);
-            }
+        const performer = await getPerformerById(performerId);
+        if (!performer) {
+            return res.status(404).send('Performer not found');
         }
         
+        const performerName = performer.name;
+        const wowVideos = await getWowVideos(performerName);
+        
+        const allScenes = wowVideos.map(video => ({
+            id: video.video_id || 'unknown',
+            title: video.title || 'Untitled Scene',
+            duration: video.duration || '0:00',
+            studio: video.studio ? { name: video.studio } : null,
+            images: video.thumbnail ? [{ url: video.thumbnail }] : [],
+            video720p: video.video720p,
+            url: video.url,
+            allQualities: video.all_qualities ? JSON.parse(video.all_qualities || '[]') : []
+        }));
+        
+        const totalWowScenes = allScenes.length;
+        const videosFound = allScenes.filter(s => s.video720p).length;
+        const totalPages = Math.ceil(totalWowScenes / perPage);
+        
+        const startIndex = (page - 1) * perPage;
+        const endIndex = Math.min(startIndex + perPage, totalWowScenes);
+        const wowScenes = allScenes.slice(startIndex, endIndex);
+        
+        const performerObj = {
+            id: performer.id,
+            name: performer.name,
+            gender: performer.gender,
+            age: performer.age,
+            height: performer.height,
+            scene_count: parseInt(performer.scene_count) || 0,
+            country: performer.country,
+            ethnicity: performer.ethnicity,
+            aliases: parseAliases(performer.aliases),
+            is_favorite: performer.is_favorite === 'true' || performer.is_favorite === true,
+            images: performer.images ? JSON.parse(performer.images) : []
+        };
+        
         res.render('performer-videos', {
-            title: `${item.performer.name} - Videos`,
-            performer: item.performer,
+            title: `${performer.name} - Videos`,
+            performer: performerObj,
             performerId: performerId,
             wowScenes: wowScenes,
             totalWowScenes: totalWowScenes,
@@ -1105,20 +1281,15 @@ app.get('/performer/:id/videos', auth.requireAuth, async (req, res) => {
 // START SERVER
 // =========================
 async function startServer() {
-    try {
-        await initializeData();
-        
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running at http://localhost:${PORT}`);
-            console.log(`💾 Data source: ${neonDb ? 'Neon (primary) + Miget (ratings)' : 'Local JSON + Miget (ratings)'}`);
-            console.log(`🔒 Password protection enabled`);
-            console.log(`📊 Advanced Search: http://localhost:${PORT}/advanced-search`);
-            console.log(`🎬 Video Mode: http://localhost:${PORT}/performer/{id}/videos`);
-        });
-    } catch (error) {
-        console.error('❌ Failed to initialize data:', error.message);
-        process.exit(1);
-    }
+    console.log('🚀 Server starting with on-demand Neon queries...');
+    console.log('📊 Data will be queried from Neon when requests are made');
+    
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running at http://localhost:${PORT}`);
+        console.log(`💾 Data source: Neon (on-demand queries) + Miget (ratings)`);
+        console.log(`📊 Advanced Search: http://localhost:${PORT}/advanced-search`);
+        console.log(`🎬 Video Mode: http://localhost:${PORT}/performer/{id}/videos`);
+    });
 }
 
 startServer();

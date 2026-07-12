@@ -8,7 +8,8 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 0; margin: 0; min-height: 100vh; }
         .app { max-width: 1200px; margin: 0 auto; padding: 16px; }
-        header { margin-bottom: 20px; padding: 16px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        
+        header { margin-bottom: 20px; padding: 16px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; border-bottom: 1px solid #1a1a1a; }
         header h1 { font-size: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block; }
         .back-link { display: inline-block; color: #667eea; text-decoration: none; font-size: 14px; }
         .back-link:hover { text-decoration: underline; }
@@ -47,17 +48,81 @@
         .filter-section .actions button.secondary { background: #333; }
 
         .result-stats { color: #888; font-size: 14px; margin-bottom: 16px; }
+        
         .performer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-        .performer-card { background: #1a1a1a; border-radius: 12px; padding: 16px; border: 1px solid #2a2a2a; transition: transform 0.2s; cursor: pointer; }
-        .performer-card:hover { transform: translateY(-4px); border-color: #667eea; }
-        .performer-card .name { font-size: 18px; font-weight: bold; color: #fff; }
-        .performer-card .name:hover { color: #667eea; }
-        .performer-card .rating { display: inline-block; padding: 2px 10px; border-radius: 12px; margin-top: 8px; font-size: 13px; }
-        .performer-card .rating.rated { background: #2a2a2a; border: 1px solid #f0c040; color: #f0c040; }
-        .performer-card .rating.unrated { background: #1a1a1a; border: 1px solid #444; color: #666; }
-        .performer-card .meta { color: #888; font-size: 13px; margin-top: 8px; }
-        .performer-card .meta span { margin-right: 12px; }
-        .performer-card .studios { color: #667eea; font-size: 12px; margin-top: 6px; }
+        
+        .performer-card { 
+            background: #1a1a1a; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            border: 1px solid #2a2a2a; 
+            transition: transform 0.2s, border-color 0.2s; 
+            cursor: pointer; 
+        }
+        .performer-card:hover { 
+            transform: translateY(-4px); 
+            border-color: #667eea; 
+        }
+        
+        .performer-image { 
+            width: 100%; 
+            height: 200px; 
+            overflow: hidden; 
+            background: #111; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            position: relative;
+        }
+        .performer-image img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+        }
+        .performer-image .no-image { 
+            font-size: 60px; 
+            opacity: 0.3; 
+        }
+        
+        .performer-info { 
+            padding: 16px; 
+        }
+        .performer-info .name { 
+            font-size: 18px; 
+            font-weight: bold; 
+            color: #fff; 
+            margin-bottom: 6px; 
+        }
+        .performer-info .name:hover { 
+            color: #667eea; 
+        }
+        .performer-info .rating { 
+            display: inline-block; 
+            padding: 2px 10px; 
+            border-radius: 12px; 
+            font-size: 13px; 
+            margin-bottom: 8px; 
+        }
+        .performer-info .rating.rated { 
+            background: #2a2a2a; 
+            border: 1px solid #f0c040; 
+            color: #f0c040; 
+        }
+        .performer-info .rating.unrated { 
+            background: #1a1a1a; 
+            border: 1px solid #444; 
+            color: #666; 
+        }
+        .performer-info .meta { 
+            color: #888; 
+            font-size: 13px; 
+            line-height: 1.5; 
+        }
+        .performer-info .studios { 
+            color: #667eea; 
+            font-size: 12px; 
+            margin-top: 4px; 
+        }
 
         .loading { text-align: center; padding: 40px; color: #888; }
         .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
@@ -65,7 +130,14 @@
         .page-link.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-color: #667eea; color: #fff; }
         .page-link:hover { background: #2a2a2a; }
 
-        @media (max-width: 768px) { .filter-section .row { flex-direction: column; } }
+        @media (max-width: 768px) { 
+            .filter-section .row { flex-direction: column; } 
+            .performer-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+            .performer-image { height: 150px; }
+        }
+        @media (max-width: 480px) { 
+            .performer-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -126,19 +198,19 @@
             </div>
 
             <div class="match-type">
-    <label>
-        <input type="radio" name="matchType" value="any">
-        Any selected studio
-    </label>
-    <label>
-        <input type="radio" name="matchType" value="all" checked>
-        All selected studios
-    </label>
-    <label>
-        <input type="radio" name="matchType" value="exact">
-        Exactly selected studios (no others)
-    </label>
-</div>
+                <label>
+                    <input type="radio" name="matchType" value="any" checked>
+                    Any selected studio
+                </label>
+                <label>
+                    <input type="radio" name="matchType" value="all">
+                    All selected studios
+                </label>
+                <label>
+                    <input type="radio" name="matchType" value="exact">
+                    Exactly selected studios (no others)
+                </label>
+            </div>
 
             <div class="actions">
                 <button onclick="searchPerformers()">🔍 Search</button>
@@ -156,6 +228,7 @@
         let currentPage = 1;
         let totalPages = 1;
         let selectedStudios = [];
+        let isSearching = false;
 
         // =========================
         // LOAD STUDIOS
@@ -229,7 +302,7 @@
             container.innerHTML = selectedStudios.map(name => `
                 <span class="studio-tag">
                     🏢 ${name}
-                    <span class="remove" onclick="removeStudio('${name}')">✕</span>
+                    <span class="remove" onclick="removeStudio('${name.replace(/'/g, "\\'")}')">✕</span>
                 </span>
             `).join('');
         }
@@ -251,9 +324,11 @@
         });
 
         // =========================
-        // SEARCH - WITH RATING DISPLAY FIX
+        // SEARCH PERFORMERS - OPTIMIZED WITH CLEAN DISPLAY
         // =========================
         async function searchPerformers(page = 1) {
+            if (isSearching) return;
+            
             const tier = document.getElementById('tierFilter').value;
             const favorite = document.getElementById('favoriteFilter').value;
             const matchType = document.querySelector('input[name="matchType"]:checked').value;
@@ -266,9 +341,11 @@
                 return;
             }
             
+            isSearching = true;
             loading.style.display = 'block';
             results.innerHTML = '';
             document.getElementById('resultStats').textContent = '';
+            document.getElementById('pagination').innerHTML = '';
             
             // Send studio names
             const url = `/api/search/advanced?studios=${selectedStudios.map(s => encodeURIComponent(s)).join(',')}&tier=${tier}&favorite=${favorite}&match=${matchType}&page=${page}&perPage=50`;
@@ -277,56 +354,73 @@
                 const response = await fetch(url);
                 const data = await response.json();
                 loading.style.display = 'none';
-                
-                // Debug: Log the first performer to check ratings
-                if (data.success && data.performers && data.performers.length > 0) {
-                    console.log('📊 First performer:', data.performers[0]);
-                    console.log('📊 Rating value:', data.performers[0].rating);
-                    console.log('📊 Is favorited:', data.performers[0].is_favorited);
-                }
+                isSearching = false;
                 
                 if (data.success) {
+                    currentPage = data.page || 1;
+                    totalPages = data.totalPages || 1;
+                    
                     if (data.performers.length === 0) {
                         results.innerHTML = '<div class="loading">No performers found matching your criteria</div>';
                         document.getElementById('resultStats').textContent = '0 results';
                         return;
                     }
                     
+                    // Render performer cards - CLEAN DISPLAY
                     results.innerHTML = data.performers.map(p => {
                         // Check if rating exists
                         const hasRating = p.rating && p.rating !== 'null' && p.rating !== 'undefined' && p.rating !== '';
                         const ratingClass = hasRating ? 'rated' : 'unrated';
                         const ratingText = hasRating ? `⭐ Grade: ${p.rating}` : 'Not rated';
                         
+                        // Build meta info
+                        let metaParts = [];
+                        if (p.gender) metaParts.push(`⚥ ${p.gender}`);
+                        if (p.age) metaParts.push(`🎂 ${p.age}`);
+                        metaParts.push(`${p.scene_count || 0} scenes`);
+                        if (p.country) metaParts.push(p.country);
+                        if (p.is_favorited) metaParts.push('❤️');
+                        
+                        // Get image URL
+                        let imageUrl = '';
+                        if (p.images && p.images.length > 0 && p.images[0] && p.images[0].url) {
+                            imageUrl = p.images[0].url;
+                        }
+                        
+                        // Studio count
+                        const studioText = p.studio_count ? `🏢 ${p.studio_count} studios` : '';
+                        
                         return `
                             <div class="performer-card" onclick="window.location.href='/performer/${p.id}'">
-                                <div class="name">${p.name}</div>
-                                <div class="rating ${ratingClass}">
-                                    ${ratingText}
+                                <div class="performer-image">
+                                    ${imageUrl ? 
+                                        `<img src="${imageUrl}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` :
+                                        ''
+                                    }
+                                    ${!imageUrl ? `<div class="no-image">🎭</div>` : ''}
                                 </div>
-                                <div class="meta">
-                                    ${p.gender ? `⚥ ${p.gender} ` : ''}
-                                    ${p.age ? `🎂 ${p.age} • ` : ''}
-                                    ${p.scene_count || 0} scenes
-                                    ${p.is_favorited ? ' ❤️' : ''}
-                                    ${p.country ? ` • ${p.country}` : ''}
-                                </div>
-                                <div class="studios">
-                                    🏢 ${p.studios ? p.studios.join(', ') : ''}
+                                <div class="performer-info">
+                                    <div class="name">${p.name}</div>
+                                    <div class="rating ${ratingClass}">
+                                        ${ratingText}
+                                    </div>
+                                    <div class="meta">
+                                        ${metaParts.join(' • ')}
+                                    </div>
+                                    ${studioText ? `<div class="studios">${studioText}</div>` : ''}
                                 </div>
                             </div>
                         `;
                     }).join('');
                     
-                    document.getElementById('resultStats').textContent = `${data.total} results`;
-                    totalPages = data.totalPages;
-                    currentPage = data.page;
+                    document.getElementById('resultStats').textContent = `${data.total} results (Page ${data.page} of ${data.totalPages})`;
                     updatePagination();
                 } else {
                     results.innerHTML = `<div class="loading">Error: ${data.error || 'Please try again'}</div>`;
                 }
             } catch (error) {
                 loading.style.display = 'none';
+                isSearching = false;
                 results.innerHTML = '<div class="loading">Error searching. Please try again.</div>';
                 console.error('Search error:', error);
             }
@@ -343,9 +437,39 @@
             }
             
             let html = '';
-            for (let i = 1; i <= totalPages; i++) {
+            // Previous button
+            if (currentPage > 1) {
+                html += `<button class="page-link" onclick="searchPerformers(${currentPage - 1})">← Prev</button>`;
+            }
+            
+            // Page numbers
+            const maxVisible = 7;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+            
+            if (endPage - startPage < maxVisible - 1) {
+                startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+            
+            if (startPage > 1) {
+                html += `<button class="page-link" onclick="searchPerformers(1)">1</button>`;
+                if (startPage > 2) html += `<span class="page-link" style="border:none;background:transparent;">…</span>`;
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
                 html += `<button class="page-link ${i === currentPage ? 'active' : ''}" onclick="searchPerformers(${i})">${i}</button>`;
             }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) html += `<span class="page-link" style="border:none;background:transparent;">…</span>`;
+                html += `<button class="page-link" onclick="searchPerformers(${totalPages})">${totalPages}</button>`;
+            }
+            
+            // Next button
+            if (currentPage < totalPages) {
+                html += `<button class="page-link" onclick="searchPerformers(${currentPage + 1})">Next →</button>`;
+            }
+            
             container.innerHTML = html;
         }
 
@@ -361,12 +485,33 @@
             document.querySelector('input[name="matchType"][value="any"]').checked = true;
             document.getElementById('results').innerHTML = '';
             document.getElementById('resultStats').textContent = '';
+            document.getElementById('pagination').innerHTML = '';
+            currentPage = 1;
+            totalPages = 1;
         }
+
+        // =========================
+        // KEYBOARD SHORTCUTS
+        // =========================
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Enter to search
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                searchPerformers();
+            }
+            // Escape to clear
+            if (e.key === 'Escape') {
+                clearFilters();
+            }
+        });
 
         // =========================
         // LOAD STUDIOS ON PAGE LOAD
         // =========================
         loadStudios();
+        
+        // Auto-search on page load if studios are selected (from URL params)
+        // You can add URL param support here if needed
     </script>
 </body>
 </html>
