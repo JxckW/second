@@ -484,87 +484,127 @@
     </div>
 
     <script>
-    // In performer-videos.ejs - Updated playVideo function
-async function playVideo(sceneUrl, title, thumbnail) {
-    console.log('🎬 Playing video:', title);
-    console.log('   Scene URL:', sceneUrl);
-    
-    const modal = document.getElementById('videoModal');
-    const loading = document.getElementById('videoLoading');
-    const errorEl = document.getElementById('videoError');
-    const video = document.getElementById('videoPlayer');
-    const titleEl = document.getElementById('videoTitle');
-    const source = document.getElementById('videoSource');
-    
-    modal.classList.add('active');
-    loading.style.display = 'block';
-    loading.textContent = '⏳ Fetching video URL...';
-    errorEl.style.display = 'none';
-    titleEl.textContent = title || 'Video';
-    video.pause();
-    video.currentTime = 0;
-    source.src = '';
-    video.load();
-    
-    try {
-        const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-        const data = await response.json();
+        // =========================
+        // VIDEO PLAYER - Opens in New Tab
+        // =========================
         
-        if (!data.success || !data.cdnUrl) {
-            throw new Error(data.error || 'Could not get video URL');
+        let currentVideoUrl = null;
+
+        // Main play function - opens video in new tab
+        async function playVideo(sceneUrl, title, thumbnail) {
+            console.log('🎬 Playing video:', title);
+            console.log('   Scene URL:', sceneUrl);
+            
+            // Show a toast/notification
+            const loading = document.getElementById('videoLoading');
+            const modal = document.getElementById('videoModal');
+            
+            modal.classList.add('active');
+            loading.style.display = 'block';
+            loading.textContent = '⏳ Fetching video URL...';
+            document.getElementById('videoError').style.display = 'none';
+            document.getElementById('videoTitle').textContent = title || 'Video';
+            
+            try {
+                const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                const data = await response.json();
+                
+                if (!data.success || !data.cdnUrl) {
+                    throw new Error(data.error || 'Could not get video URL');
+                }
+                
+                const videoUrl = data.cdnUrl;
+                currentVideoUrl = videoUrl;
+                
+                console.log('🎬 Opening video in new tab:', videoUrl);
+                
+                // Open the video in a new tab
+                window.open(videoUrl, '_blank');
+                
+                // Close the modal
+                closeVideoModal();
+                
+            } catch (error) {
+                console.error('❌ Error:', error.message);
+                loading.style.display = 'none';
+                const errorEl = document.getElementById('videoError');
+                errorEl.style.display = 'block';
+                errorEl.innerHTML = `
+                    ❌ Failed to get video: ${error.message}
+                    <br><br>
+                    <button onclick="closeVideoModal()" style="
+                        padding: 8px 20px;
+                        border-radius: 8px;
+                        border: 1px solid #667eea;
+                        background: transparent;
+                        color: #667eea;
+                        cursor: pointer;
+                    ">Close</button>
+                `;
+            }
         }
-        
-        // Try proxy URL first (if available), then fallback to direct CDN
-        const videoUrl = data.proxyUrl || data.cdnUrl;
-        console.log('🎬 Video URL:', videoUrl);
-        
-        loading.textContent = '⏳ Loading video...';
-        
-        // If it's a proxy URL, the browser can fetch it directly
-        source.src = videoUrl;
-        video.load();
-        
-        video.oncanplay = function() {
-            console.log('✅ Video can play');
-            loading.style.display = 'none';
-            video.play().catch(e => console.log('Autoplay prevented:', e));
-        };
-        
-        video.onerror = function() {
-            // If proxy fails, try opening in new tab as fallback
-            loading.style.display = 'none';
-            errorEl.style.display = 'block';
-            errorEl.innerHTML = `
-                ❌ Video cannot be played in the browser
-                <br><br>
-                <a href="${data.cdnUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
-                    📥 Try opening directly in new tab
-                </a>
-                <br><br>
-                <span style="font-size: 12px; color: #666;">
-                    If the video opens in a new tab, copy the URL and paste it into VLC media player.
-                </span>
-            `;
-        };
-        
-    } catch (error) {
-        console.error('❌ Error:', error.message);
-        loading.style.display = 'none';
-        errorEl.style.display = 'block';
-        errorEl.innerHTML = `
-            ❌ Failed to get video: ${error.message}
-            <br><br>
-            <button onclick="closeVideoModal()" style="
-                padding: 8px 20px;
-                border-radius: 8px;
-                border: 1px solid #667eea;
-                background: transparent;
-                color: #667eea;
-                cursor: pointer;
-            ">Close</button>
-        `;
-    }
-}
+
+        // Close video modal
+        function closeVideoModal() {
+            console.log('🔒 Closing video modal');
+            const modal = document.getElementById('videoModal');
+            modal.classList.remove('active');
+            currentVideoUrl = null;
+            
+            document.getElementById('videoLoading').style.display = 'block';
+            document.getElementById('videoLoading').textContent = '⏳ Loading video...';
+            document.getElementById('videoError').style.display = 'none';
+        }
+
+        // Test function for debugging
+        async function testVideoUrl() {
+            const sceneUrl = document.getElementById('testSceneUrl').value.trim();
+            const result = document.getElementById('testResult');
+            
+            if (!sceneUrl) {
+                result.textContent = '❌ Please enter a scene URL';
+                result.style.color = '#ff6b6b';
+                return;
+            }
+            
+            result.textContent = '⏳ Testing...';
+            result.style.color = '#888';
+            
+            try {
+                const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                const data = await response.json();
+                
+                if (data.success && data.cdnUrl) {
+                    result.innerHTML = `✅ Video URL ready! <a href="${data.cdnUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">Open video</a>`;
+                    result.style.color = '#4caf50';
+                } else {
+                    result.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
+                    result.style.color = '#ff6b6b';
+                }
+            } catch (error) {
+                result.textContent = '❌ Error: ' + error.message;
+                result.style.color = '#ff6b6b';
+            }
+        }
+
+        // Keyboard shortcut: Escape to close
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeVideoModal();
+            }
+        });
+
+        // Click outside to close
+        document.getElementById('videoModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeVideoModal();
+            }
+        });
+
+        // Handle page unload - clean up
+        window.addEventListener('beforeunload', function() {
+            closeVideoModal();
+        });
     </script>
 </body>
 </html>

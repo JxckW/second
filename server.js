@@ -943,7 +943,7 @@ function extractSlugFromUrl(sceneUrl) {
 }
 
 // =========================
-// FETCH TOKEN ENDPOINT - Returns CDN URL with wrapper
+// FETCH TOKEN ENDPOINT - Returns CDN URL
 // =========================
 app.get('/api/video/fetch-token', async (req, res) => {
     const { sceneUrl } = req.query;
@@ -959,7 +959,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
         }
         
         const pageUrl = `https://www.wow.xxx/videos/${slug}/`;
-        console.log('📡 Fetching token from:', pageUrl);
+        console.log('📡 Server fetching token from:', pageUrl);
         
         const response = await fetch(pageUrl, {
             headers: {
@@ -1035,36 +1035,13 @@ app.get('/api/video/fetch-token', async (req, res) => {
         const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
         const token = tokenMatch ? tokenMatch[1] : null;
         
-        // Try to use a redirect service to bypass the 403
-        // Wrap the URL in a service that follows redirects
-        const redirectServices = [
-            `https://corsproxy.io/?${encodeURIComponent(cdnUrl)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(cdnUrl)}`,
-            `https://cors-anywhere.herokuapp.com/${cdnUrl}`
-        ];
-        
-        // Try each proxy service
-        let proxyUrl = null;
-        for (const service of redirectServices) {
-            try {
-                const test = await fetch(service, { method: 'HEAD' });
-                if (test.ok || test.status === 206) {
-                    proxyUrl = service;
-                    console.log('✅ Found working proxy service:', service.substring(0, 50) + '...');
-                    break;
-                }
-            } catch (e) {
-                console.log('   Proxy failed, trying next...');
-            }
-        }
+        console.log('✅ Returning CDN URL to client');
         
         res.json({
             success: true,
             token: token,
             cdnUrl: cdnUrl,
-            proxyUrl: proxyUrl, // The wrapped URL that might work
-            videoUrl: cdnUrl,
-            message: 'Use the video URL to play the video'
+            videoUrl: cdnUrl
         });
         
     } catch (error) {
