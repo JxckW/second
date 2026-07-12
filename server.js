@@ -1002,133 +1002,57 @@ function extractSlugFromUrl(sceneUrl) {
     return match ? match[1] : null;
 }
 
-// In server.js - Updated /api/video/fetch-token endpoint
-
 app.get('/api/video/fetch-token', async (req, res) => {
-    const { sceneUrl } = req.query;
+    // ... (get getFileUrl from scene page) ...
     
-    if (!sceneUrl) {
-        return res.status(400).json({ error: 'No scene URL provided' });
-    }
+    console.log('📡 Following redirect chain...');
+    let currentUrl = getFileUrl;
+    let maxRedirects = 5;
+    let fpvcdnUrl = null;
     
-    try {
-        const slug = sceneUrl.match(/\/videos\/([^\/]+)\//)?.[1];
-        if (!slug) {
-            return res.status(400).json({ error: 'Invalid scene URL' });
-        }
-        
-        const pageUrl = `https://www.wow.xxx/videos/${slug}/`;
-        console.log('📡 Fetching token from:', pageUrl);
-        
-        const response = await fetch(pageUrl, {
+    while (maxRedirects > 0) {
+        const response = await fetch(currentUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Referer': 'https://www.wow.xxx/',
-                'Cache-Control': 'no-cache'
-            }
+                'Accept': 'video/mp4, video/webm, video/*'
+            },
+            redirect: 'manual'
         });
         
-        if (!response.ok) {
-            return res.status(response.status).json({ error: `HTTP ${response.status}` });
-        }
-        
-        const html = await response.text();
-        
-        let getFileUrl = null;
-        const qualityPatterns = [
-            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*2160[^\s"']*/,
-            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*1080[^\s"']*/,
-            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*720[^\s"']*/,
-            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*480[^\s"']*/,
-            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']+/
-        ];
-        
-        for (const pattern of qualityPatterns) {
-            const match = html.match(pattern);
-            if (match) {
-                getFileUrl = match[0];
-                console.log('✅ Found get_file URL');
-                break;
-            }
-        }
-        
-        if (!getFileUrl) {
-            return res.status(404).json({ error: 'No video URL found in page' });
-        }
-        
-        console.log('📡 Following redirect chain to get final video URL...');
-        
-        // FOLLOW THE FULL REDIRECT CHAIN
-        let currentUrl = getFileUrl;
-        let maxRedirects = 10;
-        let redirectCount = 0;
-        let finalUrl = null;
-        
-        while (redirectCount < maxRedirects) {
-            console.log(`   Redirect ${redirectCount + 1}: ${currentUrl.substring(0, 80)}...`);
+        // If it's a redirect
+        if (response.status === 301 || response.status === 302 || response.status === 303) {
+            const location = response.headers.get('location');
             
-            const redirectResponse = await fetch(currentUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer': 'https://www.wow.xxx/',
-                    'Origin': 'https://www.wow.xxx',
-                    'Accept': 'video/mp4, video/webm, video/*',
-                    'Accept-Language': 'en-US,en;q=0.9'
-                },
-                redirect: 'manual' // Don't auto-follow, we want to inspect each redirect
-            });
-            
-            // Check if we got a redirect
-            if (redirectResponse.status === 301 || redirectResponse.status === 302 || redirectResponse.status === 303) {
-                const location = redirectResponse.headers.get('location');
-                if (!location) {
-                    console.log('   ⚠️ Redirect with no location header');
-                    break;
-                }
-                currentUrl = location;
-                redirectCount++;
-                continue;
+            // If the redirect points to fpvcdn.com, save it and STOP
+            if (location && location.includes('fpvcdn.com')) {
+                fpvcdnUrl = location;
+                console.log('✅ Found fpvcdn.com URL (less strict):', fpvcdnUrl);
+                break;  // STOP here, don't follow to ahcdn.com
             }
             
-            // If we got a successful response (200 or 206), this is the final URL
-            if (redirectResponse.ok || redirectResponse.status === 206) {
-                console.log('✅ Final video URL reached!');
-                finalUrl = currentUrl;
-                break;
-            }
-            
-            // If we got a 403 or other error, break
-            console.log(`   ⚠️ Unexpected status: ${redirectResponse.status}`);
+            // Otherwise continue following
+            currentUrl = location;
+            maxRedirects--;
+            continue;
+        }
+        
+        // If no redirect, use current URL
+        if (response.ok || response.status === 206) {
             break;
         }
-        
-        // If we didn't get a final URL, try using the last URL we have
-        if (!finalUrl) {
-            finalUrl = currentUrl;
-            console.log(`   ⚠️ Using last URL as final: ${finalUrl.substring(0, 80)}...`);
-        }
-        
-        console.log('✅ Final video URL:', finalUrl);
-        
-        const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
-        const token = tokenMatch ? tokenMatch[1] : null;
-        
-        res.json({
-            success: true,
-            token: token,
-            cdnUrl: finalUrl,  // Now this should be the ahcdn.com link!
-            videoUrl: finalUrl,
-            redirectCount: redirectCount
-        });
-        
-    } catch (error) {
-        console.error('❌ Error fetching token:', error.message);
-        res.status(500).json({ error: error.message });
     }
+    
+    // If we didn't find fpvcdn, use the last URL
+    if (!fpvcdnUrl) {
+        fpvcdnUrl = currentUrl;
+    }
+    
+    res.json({
+        success: true,
+        token: token,
+        cdnUrl: fpvcdnUrl  // ← This will be the fpvcdn.com link
+    });
 });
 // =========================
 // VIDEO MODE PAGE
