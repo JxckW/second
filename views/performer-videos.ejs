@@ -485,27 +485,36 @@
 
     <script>
         // =========================
-        // VIDEO PLAYER - Opens in New Tab
+        // VIDEO PLAYER - Download via Render
         // =========================
         
         let currentVideoUrl = null;
 
-        // Main play function - opens video in new tab
+        // Main play function - downloads video through Render
         async function playVideo(sceneUrl, title, thumbnail) {
             console.log('🎬 Playing video:', title);
             console.log('   Scene URL:', sceneUrl);
             
-            // Show a toast/notification
+            // Show loading state
             const loading = document.getElementById('videoLoading');
             const modal = document.getElementById('videoModal');
+            const errorEl = document.getElementById('videoError');
+            const video = document.getElementById('videoPlayer');
+            const titleEl = document.getElementById('videoTitle');
+            const source = document.getElementById('videoSource');
             
             modal.classList.add('active');
             loading.style.display = 'block';
             loading.textContent = '⏳ Fetching video URL...';
-            document.getElementById('videoError').style.display = 'none';
-            document.getElementById('videoTitle').textContent = title || 'Video';
+            errorEl.style.display = 'none';
+            titleEl.textContent = title || 'Video';
+            video.pause();
+            video.currentTime = 0;
+            source.src = '';
+            video.load();
             
             try {
+                // Step 1: Get the CDN URL from the server
                 const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
                 const data = await response.json();
                 
@@ -513,21 +522,47 @@
                     throw new Error(data.error || 'Could not get video URL');
                 }
                 
-                const videoUrl = data.cdnUrl;
+                const cdnUrl = data.cdnUrl;
+                console.log('✅ Got CDN URL:', cdnUrl.substring(0, 80) + '...');
+                
+                // Step 2: Use the download endpoint to stream through Render
+                const videoUrl = `/api/video/download?url=${encodeURIComponent(cdnUrl)}`;
                 currentVideoUrl = videoUrl;
                 
-                console.log('🎬 Opening video in new tab:', videoUrl);
+                console.log('🎬 Streaming through Render:', videoUrl);
                 
-                // Open the video in a new tab
-                window.open(videoUrl, '_blank');
+                // Step 3: Load the video
+                loading.textContent = '⏳ Loading video...';
+                source.src = videoUrl;
+                video.load();
                 
-                // Close the modal
-                closeVideoModal();
+                // Step 4: Handle video events
+                video.oncanplay = function() {
+                    console.log('✅ Video can play');
+                    loading.style.display = 'none';
+                    video.play().catch(e => console.log('Autoplay prevented:', e));
+                };
+                
+                video.onerror = function(e) {
+                    console.error('❌ Video error:', e);
+                    loading.style.display = 'none';
+                    errorEl.style.display = 'block';
+                    errorEl.innerHTML = `
+                        ❌ Error loading video
+                        <br><br>
+                        <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                            📥 Try opening directly in new tab
+                        </a>
+                        <br><br>
+                        <span style="font-size: 13px; color: #888;">
+                            If the video downloads, you can play it locally.
+                        </span>
+                    `;
+                };
                 
             } catch (error) {
                 console.error('❌ Error:', error.message);
                 loading.style.display = 'none';
-                const errorEl = document.getElementById('videoError');
                 errorEl.style.display = 'block';
                 errorEl.innerHTML = `
                     ❌ Failed to get video: ${error.message}
@@ -548,6 +583,13 @@
         function closeVideoModal() {
             console.log('🔒 Closing video modal');
             const modal = document.getElementById('videoModal');
+            const video = document.getElementById('videoPlayer');
+            const source = document.getElementById('videoSource');
+            
+            video.pause();
+            video.currentTime = 0;
+            source.src = '';
+            video.load();
             modal.classList.remove('active');
             currentVideoUrl = null;
             
@@ -575,7 +617,8 @@
                 const data = await response.json();
                 
                 if (data.success && data.cdnUrl) {
-                    result.innerHTML = `✅ Video URL ready! <a href="${data.cdnUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">Open video</a>`;
+                    const downloadUrl = `/api/video/download?url=${encodeURIComponent(data.cdnUrl)}`;
+                    result.innerHTML = `✅ Video ready! <a href="${downloadUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">Download/Play</a>`;
                     result.style.color = '#4caf50';
                 } else {
                     result.textContent = '❌ Failed: ' + (data.error || 'Unknown error');

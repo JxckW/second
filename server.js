@@ -885,6 +885,66 @@ app.get('/api/performer/:id/wow-scenes', async (req, res) => {
     }
 });
 
+// In server.js - Add this endpoint
+app.get('/api/video/proxy-stream', async (req, res) => {
+    const { url } = req.query;
+    
+    if (!url) {
+        return res.status(400).json({ error: 'No URL provided' });
+    }
+    
+    try {
+        console.log('📡 Streaming video through Render proxy...');
+        
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.wow.xxx/',
+                'Accept': 'video/mp4, video/webm, video/*',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+        
+        if (!response.ok && response.status !== 206) {
+            return res.status(response.status).json({ error: `Failed: ${response.status}` });
+        }
+        
+        res.setHeader('Content-Type', response.headers.get('content-type') || 'video/mp4');
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('Content-Disposition', 'inline');
+        
+        // Stream the video in chunks
+        const reader = response.body.getReader();
+        const stream = new ReadableStream({
+            start(controller) {
+                function push() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            controller.close();
+                            return;
+                        }
+                        controller.enqueue(value);
+                        push();
+                    }).catch(err => {
+                        console.error('Stream error:', err);
+                        controller.error(err);
+                    });
+                }
+                push();
+            }
+        });
+        stream.pipeTo(res);
+        
+    } catch (error) {
+        console.error('❌ Stream error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+
+
 // =========================
 // VIDEO PROXY AND TOKEN FETCHING
 // =========================
