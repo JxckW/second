@@ -1002,57 +1002,144 @@ function extractSlugFromUrl(sceneUrl) {
     return match ? match[1] : null;
 }
 
+// =========================
+// FETCH TOKEN ENDPOINT - Gets fpvcdn.com link
+// =========================
 app.get('/api/video/fetch-token', async (req, res) => {
-    // ... (get getFileUrl from scene page) ...
+    const { sceneUrl } = req.query;
     
-    console.log('📡 Following redirect chain...');
-    let currentUrl = getFileUrl;
-    let maxRedirects = 5;
-    let fpvcdnUrl = null;
+    if (!sceneUrl) {
+        return res.status(400).json({ error: 'No scene URL provided' });
+    }
     
-    while (maxRedirects > 0) {
-        const response = await fetch(currentUrl, {
+    try {
+        const slug = sceneUrl.match(/\/videos\/([^\/]+)\//)?.[1];
+        if (!slug) {
+            return res.status(400).json({ error: 'Invalid scene URL' });
+        }
+        
+        const pageUrl = `https://www.wow.xxx/videos/${slug}/`;
+        console.log('📡 Fetching token from:', pageUrl);
+        
+        const response = await fetch(pageUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
                 'Referer': 'https://www.wow.xxx/',
-                'Accept': 'video/mp4, video/webm, video/*'
+                'Cache-Control': 'no-cache'
             },
-            redirect: 'manual'
+            // Add timeout to prevent hanging
+            signal: AbortSignal.timeout(15000)
         });
         
-        // If it's a redirect
-        if (response.status === 301 || response.status === 302 || response.status === 303) {
-            const location = response.headers.get('location');
-            
-            // If the redirect points to fpvcdn.com, save it and STOP
-            if (location && location.includes('fpvcdn.com')) {
-                fpvcdnUrl = location;
-                console.log('✅ Found fpvcdn.com URL (less strict):', fpvcdnUrl);
-                break;  // STOP here, don't follow to ahcdn.com
-            }
-            
-            // Otherwise continue following
-            currentUrl = location;
-            maxRedirects--;
-            continue;
+        if (!response.ok) {
+            return res.status(response.status).json({ error: `HTTP ${response.status}` });
         }
         
-        // If no redirect, use current URL
-        if (response.ok || response.status === 206) {
-            break;
+        const html = await response.text();
+        
+        // Extract get_file URL - look for ANY quality
+        let getFileUrl = null;
+        const qualityPatterns = [
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*2160[^\s"']*/,
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*1080[^\s"']*/,
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*720[^\s"']*/,
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*480[^\s"']*/,
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']+/
+        ];
+        
+        for (const pattern of qualityPatterns) {
+            const match = html.match(pattern);
+            if (match) {
+                getFileUrl = match[0];
+                console.log('✅ Found get_file URL');
+                break;
+            }
         }
+        
+        if (!getFileUrl) {
+            return res.status(404).json({ error: 'No video URL found in page' });
+        }
+        
+        // SIMPLER APPROACH: Use fetch with followRedirects: false
+        // and stop at the first fpvcdn.com redirect
+        console.log('📡 Checking redirect chain...');
+        
+        const redirectResponse = await fetch(getFileUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.wow.xxx/',
+                'Origin': 'https://www.wow.xxx',
+                'Accept': 'video/mp4, video/webm, video/*',
+                'Accept-Language': 'en-US,en;q=0.9'
+            },
+            redirect: 'manual', // Don't auto-follow
+            signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
+        
+        let finalUrl = getFileUrl;
+        
+        // Check if we got a redirect to fpvcdn.com
+        if (redirectResponse.status === 301 || redirectResponse.status === 302 || redirectResponse.status === 303) {
+            const location = redirectResponse.headers.get('location');
+            if (location) {
+                console.log('   Redirect to:', location.substring(0, 80) + '...');
+                
+                // Check if it's fpvcdn.com
+                if (location.includes('fpvcdn.com')) {
+                    finalUrl = location;
+                    console.log('✅ Found fpvcdn.com URL (less strict IP check)');
+                } else {
+                    // If not fpvcdn, try one more redirect (but don't loop)
+                    const secondResponse = await fetch(location, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Referer': 'https://www.wow.xxx/'
+                        },
+                        redirect: 'manual',
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    
+                    if (secondResponse.status === 301 || secondResponse.status === 302 || secondResponse.status === 303) {
+                        const secondLocation = secondResponse.headers.get('location');
+                        if (secondLocation && secondLocation.includes('fpvcdn.com')) {
+                            finalUrl = secondLocation;
+                            console.log('✅ Found fpvcdn.com URL after second redirect');
+                        } else if (secondLocation) {
+                            finalUrl = secondLocation;
+                            console.log('   Using second redirect URL');
+                        }
+                    } else if (secondResponse.ok || secondResponse.status === 206) {
+                        finalUrl = location;
+                        console.log('   Video served directly');
+                    }
+                }
+            }
+        } else if (redirectResponse.ok || redirectResponse.status === 206) {
+            console.log('   Video served directly (no redirect)');
+            finalUrl = getFileUrl;
+        }
+        
+        // Extract token for reference
+        const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
+        const token = tokenMatch ? tokenMatch[1] : null;
+        
+        console.log('✅ Final URL:', finalUrl.substring(0, 80) + '...');
+        
+        res.json({
+            success: true,
+            token: token,
+            cdnUrl: finalUrl,
+            videoUrl: finalUrl
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching token:', error.message);
+        res.status(500).json({ error: error.message });
     }
-    
-    // If we didn't find fpvcdn, use the last URL
-    if (!fpvcdnUrl) {
-        fpvcdnUrl = currentUrl;
-    }
-    
-    res.json({
-        success: true,
-        token: token,
-        cdnUrl: fpvcdnUrl  // ← This will be the fpvcdn.com link
-    });
 });
 // =========================
 // VIDEO MODE PAGE
