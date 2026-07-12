@@ -1002,9 +1002,8 @@ function extractSlugFromUrl(sceneUrl) {
     return match ? match[1] : null;
 }
 
-// =========================
-// FETCH TOKEN ENDPOINT - Returns CDN URL
-// =========================
+// In server.js - Updated /api/video/fetch-token endpoint
+
 app.get('/api/video/fetch-token', async (req, res) => {
     const { sceneUrl } = req.query;
     
@@ -1019,7 +1018,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
         }
         
         const pageUrl = `https://www.wow.xxx/videos/${slug}/`;
-        console.log('📡 Server fetching token from:', pageUrl);
+        console.log('📡 Fetching token from:', pageUrl);
         
         const response = await fetch(pageUrl, {
             headers: {
@@ -1061,47 +1060,69 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(404).json({ error: 'No video URL found in page' });
         }
         
-        // Fetch the get_file URL to get the CDN redirect
-        console.log('📡 Fetching get_file URL for CDN redirect...');
-        const cdnResponse = await fetch(getFileUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.wow.xxx/',
-                'Origin': 'https://www.wow.xxx',
-                'Accept': 'video/mp4, video/webm, video/*',
-                'Accept-Language': 'en-US,en;q=0.9'
-            },
-            redirect: 'manual'
-        });
+        console.log('📡 Following redirect chain to get final video URL...');
         
-        let cdnUrl = null;
-        if (cdnResponse.status === 301 || cdnResponse.status === 302 || cdnResponse.status === 303) {
-            cdnUrl = cdnResponse.headers.get('location');
-            console.log('✅ Got CDN redirect');
-        } else if (cdnResponse.ok || cdnResponse.status === 206) {
-            cdnUrl = getFileUrl;
-            console.log('✅ Video served directly');
-        } else {
-            console.log('❌ CDN fetch failed:', cdnResponse.status);
-            return res.status(cdnResponse.status).json({ 
-                error: `CDN fetch failed: ${cdnResponse.status}`
+        // FOLLOW THE FULL REDIRECT CHAIN
+        let currentUrl = getFileUrl;
+        let maxRedirects = 10;
+        let redirectCount = 0;
+        let finalUrl = null;
+        
+        while (redirectCount < maxRedirects) {
+            console.log(`   Redirect ${redirectCount + 1}: ${currentUrl.substring(0, 80)}...`);
+            
+            const redirectResponse = await fetch(currentUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.wow.xxx/',
+                    'Origin': 'https://www.wow.xxx',
+                    'Accept': 'video/mp4, video/webm, video/*',
+                    'Accept-Language': 'en-US,en;q=0.9'
+                },
+                redirect: 'manual' // Don't auto-follow, we want to inspect each redirect
             });
+            
+            // Check if we got a redirect
+            if (redirectResponse.status === 301 || redirectResponse.status === 302 || redirectResponse.status === 303) {
+                const location = redirectResponse.headers.get('location');
+                if (!location) {
+                    console.log('   ⚠️ Redirect with no location header');
+                    break;
+                }
+                currentUrl = location;
+                redirectCount++;
+                continue;
+            }
+            
+            // If we got a successful response (200 or 206), this is the final URL
+            if (redirectResponse.ok || redirectResponse.status === 206) {
+                console.log('✅ Final video URL reached!');
+                finalUrl = currentUrl;
+                break;
+            }
+            
+            // If we got a 403 or other error, break
+            console.log(`   ⚠️ Unexpected status: ${redirectResponse.status}`);
+            break;
         }
         
-        if (!cdnUrl) {
-            return res.status(404).json({ error: 'No CDN URL found' });
+        // If we didn't get a final URL, try using the last URL we have
+        if (!finalUrl) {
+            finalUrl = currentUrl;
+            console.log(`   ⚠️ Using last URL as final: ${finalUrl.substring(0, 80)}...`);
         }
+        
+        console.log('✅ Final video URL:', finalUrl);
         
         const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
         const token = tokenMatch ? tokenMatch[1] : null;
         
-        console.log('✅ Returning CDN URL to client');
-        
         res.json({
             success: true,
             token: token,
-            cdnUrl: cdnUrl,
-            videoUrl: cdnUrl
+            cdnUrl: finalUrl,  // Now this should be the ahcdn.com link!
+            videoUrl: finalUrl,
+            redirectCount: redirectCount
         });
         
     } catch (error) {
