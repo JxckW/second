@@ -490,8 +490,32 @@
         
         let currentVideoUrl = null;
 
-        // Main play function - opens video in new tab
-        async function playVideo(sceneUrl, title, thumbnail) {
+        // In performer-videos.ejs
+async function playVideo(sceneUrl, title, thumbnail) {
+    try {
+        const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+        const data = await response.json();
+        
+        if (data.success && data.cdnUrl) {
+            // Open with a special referrer policy
+            const win = window.open('', '_blank');
+            win.document.write(`
+                <html>
+                <head>
+                    <meta name="referrer" content="no-referrer">
+                    <meta http-equiv="refresh" content="0; url=${data.cdnUrl}">
+                </head>
+                <body>
+                    <p>Redirecting to video...</p>
+                </body>
+                </html>
+            `);
+            win.document.close();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
             console.log('🎬 Playing video:', title);
             console.log('   Scene URL:', sceneUrl);
             
