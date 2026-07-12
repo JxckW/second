@@ -1,6 +1,7 @@
 ﻿# Large data files
 *.csv
 *.json
+*.json.gz
 !package.json
 !package-lock.json
 data/
@@ -22,3 +23,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Backup files
+*.backup
+*.bak
