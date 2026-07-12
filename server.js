@@ -1035,9 +1035,6 @@ function extractSlugFromUrl(sceneUrl) {
 }
 
 
-// =========================
-// FETCH TOKEN ENDPOINT - Server fetches token from wow.xxx
-// =========================
 app.get('/api/video/fetch-token', async (req, res) => {
     const { sceneUrl } = req.query;
     
@@ -1046,7 +1043,6 @@ app.get('/api/video/fetch-token', async (req, res) => {
     }
     
     try {
-        // Extract slug from URL
         const slug = sceneUrl.match(/\/videos\/([^\/]+)\//)?.[1];
         if (!slug) {
             return res.status(400).json({ error: 'Invalid scene URL' });
@@ -1073,84 +1069,77 @@ app.get('/api/video/fetch-token', async (req, res) => {
         
         const html = await response.text();
         
-        // Extract token from the get_file URL
-        let token = null;
-        let videoId = null;
-        let fullVideoUrl = null;
+        // Find the get_file URL from the page
+        let getFileUrl = null;
+        const qualityPatterns = [
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*2160[^\s"']*/,
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*1080[^\s"']*/,
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*720[^\s"']*/,
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*480[^\s"']*/,
+            /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']+/
+        ];
         
-        // Look for the 2160p quality first (highest quality)
-        const qualityMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/\d+\/([a-f0-9]+)\/\d+\/\d+_\d+p\.mp4\//);
-        if (qualityMatch) {
-            // Extract the full URL
-            const urlMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*2160[^\s"']*/);
-            if (urlMatch) {
-                fullVideoUrl = urlMatch[0];
-                // Extract token from the URL
-                const tokenMatch = fullVideoUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
-                token = tokenMatch ? tokenMatch[1] : null;
-                // Extract video ID from the URL
-                const idMatch = fullVideoUrl.match(/\/(\d{8})\/\d{8}_/);
-                videoId = idMatch ? idMatch[1] : null;
-                console.log('✅ Found 2160p URL');
+        for (const pattern of qualityPatterns) {
+            const match = html.match(pattern);
+            if (match) {
+                getFileUrl = match[0];
+                console.log('✅ Found get_file URL:', getFileUrl.substring(0, 80) + '...');
+                break;
             }
         }
         
-        // If no 2160p, try 1080p
-        if (!fullVideoUrl) {
-            const urlMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*1080[^\s"']*/);
-            if (urlMatch) {
-                fullVideoUrl = urlMatch[0];
-                const tokenMatch = fullVideoUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
-                token = tokenMatch ? tokenMatch[1] : null;
-                const idMatch = fullVideoUrl.match(/\/(\d{8})\/\d{8}_/);
-                videoId = idMatch ? idMatch[1] : null;
-                console.log('✅ Found 1080p URL');
-            }
+        if (!getFileUrl) {
+            return res.status(404).json({ error: 'No video URL found in page' });
         }
         
-        // If no 1080p, try 720p
-        if (!fullVideoUrl) {
-            const urlMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*720[^\s"']*/);
-            if (urlMatch) {
-                fullVideoUrl = urlMatch[0];
-                const tokenMatch = fullVideoUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
-                token = tokenMatch ? tokenMatch[1] : null;
-                const idMatch = fullVideoUrl.match(/\/(\d{8})\/\d{8}_/);
-                videoId = idMatch ? idMatch[1] : null;
-                console.log('✅ Found 720p URL');
-            }
-        }
+        // NOW: Fetch the get_file URL to get the CDN redirect
+        console.log('📡 Fetching get_file URL to get CDN link...');
+        const cdnResponse = await fetch(getFileUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.wow.xxx/',
+                'Origin': 'https://www.wow.xxx',
+                'Accept': 'video/mp4, video/webm, video/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br'
+            },
+            redirect: 'manual'  // Don't auto-follow, we want to capture the redirect URL
+        });
         
-        // If still no URL, try any get_file URL
-        if (!fullVideoUrl) {
-            const urlMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']+/);
-            if (urlMatch) {
-                fullVideoUrl = urlMatch[0];
-                const tokenMatch = fullVideoUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
-                token = tokenMatch ? tokenMatch[1] : null;
-                const idMatch = fullVideoUrl.match(/\/(\d{8})\/\d{8}_/);
-                videoId = idMatch ? idMatch[1] : null;
-                console.log('✅ Found fallback URL');
-            }
-        }
-        
-        if (!token || !videoId || !fullVideoUrl) {
-            console.log('❌ Missing data:', { token: !!token, videoId: !!videoId, fullVideoUrl: !!fullVideoUrl });
-            return res.status(404).json({ 
-                error: 'Could not extract video data from page',
-                htmlPreview: html.substring(0, 300)
+        // Check if we got a redirect (302) to the CDN
+        let cdnUrl = null;
+        if (cdnResponse.status === 301 || cdnResponse.status === 302 || cdnResponse.status === 303) {
+            cdnUrl = cdnResponse.headers.get('location');
+            console.log('✅ Got CDN redirect:', cdnUrl ? cdnUrl.substring(0, 80) + '...' : 'null');
+        } else if (cdnResponse.ok || cdnResponse.status === 206) {
+            // Some videos might be served directly
+            console.log('✅ Video served directly (no redirect)');
+            // We'll need to proxy this through Render
+            cdnUrl = getFileUrl;
+        } else {
+            console.log('❌ CDN fetch failed:', cdnResponse.status);
+            return res.status(cdnResponse.status).json({ 
+                error: `CDN fetch failed: ${cdnResponse.status}`,
+                getFileUrl: getFileUrl
             });
         }
         
-        console.log('✅ Token found:', token.substring(0, 20) + '...');
-        console.log('✅ Video ID found:', videoId);
-        console.log('✅ Full URL found:', fullVideoUrl.substring(0, 80) + '...');
+        if (!cdnUrl) {
+            return res.status(404).json({ error: 'No CDN URL found' });
+        }
+        
+        // Extract token for reference
+        const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
+        const token = tokenMatch ? tokenMatch[1] : null;
+        
+        console.log('✅ CDN URL:', cdnUrl.substring(0, 80) + '...');
         
         res.json({
             success: true,
             token: token,
-            videoId: videoId,
-            videoUrl: fullVideoUrl
+            cdnUrl: cdnUrl,  // The temporary CDN link that works with Render's IP
+            getFileUrl: getFileUrl,
+            status: cdnResponse.status
         });
         
     } catch (error) {
@@ -1158,7 +1147,6 @@ app.get('/api/video/fetch-token', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 
 // Fetch fresh token from wow.xxx page
 async function fetchFreshTokenFromPage(slug) {
