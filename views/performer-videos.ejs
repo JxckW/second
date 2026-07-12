@@ -485,37 +485,13 @@
 
     <script>
         // =========================
-        // VIDEO PLAYER - Opens CDN URL in new tab
+        // VIDEO PLAYER - Opens CDN URL with no-referrer
         // =========================
         
         let currentVideoUrl = null;
 
-        // In performer-videos.ejs
-async function playVideo(sceneUrl, title, thumbnail) {
-    try {
-        const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-        const data = await response.json();
-        
-        if (data.success && data.cdnUrl) {
-            // Open with a special referrer policy
-            const win = window.open('', '_blank');
-            win.document.write(`
-                <html>
-                <head>
-                    <meta name="referrer" content="no-referrer">
-                    <meta http-equiv="refresh" content="0; url=${data.cdnUrl}">
-                </head>
-                <body>
-                    <p>Redirecting to video...</p>
-                </body>
-                </html>
-            `);
-            win.document.close();
-        }
-    } catch (error) {
-        console.error('Error:', error);
-    }
-}
+        // Main play function - opens video with no-referrer policy
+        async function playVideo(sceneUrl, title, thumbnail) {
             console.log('🎬 Playing video:', title);
             console.log('   Scene URL:', sceneUrl);
             
@@ -542,10 +518,27 @@ async function playVideo(sceneUrl, title, thumbnail) {
                 const videoUrl = data.cdnUrl;
                 currentVideoUrl = videoUrl;
                 
-                console.log('🎬 Opening video in new tab:', videoUrl);
+                console.log('🎬 Opening video with no-referrer:', videoUrl);
                 
-                // Step 2: Open the URL in a new tab
-                window.open(videoUrl, '_blank');
+                // Step 2: Open with a special referrer policy
+                const win = window.open('', '_blank');
+                if (win) {
+                    win.document.write(`
+                        <html>
+                        <head>
+                            <meta name="referrer" content="no-referrer">
+                            <meta http-equiv="refresh" content="0; url=${videoUrl}">
+                        </head>
+                        <body>
+                            <p>Redirecting to video...</p>
+                        </body>
+                        </html>
+                    `);
+                    win.document.close();
+                } else {
+                    // Fallback: open directly
+                    window.open(videoUrl, '_blank');
+                }
                 
                 // Close the modal
                 closeVideoModal();
@@ -600,12 +593,27 @@ async function playVideo(sceneUrl, title, thumbnail) {
                 const data = await response.json();
                 
                 if (data.success && data.cdnUrl) {
-                    // Show the URL with a link
-                    result.innerHTML = `✅ Video ready! <a href="${data.cdnUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">Open video</a>`;
+                    // Test with no-referrer
+                    const videoUrl = data.cdnUrl;
+                    result.innerHTML = `✅ Video ready! <a href="${videoUrl}" target="_blank" rel="noreferrer" style="color: #667eea; text-decoration: underline;">Open video</a>`;
                     result.style.color = '#4caf50';
                     
-                    // Also open in new tab
-                    window.open(data.cdnUrl, '_blank');
+                    // Also open with no-referrer
+                    const win = window.open('', '_blank');
+                    if (win) {
+                        win.document.write(`
+                            <html>
+                            <head>
+                                <meta name="referrer" content="no-referrer">
+                                <meta http-equiv="refresh" content="0; url=${videoUrl}">
+                            </head>
+                            <body>
+                                <p>Redirecting to video...</p>
+                            </body>
+                            </html>
+                        `);
+                        win.document.close();
+                    }
                 } else {
                     result.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
                     result.style.color = '#ff6b6b';
