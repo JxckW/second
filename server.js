@@ -1073,23 +1073,84 @@ app.get('/api/video/fetch-token', async (req, res) => {
         
         const html = await response.text();
         
-        // Extract token
-        const match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/\d+\/([a-f0-9]+)\//);
-        const token = match ? match[1] : null;
+        // Extract token from the get_file URL
+        let token = null;
+        let videoId = null;
+        let fullVideoUrl = null;
         
-        // Extract video ID
-        const videoIdMatch = sceneUrl.match(/\/videos\/[^\/]+\/(\d+)\//);
-        const videoId = videoIdMatch ? videoIdMatch[1] : null;
-        
-        if (!token || !videoId) {
-            return res.status(404).json({ error: 'Token or video ID not found' });
+        // Look for the 2160p quality first (highest quality)
+        const qualityMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/\d+\/([a-f0-9]+)\/\d+\/\d+_\d+p\.mp4\//);
+        if (qualityMatch) {
+            // Extract the full URL
+            const urlMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*2160[^\s"']*/);
+            if (urlMatch) {
+                fullVideoUrl = urlMatch[0];
+                // Extract token from the URL
+                const tokenMatch = fullVideoUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
+                token = tokenMatch ? tokenMatch[1] : null;
+                // Extract video ID from the URL
+                const idMatch = fullVideoUrl.match(/\/(\d{8})\/\d{8}_/);
+                videoId = idMatch ? idMatch[1] : null;
+                console.log('✅ Found 2160p URL');
+            }
         }
+        
+        // If no 2160p, try 1080p
+        if (!fullVideoUrl) {
+            const urlMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*1080[^\s"']*/);
+            if (urlMatch) {
+                fullVideoUrl = urlMatch[0];
+                const tokenMatch = fullVideoUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
+                token = tokenMatch ? tokenMatch[1] : null;
+                const idMatch = fullVideoUrl.match(/\/(\d{8})\/\d{8}_/);
+                videoId = idMatch ? idMatch[1] : null;
+                console.log('✅ Found 1080p URL');
+            }
+        }
+        
+        // If no 1080p, try 720p
+        if (!fullVideoUrl) {
+            const urlMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*720[^\s"']*/);
+            if (urlMatch) {
+                fullVideoUrl = urlMatch[0];
+                const tokenMatch = fullVideoUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
+                token = tokenMatch ? tokenMatch[1] : null;
+                const idMatch = fullVideoUrl.match(/\/(\d{8})\/\d{8}_/);
+                videoId = idMatch ? idMatch[1] : null;
+                console.log('✅ Found 720p URL');
+            }
+        }
+        
+        // If still no URL, try any get_file URL
+        if (!fullVideoUrl) {
+            const urlMatch = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']+/);
+            if (urlMatch) {
+                fullVideoUrl = urlMatch[0];
+                const tokenMatch = fullVideoUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
+                token = tokenMatch ? tokenMatch[1] : null;
+                const idMatch = fullVideoUrl.match(/\/(\d{8})\/\d{8}_/);
+                videoId = idMatch ? idMatch[1] : null;
+                console.log('✅ Found fallback URL');
+            }
+        }
+        
+        if (!token || !videoId || !fullVideoUrl) {
+            console.log('❌ Missing data:', { token: !!token, videoId: !!videoId, fullVideoUrl: !!fullVideoUrl });
+            return res.status(404).json({ 
+                error: 'Could not extract video data from page',
+                htmlPreview: html.substring(0, 300)
+            });
+        }
+        
+        console.log('✅ Token found:', token.substring(0, 20) + '...');
+        console.log('✅ Video ID found:', videoId);
+        console.log('✅ Full URL found:', fullVideoUrl.substring(0, 80) + '...');
         
         res.json({
             success: true,
             token: token,
             videoId: videoId,
-            videoUrl: `https://www.wow.xxx/get_file/8512/${token}/93815000/${videoId}/${videoId}_2160m.mp4/`
+            videoUrl: fullVideoUrl
         });
         
     } catch (error) {
