@@ -498,7 +498,7 @@ async function playVideo(sceneUrl, title, thumbnail) {
     
     modal.classList.add('active');
     loading.style.display = 'block';
-    loading.textContent = '⏳ Loading video...';
+    loading.textContent = '⏳ Fetching video URL...';
     errorEl.style.display = 'none';
     titleEl.textContent = title || 'Video';
     video.pause();
@@ -507,10 +507,20 @@ async function playVideo(sceneUrl, title, thumbnail) {
     video.load();
     
     try {
-        // The server will fetch and stream the video
-        const videoUrl = `/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`;
-        console.log('🎬 Streaming through Render:', videoUrl);
+        const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+        const data = await response.json();
         
+        if (!data.success || !data.cdnUrl) {
+            throw new Error(data.error || 'Could not get video URL');
+        }
+        
+        // Try proxy URL first (if available), then fallback to direct CDN
+        const videoUrl = data.proxyUrl || data.cdnUrl;
+        console.log('🎬 Video URL:', videoUrl);
+        
+        loading.textContent = '⏳ Loading video...';
+        
+        // If it's a proxy URL, the browser can fetch it directly
         source.src = videoUrl;
         video.load();
         
@@ -520,15 +530,19 @@ async function playVideo(sceneUrl, title, thumbnail) {
             video.play().catch(e => console.log('Autoplay prevented:', e));
         };
         
-        video.onerror = function(e) {
-            console.error('❌ Video error:', e);
+        video.onerror = function() {
+            // If proxy fails, try opening in new tab as fallback
             loading.style.display = 'none';
             errorEl.style.display = 'block';
             errorEl.innerHTML = `
-                ❌ Error loading video
+                ❌ Video cannot be played in the browser
                 <br><br>
-                <span style="font-size: 13px; color: #888;">
-                    Please try refreshing the page.
+                <a href="${data.cdnUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                    📥 Try opening directly in new tab
+                </a>
+                <br><br>
+                <span style="font-size: 12px; color: #666;">
+                    If the video opens in a new tab, copy the URL and paste it into VLC media player.
                 </span>
             `;
         };
@@ -538,7 +552,7 @@ async function playVideo(sceneUrl, title, thumbnail) {
         loading.style.display = 'none';
         errorEl.style.display = 'block';
         errorEl.innerHTML = `
-            ❌ Failed to load video: ${error.message}
+            ❌ Failed to get video: ${error.message}
             <br><br>
             <button onclick="closeVideoModal()" style="
                 padding: 8px 20px;

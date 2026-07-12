@@ -943,7 +943,7 @@ function extractSlugFromUrl(sceneUrl) {
 }
 
 // =========================
-// FETCH AND STREAM VIDEO ENDPOINT
+// FETCH TOKEN ENDPOINT - Returns CDN URL with wrapper
 // =========================
 app.get('/api/video/fetch-token', async (req, res) => {
     const { sceneUrl } = req.query;
@@ -1017,7 +1017,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
         let cdnUrl = null;
         if (cdnResponse.status === 301 || cdnResponse.status === 302 || cdnResponse.status === 303) {
             cdnUrl = cdnResponse.headers.get('location');
-            console.log('✅ Got CDN redirect:', cdnUrl ? cdnUrl.substring(0, 80) + '...' : 'null');
+            console.log('✅ Got CDN redirect');
         } else if (cdnResponse.ok || cdnResponse.status === 206) {
             cdnUrl = getFileUrl;
             console.log('✅ Video served directly');
@@ -1032,70 +1032,43 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(404).json({ error: 'No CDN URL found' });
         }
         
-        // NOW: Stream the video through Render
-        console.log('📡 Streaming video through Render...');
-        const videoResponse = await fetch(cdnUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.wow.xxx/',
-                'Accept': 'video/mp4, video/webm, video/*',
-                'Accept-Language': 'en-US,en;q=0.9'
-            }
-        });
+        const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
+        const token = tokenMatch ? tokenMatch[1] : null;
         
-        if (!videoResponse.ok && videoResponse.status !== 206) {
-            console.log('❌ Video fetch failed:', videoResponse.status);
-            return res.status(videoResponse.status).json({ 
-                error: `Video fetch failed: ${videoResponse.status}`
-            });
-        }
+        // Try to use a redirect service to bypass the 403
+        // Wrap the URL in a service that follows redirects
+        const redirectServices = [
+            `https://corsproxy.io/?${encodeURIComponent(cdnUrl)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(cdnUrl)}`,
+            `https://cors-anywhere.herokuapp.com/${cdnUrl}`
+        ];
         
-        // Set headers for video streaming
-        res.setHeader('Content-Type', videoResponse.headers.get('content-type') || 'video/mp4');
-        res.setHeader('Accept-Ranges', 'bytes');
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        
-        if (videoResponse.status === 206) {
-            const contentRange = videoResponse.headers.get('content-range');
-            if (contentRange) {
-                res.setHeader('Content-Range', contentRange);
-            }
-            res.status(206);
-        }
-        
-        const length = videoResponse.headers.get('content-length');
-        if (length) {
-            res.setHeader('Content-Length', length);
-        }
-        
-        // Stream the video
-        const reader = videoResponse.body.getReader();
-        const stream = new ReadableStream({
-            start(controller) {
-                function push() {
-                    reader.read().then(({ done, value }) => {
-                        if (done) {
-                            controller.close();
-                            return;
-                        }
-                        controller.enqueue(value);
-                        push();
-                    }).catch(err => {
-                        console.error('Stream error:', err);
-                        controller.error(err);
-                    });
+        // Try each proxy service
+        let proxyUrl = null;
+        for (const service of redirectServices) {
+            try {
+                const test = await fetch(service, { method: 'HEAD' });
+                if (test.ok || test.status === 206) {
+                    proxyUrl = service;
+                    console.log('✅ Found working proxy service:', service.substring(0, 50) + '...');
+                    break;
                 }
-                push();
-            },
-            cancel() {
-                reader.cancel();
+            } catch (e) {
+                console.log('   Proxy failed, trying next...');
             }
-        });
+        }
         
-        stream.pipeTo(res);
+        res.json({
+            success: true,
+            token: token,
+            cdnUrl: cdnUrl,
+            proxyUrl: proxyUrl, // The wrapped URL that might work
+            videoUrl: cdnUrl,
+            message: 'Use the video URL to play the video'
+        });
         
     } catch (error) {
-        console.error('❌ Error:', error.message);
+        console.error('❌ Error fetching token:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
