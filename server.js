@@ -1002,6 +1002,9 @@ function extractSlugFromUrl(sceneUrl) {
     return match ? match[1] : null;
 }
 
+// =========================
+// FETCH TOKEN ENDPOINT - Uses mirror site omg.xxx
+// =========================
 app.get('/api/video/fetch-token', async (req, res) => {
     const { sceneUrl } = req.query;
     
@@ -1015,7 +1018,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(400).json({ error: 'Invalid scene URL' });
         }
         
-        // CHANGE: Use omg.xxx instead of wow.xxx
+        // Use omg.xxx mirror site
         const pageUrl = `https://www.omg.xxx/videos/${slug}/`;
         console.log('📡 Fetching from mirror site:', pageUrl);
         
@@ -1026,7 +1029,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Connection': 'keep-alive',
-                'Referer': 'https://www.omg.xxx/',  // Also change referer
+                'Referer': 'https://www.omg.xxx/',
                 'Cache-Control': 'no-cache'
             },
             signal: AbortSignal.timeout(15000)
@@ -1038,7 +1041,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
         
         const html = await response.text();
         
-        // Extract get_file URL - same patterns
+        // Extract get_file URL
         let getFileUrl = null;
         const qualityPatterns = [
             /https:\/\/www\.(wow|omg)\.xxx\/get_file\/[^\s"']*2160[^\s"']*/,
@@ -1061,7 +1064,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(404).json({ error: 'No video URL found in page' });
         }
         
-        // Follow redirects - same logic
+        // Follow redirect chain
         console.log('📡 Following redirect chain...');
         let currentUrl = getFileUrl;
         let finalUrl = getFileUrl;
@@ -1087,7 +1090,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
                 redirectCount++;
                 console.log(`   Redirect ${redirectCount}: ${location.substring(0, 80)}...`);
                 
-                // If we find fpvcdn.com, stop
+                // If we find fpvcdn.com with subdomain, stop
                 if (location.includes('fpvcdn.com')) {
                     finalUrl = location;
                     console.log('✅ Found fpvcdn.com URL');
