@@ -943,7 +943,7 @@ function extractSlugFromUrl(sceneUrl) {
 }
 
 // =========================
-// FETCH TOKEN ENDPOINT - Returns CDN URL
+// FETCH AND STREAM VIDEO ENDPOINT
 // =========================
 app.get('/api/video/fetch-token', async (req, res) => {
     const { sceneUrl } = req.query;
@@ -959,7 +959,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
         }
         
         const pageUrl = `https://www.wow.xxx/videos/${slug}/`;
-        console.log('📡 Server fetching token from:', pageUrl);
+        console.log('📡 Fetching token from:', pageUrl);
         
         const response = await fetch(pageUrl, {
             headers: {
@@ -1017,9 +1017,8 @@ app.get('/api/video/fetch-token', async (req, res) => {
         let cdnUrl = null;
         if (cdnResponse.status === 301 || cdnResponse.status === 302 || cdnResponse.status === 303) {
             cdnUrl = cdnResponse.headers.get('location');
-            console.log('✅ Got CDN redirect');
+            console.log('✅ Got CDN redirect:', cdnUrl ? cdnUrl.substring(0, 80) + '...' : 'null');
         } else if (cdnResponse.ok || cdnResponse.status === 206) {
-            // If video is served directly, use the getFileUrl
             cdnUrl = getFileUrl;
             console.log('✅ Video served directly');
         } else {
@@ -1033,23 +1032,70 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(404).json({ error: 'No CDN URL found' });
         }
         
-        // Extract token for reference
-        const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
-        const token = tokenMatch ? tokenMatch[1] : null;
-        
-        console.log('✅ Returning CDN URL to client');
-        
-        // Return the CDN URL - the browser will fetch it directly
-        res.json({
-            success: true,
-            token: token,
-            cdnUrl: cdnUrl,
-            videoUrl: cdnUrl,
-            message: 'Use this CDN URL to play the video'
+        // NOW: Stream the video through Render
+        console.log('📡 Streaming video through Render...');
+        const videoResponse = await fetch(cdnUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.wow.xxx/',
+                'Accept': 'video/mp4, video/webm, video/*',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
         });
         
+        if (!videoResponse.ok && videoResponse.status !== 206) {
+            console.log('❌ Video fetch failed:', videoResponse.status);
+            return res.status(videoResponse.status).json({ 
+                error: `Video fetch failed: ${videoResponse.status}`
+            });
+        }
+        
+        // Set headers for video streaming
+        res.setHeader('Content-Type', videoResponse.headers.get('content-type') || 'video/mp4');
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        
+        if (videoResponse.status === 206) {
+            const contentRange = videoResponse.headers.get('content-range');
+            if (contentRange) {
+                res.setHeader('Content-Range', contentRange);
+            }
+            res.status(206);
+        }
+        
+        const length = videoResponse.headers.get('content-length');
+        if (length) {
+            res.setHeader('Content-Length', length);
+        }
+        
+        // Stream the video
+        const reader = videoResponse.body.getReader();
+        const stream = new ReadableStream({
+            start(controller) {
+                function push() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            controller.close();
+                            return;
+                        }
+                        controller.enqueue(value);
+                        push();
+                    }).catch(err => {
+                        console.error('Stream error:', err);
+                        controller.error(err);
+                    });
+                }
+                push();
+            },
+            cancel() {
+                reader.cancel();
+            }
+        });
+        
+        stream.pipeTo(res);
+        
     } catch (error) {
-        console.error('❌ Error fetching token:', error.message);
+        console.error('❌ Error:', error.message);
         res.status(500).json({ error: error.message });
     }
 });

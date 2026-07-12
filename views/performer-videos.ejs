@@ -484,7 +484,7 @@
     </div>
 
     <script>
-        // In performer-videos.ejs - Updated playVideo function
+    // In performer-videos.ejs - Updated playVideo function
 async function playVideo(sceneUrl, title, thumbnail) {
     console.log('🎬 Playing video:', title);
     console.log('   Scene URL:', sceneUrl);
@@ -498,7 +498,7 @@ async function playVideo(sceneUrl, title, thumbnail) {
     
     modal.classList.add('active');
     loading.style.display = 'block';
-    loading.textContent = '⏳ Fetching video URL...';
+    loading.textContent = '⏳ Loading video...';
     errorEl.style.display = 'none';
     titleEl.textContent = title || 'Video';
     video.pause();
@@ -507,18 +507,10 @@ async function playVideo(sceneUrl, title, thumbnail) {
     video.load();
     
     try {
-        const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-        const data = await response.json();
+        // The server will fetch and stream the video
+        const videoUrl = `/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`;
+        console.log('🎬 Streaming through Render:', videoUrl);
         
-        if (!data.success || !data.cdnUrl) {
-            throw new Error(data.error || 'Could not get video URL');
-        }
-        
-        const videoUrl = data.cdnUrl;
-        console.log('🎬 CDN URL:', videoUrl);
-        
-        // Try to load the video directly
-        loading.textContent = '⏳ Loading video...';
         source.src = videoUrl;
         video.load();
         
@@ -528,57 +520,17 @@ async function playVideo(sceneUrl, title, thumbnail) {
             video.play().catch(e => console.log('Autoplay prevented:', e));
         };
         
-        video.onerror = function() {
-            console.log('⚠️ Direct video failed, trying with no-referrer...');
-            // Try with no-referrer meta tag approach
-            loading.textContent = '⏳ Retrying with no-referrer...';
-            
-            // Create a new video element with no-referrer
-            const newVideo = document.createElement('video');
-            newVideo.controls = true;
-            newVideo.style.width = '100%';
-            newVideo.style.maxHeight = '80vh';
-            newVideo.setAttribute('playsinline', '');
-            
-            // Use fetch to get the video as a blob (bypasses referer issues)
-            fetch(videoUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            })
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.blob();
-            })
-            .then(blob => {
-                const blobUrl = URL.createObjectURL(blob);
-                newVideo.src = blobUrl;
-                
-                // Replace video player with new one
-                const container = document.querySelector('.video-container');
-                const oldVideo = document.getElementById('videoPlayer');
-                oldVideo.style.display = 'none';
-                container.appendChild(newVideo);
-                
-                loading.style.display = 'none';
-                newVideo.play().catch(e => console.log('Play error:', e));
-            })
-            .catch(err => {
-                console.error('❌ Blob fetch failed:', err);
-                loading.style.display = 'none';
-                errorEl.style.display = 'block';
-                errorEl.innerHTML = `
-                    ❌ Video cannot be played on this network
-                    <br><br>
-                    <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
-                        📥 Try opening directly in new tab
-                    </a>
-                    <br><br>
-                    <span style="font-size: 12px; color: #666;">
-                        If the video opens in a new tab but not here, the CDN is blocking direct playback.
-                    </span>
-                `;
-            });
+        video.onerror = function(e) {
+            console.error('❌ Video error:', e);
+            loading.style.display = 'none';
+            errorEl.style.display = 'block';
+            errorEl.innerHTML = `
+                ❌ Error loading video
+                <br><br>
+                <span style="font-size: 13px; color: #888;">
+                    Please try refreshing the page.
+                </span>
+            `;
         };
         
     } catch (error) {
@@ -586,7 +538,7 @@ async function playVideo(sceneUrl, title, thumbnail) {
         loading.style.display = 'none';
         errorEl.style.display = 'block';
         errorEl.innerHTML = `
-            ❌ Failed to get video: ${error.message}
+            ❌ Failed to load video: ${error.message}
             <br><br>
             <button onclick="closeVideoModal()" style="
                 padding: 8px 20px;
