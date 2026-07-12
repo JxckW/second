@@ -1034,6 +1034,8 @@ function extractSlugFromUrl(sceneUrl) {
     return match ? match[1] : null;
 }
 
+
+
 // Fetch fresh token from wow.xxx page
 async function fetchFreshTokenFromPage(slug) {
     const pageUrl = `https://www.wow.xxx/videos/${slug}/`;

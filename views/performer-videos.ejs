@@ -392,7 +392,6 @@
                     <%
                         const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
                         const safeThumbnail = JSON.stringify(scene.thumbnail || '');
-                        // Use the scene URL from the data
                         const sceneUrl = scene.url || scene.scene_url || '';
                         const safeSceneUrl = JSON.stringify(sceneUrl);
                         const videoId = scene.videoId || '';
@@ -487,11 +486,45 @@
 
     <script>
         // =========================
-        // VIDEO PLAYER - Uses fresh token from scene URL
+        // VIDEO PLAYER WITH CORS PROXY
         // =========================
         
         // Current video URL for reference
         let currentVideoUrl = null;
+
+        // Try multiple CORS proxies
+        async function fetchViaProxy(sceneUrl) {
+            const proxies = [
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(sceneUrl)}`,
+                `https://corsproxy.io/?${encodeURIComponent(sceneUrl)}`,
+                `https://cors-anywhere.herokuapp.com/${sceneUrl}`
+            ];
+            
+            let lastError = null;
+            
+            for (const proxy of proxies) {
+                try {
+                    console.log('🔄 Trying proxy:', proxy.substring(0, 60) + '...');
+                    const response = await fetch(proxy, {
+                        signal: AbortSignal.timeout(10000) // 10 second timeout
+                    });
+                    
+                    if (response.ok) {
+                        const html = await response.text();
+                        // Check if we got actual content (not an error page)
+                        if (html.length > 1000 && html.includes('get_file')) {
+                            console.log('✅ Proxy success:', proxy.substring(0, 40) + '...');
+                            return html;
+                        }
+                    }
+                } catch (error) {
+                    lastError = error;
+                    console.log('   Proxy failed:', error.message);
+                }
+            }
+            
+            throw new Error('All proxies failed: ' + (lastError ? lastError.message : 'Unknown error'));
+        }
 
         // Main play function - called when user clicks a video card
         async function playVideo(sceneUrl, title, thumbnail) {
@@ -509,7 +542,7 @@
             // Reset modal
             modal.classList.add('active');
             loading.style.display = 'block';
-            loading.textContent = '⏳ Fetching fresh video token...';
+            loading.textContent = '⏳ Fetching video via proxy...';
             errorEl.style.display = 'none';
             errorEl.textContent = '';
             titleEl.textContent = title || 'Video';
@@ -520,27 +553,46 @@
             currentVideoUrl = null;
             
             try {
-                // Step 1: Get fresh video URL from server
-                const response = await fetch(
-                    `/api/video/fresh?sceneUrl=${encodeURIComponent(sceneUrl)}`
-                );
+                // Step 1: Fetch the scene page via CORS proxy
+                console.log('📡 Fetching scene page via proxy...');
+                const html = await fetchViaProxy(sceneUrl);
                 
-                const data = await response.json();
+                // Step 2: Extract token from HTML
+                let match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/\d+\/([a-f0-9]+)\//);
+                let token = match ? match[1] : null;
                 
-                if (!data.success || !data.videoUrl) {
-                    throw new Error(data.error || 'Could not get video URL');
+                // If not found, try another pattern
+                if (!token) {
+                    match = html.match(/get_file\/\d+\/([a-f0-9]+)\//);
+                    token = match ? match[1] : null;
                 }
                 
-                currentVideoUrl = data.videoUrl;
-                console.log('✅ Fresh video URL:', currentVideoUrl.substring(0, 80) + '...');
+                if (!token) {
+                    throw new Error('Could not find video token in page');
+                }
                 
-                // Step 2: Load the video
+                console.log('✅ Token found:', token.substring(0, 20) + '...');
+                
+                // Step 3: Extract video ID
+                const videoIdMatch = sceneUrl.match(/\/videos\/[^\/]+\/(\d+)\//);
+                const videoId = videoIdMatch ? videoIdMatch[1] : null;
+                
+                if (!videoId) {
+                    throw new Error('Could not find video ID');
+                }
+                
+                // Step 4: Construct video URL
+                const videoUrl = `https://www.wow.xxx/get_file/8512/${token}/93815000/${videoId}/${videoId}_2160m.mp4/`;
+                currentVideoUrl = videoUrl;
+                
+                console.log('🎬 Video URL constructed');
+                
+                // Step 5: Load the video
                 loading.textContent = '⏳ Loading video...';
-                
                 source.src = currentVideoUrl;
                 video.load();
                 
-                // Step 3: Handle video events
+                // Handle video events
                 video.oncanplay = function() {
                     console.log('✅ Video can play');
                     loading.style.display = 'none';
@@ -618,17 +670,21 @@
             result.style.color = '#888';
             
             try {
-                const response = await fetch(`/api/video/fresh?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-                const data = await response.json();
+                const html = await fetchViaProxy(sceneUrl);
+                const match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/\d+\/([a-f0-9]+)\//);
                 
-                if (data.success && data.videoUrl) {
-                    result.innerHTML = `✅ Success! <a href="${data.videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">Open video</a>`;
+                if (match) {
+                    result.innerHTML = `✅ Token found: <code style="background:#252525;padding:2px 8px;border-radius:4px;">${match[1].substring(0, 20)}...</code>`;
                     result.style.color = '#4caf50';
                     
-                    // Optionally play the video
-                    playVideo(sceneUrl, 'Test Video', '');
+                    // Optionally try to play
+                    const videoIdMatch = sceneUrl.match(/\/videos\/[^\/]+\/(\d+)\//);
+                    if (videoIdMatch) {
+                        const videoUrl = `https://www.wow.xxx/get_file/8512/${match[1]}/93815000/${videoIdMatch[1]}/${videoIdMatch[1]}_2160m.mp4/`;
+                        playVideo(sceneUrl, 'Test Video', '');
+                    }
                 } else {
-                    result.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
+                    result.textContent = '❌ No token found in page';
                     result.style.color = '#ff6b6b';
                 }
             } catch (error) {
