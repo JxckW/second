@@ -486,7 +486,7 @@
 
     <script>
         // =========================
-        // VIDEO PLAYER - Uses server to fetch token
+        // VIDEO PLAYER - Uses server to fetch token and CDN URL
         // =========================
         
         let currentVideoUrl = null;
@@ -507,7 +507,7 @@
             // Reset modal
             modal.classList.add('active');
             loading.style.display = 'block';
-            loading.textContent = '⏳ Fetching video token from server...';
+            loading.textContent = '⏳ Fetching video from server...';
             errorEl.style.display = 'none';
             errorEl.textContent = '';
             titleEl.textContent = title || 'Video';
@@ -518,28 +518,30 @@
             currentVideoUrl = null;
             
             try {
-                // Step 1: Server fetches the token
+                // Step 1: Server fetches the token and CDN URL
                 const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
                 const data = await response.json();
                 
-                if (!data.success || !data.token) {
-                    throw new Error(data.error || 'Could not get video token');
+                if (!data.success) {
+                    throw new Error(data.error || 'Could not get video URL');
                 }
                 
-                console.log('✅ Token fetched by server:', data.token.substring(0, 20) + '...');
+                // Use cdnUrl (preferred) or fallback to videoUrl
+                const videoUrl = data.cdnUrl || data.videoUrl;
                 
-                // Step 2: Use the video URL from the server
-                const videoUrl = data.videoUrl;
+                if (!videoUrl) {
+                    throw new Error('No video URL returned from server');
+                }
+                
                 currentVideoUrl = videoUrl;
+                console.log('✅ Video URL:', videoUrl.substring(0, 80) + '...');
                 
-                console.log('🎬 Video URL:', videoUrl.substring(0, 80) + '...');
-                
-                // Step 3: Load the video
+                // Step 2: Load the video
                 loading.textContent = '⏳ Loading video...';
                 source.src = videoUrl;
                 video.load();
                 
-                // Step 4: Handle video events
+                // Step 3: Handle video events
                 video.oncanplay = function() {
                     console.log('✅ Video can play');
                     loading.style.display = 'none';
@@ -620,12 +622,18 @@
                 const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
                 const data = await response.json();
                 
-                if (data.success && data.token) {
-                    result.innerHTML = `✅ Token found: <code style="background:#252525;padding:2px 8px;border-radius:4px;">${data.token.substring(0, 20)}...</code>`;
-                    result.style.color = '#4caf50';
-                    
-                    // Try to play the video
-                    playVideo(sceneUrl, 'Test Video', '');
+                if (data.success) {
+                    const videoUrl = data.cdnUrl || data.videoUrl;
+                    if (videoUrl) {
+                        result.innerHTML = `✅ Video URL: <code style="background:#252525;padding:2px 8px;border-radius:4px;word-break:break-all;font-size:11px;">${videoUrl.substring(0, 60)}...</code>`;
+                        result.style.color = '#4caf50';
+                        
+                        // Try to play the video
+                        playVideo(sceneUrl, 'Test Video', '');
+                    } else {
+                        result.textContent = '❌ No video URL in response';
+                        result.style.color = '#ff6b6b';
+                    }
                 } else {
                     result.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
                     result.style.color = '#ff6b6b';
