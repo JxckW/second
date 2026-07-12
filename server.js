@@ -163,14 +163,12 @@ async function getPerformerById(id) {
 async function getPerformerScenes(performerId, page = 1, perPage = 24) {
     const offset = (page - 1) * perPage;
     
-    // Get total count
     const countResult = await queryNeon(
         'SELECT COUNT(*) FROM performer_scenes WHERE performer_id = $1',
         [performerId]
     );
     const total = parseInt(countResult[0]?.count || 0);
     
-    // Get paginated scenes
     const scenes = await queryNeon(`
         SELECT s.* 
         FROM scenes s
@@ -345,7 +343,6 @@ app.get('/api/search/studios', async (req, res) => {
             params.push(`%${query}%`);
         }
         
-        // NO LIMIT - show ALL studios
         sql += ` GROUP BY studio_name ORDER BY studio_name`;
         
         const studios = await queryNeon(sql, params);
@@ -452,22 +449,18 @@ app.get('/api/search/advanced', async (req, res) => {
         console.log(`📄 Match type: ${match}`);
         console.time('⏱️ Advanced search total time');
         
-        // Build the query with placeholders
         let params = [];
         let paramIndex = 1;
         
-        // Studio conditions - using scenes table
         const studioConditions = studioNames.map(name => {
             return `LOWER(s.studio_name) = LOWER($${paramIndex++})`;
         });
         studioNames.forEach(name => params.push(name));
         
-        // Different match types - FIXED
         let performerQuery = '';
         let queryParams = [...params];
         
         if (match === 'any') {
-            // ANY: Performer has at least one of the selected studios
             performerQuery = `
                 SELECT 
                     p.id,
@@ -489,10 +482,6 @@ app.get('/api/search/advanced', async (req, res) => {
                 GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images
             `;
         } else if (match === 'all') {
-            // ALL: Performer has ALL of the selected studios (and may have others)
-            // We need to find performers where the count of DISTINCT matched studios = number of studios searched
-            const allConditions = studioConditions.join(' AND ');
-            
             performerQuery = `
                 SELECT 
                     p.id,
@@ -517,7 +506,6 @@ app.get('/api/search/advanced', async (req, res) => {
                     AND COUNT(DISTINCT s.studio_name) >= ${studioNames.length}
             `;
         } else if (match === 'exact') {
-            // EXACT: Performer has EXACTLY the selected studios (no others)
             performerQuery = `
                 SELECT 
                     p.id,
@@ -561,13 +549,9 @@ app.get('/api/search/advanced', async (req, res) => {
         
         console.log(`📊 Found ${matchedPerformers.length} performers matching studios`);
         
-        // Get performer IDs for filtering
         const performerIdList = matchedPerformers.map(p => p.id);
-        
-        // Step 2: Apply tier and favorite filters using Miget
         let filteredPerformers = matchedPerformers;
         
-        // Tier filter
         if (tier && tier !== 'all') {
             const ids = performerIdList.map(id => `'${id}'`).join(',');
             
@@ -593,7 +577,6 @@ app.get('/api/search/advanced', async (req, res) => {
             }
         }
         
-        // Favorite filter
         if (favorite === 'true') {
             const ids = filteredPerformers.map(p => `'${p.id}'`).join(',');
             const favIds = await queryMiget(
@@ -623,10 +606,8 @@ app.get('/api/search/advanced', async (req, res) => {
             });
         }
         
-        // Step 3: Paginate
         const paginatedPerformers = filteredPerformers.slice(offset, offset + parseInt(perPage));
         
-        // Step 4: Get ratings for the paginated performers
         const paginatedIds = paginatedPerformers.map(p => p.id);
         let performerRatings = {};
         let favoritePerformers = [];
@@ -647,7 +628,6 @@ app.get('/api/search/advanced', async (req, res) => {
             favoritePerformers = favResult.rows.map(row => row.performer_id);
         }
         
-        // Step 5: Format results
         const formattedResults = paginatedPerformers.map(p => {
             const images = p.images ? JSON.parse(p.images) : [];
             const aliases = parseAliases(p.aliases);
@@ -758,7 +738,6 @@ app.get('/scene/:id', async (req, res) => {
         
         const scene = sceneResult[0];
         
-        // Get performers in this scene
         const performers = await queryNeon(`
             SELECT p.* 
             FROM performers p
@@ -811,7 +790,6 @@ app.get('/studio/:id', async (req, res) => {
         
         const { scenes, total, totalPages } = await getStudioScenes(studioId, page, perPage);
         
-        // Get performers count
         const performersResult = await queryNeon(`
             SELECT COUNT(DISTINCT ps.performer_id) 
             FROM performer_scenes ps
@@ -820,7 +798,6 @@ app.get('/studio/:id', async (req, res) => {
         `, [studioId]);
         const performersCount = parseInt(performersResult[0]?.count || 0);
         
-        // Get studio image
         let studioImage = null;
         if (scenes.length > 0 && scenes[0].images) {
             const images = JSON.parse(scenes[0].images);
@@ -830,9 +807,6 @@ app.get('/studio/:id', async (req, res) => {
         }
         
         const scenesWithRatings = scenes.map(scene => {
-            // Get performer ratings for this scene
-            const performersInScene = [];
-            // This would need another query, but for now just return the scene
             return {
                 ...scene,
                 performerRating: null,
@@ -912,121 +886,55 @@ app.get('/api/performer/:id/wow-scenes', async (req, res) => {
 });
 
 // =========================
-// IMPROVED VIDEO PROXY - With Range Support & Better Error Handling
+// VIDEO PROXY AND TOKEN FETCHING
 // =========================
-app.get('/api/video/proxy', async (req, res) => {
-    const videoUrl = req.query.url;
-    
-    if (!videoUrl) {
-        return res.status(400).json({ error: 'No video URL provided' });
-    }
-    
-    try {
-        console.log(`📹 Proxying video: ${videoUrl.substring(0, 80)}...`);
-        
-        // Get the range header for partial content (supports seeking)
-        const range = req.headers.range;
-        const headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Referer': 'https://www.wow.xxx/',
-            'Origin': 'https://www.wow.xxx',
-            'Accept': 'video/mp4, video/webm, video/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive'
-        };
-        
-        // Add range header if present (for seeking)
-        if (range) {
-            headers['Range'] = range;
-            console.log(`   Range: ${range}`);
-        }
-        
-        // First, make a HEAD request to get video info
-        const headResponse = await fetch(videoUrl, {
-            method: 'HEAD',
-            headers: {
-                'User-Agent': headers['User-Agent'],
-                'Referer': headers['Referer'],
-                'Origin': headers['Origin']
-            }
-        });
-        
-        const contentLength = headResponse.headers.get('content-length');
-        const contentType = headResponse.headers.get('content-type') || 'video/mp4';
-        const acceptRanges = headResponse.headers.get('accept-ranges');
-        
-        console.log(`   Content-Type: ${contentType}`);
-        console.log(`   Content-Length: ${contentLength}`);
-        console.log(`   Accept-Ranges: ${acceptRanges}`);
-        
-        // Now make the actual request
-        const response = await fetch(videoUrl, { headers });
-        
-        if (!response.ok && response.status !== 206) {
-            console.error(`   ❌ Failed to fetch: ${response.status}`);
-            return res.status(response.status).json({ 
-                error: `Failed to fetch video: ${response.status}` 
-            });
-        }
-        
-        // Set response headers
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Accept-Ranges', 'bytes');
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        
-        // Handle range requests
-        if (range) {
-            const contentRange = response.headers.get('content-range');
-            if (contentRange) {
-                res.setHeader('Content-Range', contentRange);
-            }
-            res.status(206); // Partial Content
-        }
-        
-        // Set content length if available
-        const length = response.headers.get('content-length');
-        if (length) {
-            res.setHeader('Content-Length', length);
-        }
-        
-        // Stream the video
-        const reader = response.body.getReader();
-        const stream = new ReadableStream({
-            start(controller) {
-                function push() {
-                    reader.read().then(({ done, value }) => {
-                        if (done) {
-                            controller.close();
-                            return;
-                        }
-                        controller.enqueue(value);
-                        push();
-                    }).catch(err => {
-                        console.error('Stream error:', err);
-                        controller.error(err);
-                    });
-                }
-                push();
-            },
-            cancel() {
-                reader.cancel();
-            }
-        });
-        
-        stream.pipeTo(res);
-        
-    } catch (error) {
-        console.error('❌ Video proxy error:', error.message);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to proxy video: ' + error.message });
-        }
-    }
-});
 
-// =========================
-// VIDEO TOKEN FETCHER - Using scene URLs from Neon
-// =========================
+// Stream video through Render (helper function)
+function streamVideoThroughRender(response, res) {
+    console.log('📡 Streaming video through Render...');
+    
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'video/mp4');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    
+    if (response.status === 206) {
+        const contentRange = response.headers.get('content-range');
+        if (contentRange) {
+            res.setHeader('Content-Range', contentRange);
+        }
+        res.status(206);
+    }
+    
+    const length = response.headers.get('content-length');
+    if (length) {
+        res.setHeader('Content-Length', length);
+    }
+    
+    const reader = response.body.getReader();
+    const stream = new ReadableStream({
+        start(controller) {
+            function push() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        controller.close();
+                        return;
+                    }
+                    controller.enqueue(value);
+                    push();
+                }).catch(err => {
+                    console.error('Stream error:', err);
+                    controller.error(err);
+                });
+            }
+            push();
+        },
+        cancel() {
+            reader.cancel();
+        }
+    });
+    
+    stream.pipeTo(res);
+}
 
 // Extract slug from scene URL
 function extractSlugFromUrl(sceneUrl) {
@@ -1034,7 +942,9 @@ function extractSlugFromUrl(sceneUrl) {
     return match ? match[1] : null;
 }
 
-
+// =========================
+// FETCH TOKEN AND STREAM VIDEO ENDPOINT
+// =========================
 app.get('/api/video/fetch-token', async (req, res) => {
     const { sceneUrl } = req.query;
     
@@ -1069,7 +979,6 @@ app.get('/api/video/fetch-token', async (req, res) => {
         
         const html = await response.text();
         
-        // Find the get_file URL from the page
         let getFileUrl = null;
         const qualityPatterns = [
             /https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*2160[^\s"']*/,
@@ -1083,7 +992,7 @@ app.get('/api/video/fetch-token', async (req, res) => {
             const match = html.match(pattern);
             if (match) {
                 getFileUrl = match[0];
-                console.log('✅ Found get_file URL:', getFileUrl.substring(0, 80) + '...');
+                console.log('✅ Found get_file URL');
                 break;
             }
         }
@@ -1092,35 +1001,30 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(404).json({ error: 'No video URL found in page' });
         }
         
-        // NOW: Fetch the get_file URL to get the CDN redirect
-        console.log('📡 Fetching get_file URL to get CDN link...');
+        console.log('📡 Fetching get_file URL for CDN redirect...');
         const cdnResponse = await fetch(getFileUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://www.wow.xxx/',
                 'Origin': 'https://www.wow.xxx',
                 'Accept': 'video/mp4, video/webm, video/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br'
+                'Accept-Language': 'en-US,en;q=0.9'
             },
-            redirect: 'manual'  // Don't auto-follow, we want to capture the redirect URL
+            redirect: 'manual'
         });
         
-        // Check if we got a redirect (302) to the CDN
         let cdnUrl = null;
         if (cdnResponse.status === 301 || cdnResponse.status === 302 || cdnResponse.status === 303) {
             cdnUrl = cdnResponse.headers.get('location');
-            console.log('✅ Got CDN redirect:', cdnUrl ? cdnUrl.substring(0, 80) + '...' : 'null');
+            console.log('✅ Got CDN redirect');
         } else if (cdnResponse.ok || cdnResponse.status === 206) {
-            // Some videos might be served directly
             console.log('✅ Video served directly (no redirect)');
-            // We'll need to proxy this through Render
-            cdnUrl = getFileUrl;
+            // Proxy the video through Render
+            return streamVideoThroughRender(cdnResponse, res);
         } else {
             console.log('❌ CDN fetch failed:', cdnResponse.status);
             return res.status(cdnResponse.status).json({ 
-                error: `CDN fetch failed: ${cdnResponse.status}`,
-                getFileUrl: getFileUrl
+                error: `CDN fetch failed: ${cdnResponse.status}`
             });
         }
         
@@ -1128,196 +1032,27 @@ app.get('/api/video/fetch-token', async (req, res) => {
             return res.status(404).json({ error: 'No CDN URL found' });
         }
         
-        // Extract token for reference
-        const tokenMatch = getFileUrl.match(/get_file\/\d+\/([a-f0-9]+)\//);
-        const token = tokenMatch ? tokenMatch[1] : null;
-        
-        console.log('✅ CDN URL:', cdnUrl.substring(0, 80) + '...');
-        
-        res.json({
-            success: true,
-            token: token,
-            cdnUrl: cdnUrl,  // The temporary CDN link that works with Render's IP
-            getFileUrl: getFileUrl,
-            status: cdnResponse.status
-        });
-        
-    } catch (error) {
-        console.error('❌ Error fetching token:', error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Fetch fresh token from wow.xxx page
-async function fetchFreshTokenFromPage(slug) {
-    const pageUrl = `https://www.wow.xxx/videos/${slug}/`;
-    
-    try {
-        console.log(`📡 Fetching fresh token from: ${pageUrl}`);
-        
-        const response = await fetch(pageUrl, {
+        console.log('📡 Fetching CDN video through Render...');
+        const videoResponse = await fetch(cdnUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://www.wow.xxx/',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Cache-Control': 'no-cache'
+                'Accept': 'video/mp4, video/webm, video/*',
+                'Accept-Language': 'en-US,en;q=0.9'
             }
         });
         
-        if (!response.ok) {
-            console.error(`❌ Page fetch failed: ${response.status}`);
-            return null;
-        }
-        
-        const html = await response.text();
-        
-        // Check for Cloudflare
-        if (html.includes('cf-browser-verification') || 
-            html.includes('Checking your browser') ||
-            html.includes('Just a moment')) {
-            console.log('⚠️ Cloudflare detected, waiting...');
-            await new Promise(r => setTimeout(r, 3000));
-            
-            // Retry once
-            const retryResponse = await fetch(pageUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-                    'Referer': 'https://www.wow.xxx/'
-                }
+        if (!videoResponse.ok && videoResponse.status !== 206) {
+            console.log('❌ Video fetch failed:', videoResponse.status);
+            return res.status(videoResponse.status).json({ 
+                error: `Video fetch failed: ${videoResponse.status}`
             });
-            
-            if (!retryResponse.ok) return null;
-            const retryHtml = await retryResponse.text();
-            return extractVideoUrlFromHTML(retryHtml);
         }
         
-        return extractVideoUrlFromHTML(html);
+        return streamVideoThroughRender(videoResponse, res);
         
     } catch (error) {
         console.error('❌ Error fetching token:', error.message);
-        return null;
-    }
-}
-
-function extractVideoUrlFromHTML(html) {
-    // Try to find 2160p first (highest quality)
-    let match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*2160[^\s"']*/);
-    if (match) {
-        console.log('✅ Found 2160p URL');
-        return match[0];
-    }
-    
-    // Try 1080p
-    match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*1080[^\s"']*/);
-    if (match) {
-        console.log('✅ Found 1080p URL');
-        return match[0];
-    }
-    
-    // Try 720p
-    match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']*720[^\s"']*/);
-    if (match) {
-        console.log('✅ Found 720p URL');
-        return match[0];
-    }
-    
-    // Fallback: any get_file URL
-    match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/[^\s"']+/);
-    if (match) {
-        console.log('✅ Found fallback URL');
-        return match[0];
-    }
-    
-    console.log('❌ No video URL found in page');
-    return null;
-}
-
-// =========================
-// API ENDPOINT - Get fresh video URL from scene URL
-// =========================
-app.get('/api/video/fresh', async (req, res) => {
-    const { sceneUrl } = req.query;
-    
-    if (!sceneUrl) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'No scene URL provided' 
-        });
-    }
-    
-    try {
-        console.log(`🎬 Getting fresh video for: ${sceneUrl}`);
-        
-        // Step 1: Extract slug from scene URL
-        const slug = extractSlugFromUrl(sceneUrl);
-        if (!slug) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Invalid scene URL - could not extract slug' 
-            });
-        }
-        
-        console.log(`   📌 Slug: ${slug}`);
-        
-        // Step 2: Fetch fresh token from the scene page
-        const videoUrl = await fetchFreshTokenFromPage(slug);
-        
-        if (!videoUrl) {
-            return res.status(500).json({ 
-                success: false, 
-                error: 'Could not fetch video token from scene page',
-                message: 'The video page might be blocked or the video is unavailable'
-            });
-        }
-        
-        console.log(`   ✅ Fresh video URL: ${videoUrl.substring(0, 80)}...`);
-        
-        res.json({ 
-            success: true, 
-            videoUrl: videoUrl
-        });
-        
-    } catch (error) {
-        console.error('❌ Error:', error.message);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to get fresh video URL',
-            message: error.message 
-        });
-    }
-});
-
-// Optional: Get fresh token only (for debugging)
-app.get('/api/video/token', async (req, res) => {
-    const { sceneUrl } = req.query;
-    
-    if (!sceneUrl) {
-        return res.status(400).json({ error: 'No scene URL provided' });
-    }
-    
-    try {
-        const slug = extractSlugFromUrl(sceneUrl);
-        if (!slug) {
-            return res.status(400).json({ error: 'Invalid scene URL' });
-        }
-        
-        const videoUrl = await fetchFreshTokenFromPage(slug);
-        
-        // Extract just the token from the URL
-        const tokenMatch = videoUrl?.match(/get_file\/\d+\/([a-f0-9]+)\//);
-        const token = tokenMatch ? tokenMatch[1] : null;
-        
-        res.json({ 
-            success: true, 
-            token: token,
-            fullUrl: videoUrl,
-            slug: slug
-        });
-        
-    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
@@ -1395,8 +1130,7 @@ app.get('/performer/:id/videos', async (req, res) => {
 // START SERVER
 // =========================
 async function startServer() {
-    console.log('🚀 Server starting with on-demand Neon queries...');
-    console.log('📊 Data will be queried from Neon when requests are made');
+    console.log('🚀 Server starting...');
     
     app.listen(PORT, () => {
         console.log(`🚀 Server running at http://localhost:${PORT}`);

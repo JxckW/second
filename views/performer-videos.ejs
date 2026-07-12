@@ -394,7 +394,6 @@
                         const safeThumbnail = JSON.stringify(scene.thumbnail || '');
                         const sceneUrl = scene.url || scene.scene_url || '';
                         const safeSceneUrl = JSON.stringify(sceneUrl);
-                        const videoId = scene.videoId || '';
                     %>
                     <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>)">
                         <div class="video-thumbnail">
@@ -486,7 +485,7 @@
 
     <script>
         // =========================
-        // VIDEO PLAYER - Uses server to fetch token and CDN URL
+        // VIDEO PLAYER - Uses server to stream video through Render
         // =========================
         
         let currentVideoUrl = null;
@@ -507,7 +506,7 @@
             // Reset modal
             modal.classList.add('active');
             loading.style.display = 'block';
-            loading.textContent = '⏳ Fetching video from server...';
+            loading.textContent = '⏳ Loading video...';
             errorEl.style.display = 'none';
             errorEl.textContent = '';
             titleEl.textContent = title || 'Video';
@@ -518,30 +517,18 @@
             currentVideoUrl = null;
             
             try {
-                // Step 1: Server fetches the token and CDN URL
-                const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Could not get video URL');
-                }
-                
-                // Use cdnUrl (preferred) or fallback to videoUrl
-                const videoUrl = data.cdnUrl || data.videoUrl;
-                
-                if (!videoUrl) {
-                    throw new Error('No video URL returned from server');
-                }
-                
+                // Use the server endpoint that fetches and streams the video
+                // The server will handle the CDN redirect and stream the video
+                const videoUrl = `/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`;
                 currentVideoUrl = videoUrl;
-                console.log('✅ Video URL:', videoUrl.substring(0, 80) + '...');
                 
-                // Step 2: Load the video
-                loading.textContent = '⏳ Loading video...';
+                console.log('🎬 Loading video through Render proxy...');
+                
+                // Load the video through Render's proxy
                 source.src = videoUrl;
                 video.load();
                 
-                // Step 3: Handle video events
+                // Handle video events
                 video.oncanplay = function() {
                     console.log('✅ Video can play');
                     loading.style.display = 'none';
@@ -555,13 +542,8 @@
                     errorEl.innerHTML = `
                         ❌ Error loading video
                         <br><br>
-                        <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
-                            📥 Try opening directly in new tab
-                        </a>
-                        <br><br>
                         <span style="font-size: 13px; color: #888;">
-                            If the video doesn't open, the token may have expired.
-                            Try refreshing the page and clicking again.
+                            Please try refreshing the page and clicking again.
                         </span>
                     `;
                 };
@@ -619,23 +601,17 @@
             result.style.color = '#888';
             
             try {
-                const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-                const data = await response.json();
+                // Test if the endpoint works
+                const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`, { method: 'HEAD' });
                 
-                if (data.success) {
-                    const videoUrl = data.cdnUrl || data.videoUrl;
-                    if (videoUrl) {
-                        result.innerHTML = `✅ Video URL: <code style="background:#252525;padding:2px 8px;border-radius:4px;word-break:break-all;font-size:11px;">${videoUrl.substring(0, 60)}...</code>`;
-                        result.style.color = '#4caf50';
-                        
-                        // Try to play the video
-                        playVideo(sceneUrl, 'Test Video', '');
-                    } else {
-                        result.textContent = '❌ No video URL in response';
-                        result.style.color = '#ff6b6b';
-                    }
+                if (response.ok || response.status === 206) {
+                    result.innerHTML = `✅ Video endpoint works! Status: ${response.status}`;
+                    result.style.color = '#4caf50';
+                    
+                    // Try to play the video
+                    playVideo(sceneUrl, 'Test Video', '');
                 } else {
-                    result.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
+                    result.textContent = '❌ Failed: ' + response.status;
                     result.style.color = '#ff6b6b';
                 }
             } catch (error) {
