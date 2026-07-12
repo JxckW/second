@@ -526,191 +526,176 @@
             throw new Error('All proxies failed: ' + (lastError ? lastError.message : 'Unknown error'));
         }
 
-        // Main play function - called when user clicks a video card
-        async function playVideo(sceneUrl, title, thumbnail) {
-            console.log('🎬 Playing video:', title);
-            console.log('   Scene URL:', sceneUrl);
+       <script>
+    // =========================
+    // VIDEO PLAYER - Uses server to fetch token
+    // =========================
+    
+    let currentVideoUrl = null;
+
+    // Main play function - called when user clicks a video card
+    async function playVideo(sceneUrl, title, thumbnail) {
+        console.log('🎬 Playing video:', title);
+        console.log('   Scene URL:', sceneUrl);
+        
+        // Show loading state
+        const modal = document.getElementById('videoModal');
+        const loading = document.getElementById('videoLoading');
+        const errorEl = document.getElementById('videoError');
+        const video = document.getElementById('videoPlayer');
+        const titleEl = document.getElementById('videoTitle');
+        const source = document.getElementById('videoSource');
+        
+        // Reset modal
+        modal.classList.add('active');
+        loading.style.display = 'block';
+        loading.textContent = '⏳ Fetching video token from server...';
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+        titleEl.textContent = title || 'Video';
+        video.pause();
+        video.currentTime = 0;
+        source.src = '';
+        video.load();
+        currentVideoUrl = null;
+        
+        try {
+            // Step 1: Server fetches the token
+            const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+            const data = await response.json();
             
-            // Show loading state
-            const modal = document.getElementById('videoModal');
-            const loading = document.getElementById('videoLoading');
-            const errorEl = document.getElementById('videoError');
-            const video = document.getElementById('videoPlayer');
-            const titleEl = document.getElementById('videoTitle');
-            const source = document.getElementById('videoSource');
+            if (!data.success || !data.token) {
+                throw new Error(data.error || 'Could not get video token');
+            }
             
-            // Reset modal
-            modal.classList.add('active');
-            loading.style.display = 'block';
-            loading.textContent = '⏳ Fetching video via proxy...';
-            errorEl.style.display = 'none';
-            errorEl.textContent = '';
-            titleEl.textContent = title || 'Video';
-            video.pause();
-            video.currentTime = 0;
-            source.src = '';
+            console.log('✅ Token fetched by server:', data.token.substring(0, 20) + '...');
+            
+            // Step 2: Use the video URL from the server
+            const videoUrl = data.videoUrl;
+            currentVideoUrl = videoUrl;
+            
+            console.log('🎬 Video URL:', videoUrl.substring(0, 80) + '...');
+            
+            // Step 3: Load the video
+            loading.textContent = '⏳ Loading video...';
+            source.src = videoUrl;
             video.load();
-            currentVideoUrl = null;
             
-            try {
-                // Step 1: Fetch the scene page via CORS proxy
-                console.log('📡 Fetching scene page via proxy...');
-                const html = await fetchViaProxy(sceneUrl);
-                
-                // Step 2: Extract token from HTML
-                let match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/\d+\/([a-f0-9]+)\//);
-                let token = match ? match[1] : null;
-                
-                // If not found, try another pattern
-                if (!token) {
-                    match = html.match(/get_file\/\d+\/([a-f0-9]+)\//);
-                    token = match ? match[1] : null;
-                }
-                
-                if (!token) {
-                    throw new Error('Could not find video token in page');
-                }
-                
-                console.log('✅ Token found:', token.substring(0, 20) + '...');
-                
-                // Step 3: Extract video ID
-                const videoIdMatch = sceneUrl.match(/\/videos\/[^\/]+\/(\d+)\//);
-                const videoId = videoIdMatch ? videoIdMatch[1] : null;
-                
-                if (!videoId) {
-                    throw new Error('Could not find video ID');
-                }
-                
-                // Step 4: Construct video URL
-                const videoUrl = `https://www.wow.xxx/get_file/8512/${token}/93815000/${videoId}/${videoId}_2160m.mp4/`;
-                currentVideoUrl = videoUrl;
-                
-                console.log('🎬 Video URL constructed');
-                
-                // Step 5: Load the video
-                loading.textContent = '⏳ Loading video...';
-                source.src = currentVideoUrl;
-                video.load();
-                
-                // Handle video events
-                video.oncanplay = function() {
-                    console.log('✅ Video can play');
-                    loading.style.display = 'none';
-                    video.play().catch(e => console.log('Autoplay prevented:', e));
-                };
-                
-                video.onerror = function(e) {
-                    console.error('❌ Video error:', e);
-                    loading.style.display = 'none';
-                    errorEl.style.display = 'block';
-                    errorEl.innerHTML = `
-                        ❌ Error loading video
-                        <br><br>
-                        <a href="${currentVideoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
-                            📥 Try opening directly in new tab
-                        </a>
-                        <br><br>
-                        <span style="font-size: 13px; color: #888;">
-                            If the video doesn't open, the token may have expired.
-                            Try refreshing the page and clicking again.
-                        </span>
-                    `;
-                };
-                
-            } catch (error) {
-                console.error('❌ Error:', error.message);
+            // Step 4: Handle video events
+            video.oncanplay = function() {
+                console.log('✅ Video can play');
+                loading.style.display = 'none';
+                video.play().catch(e => console.log('Autoplay prevented:', e));
+            };
+            
+            video.onerror = function(e) {
+                console.error('❌ Video error:', e);
                 loading.style.display = 'none';
                 errorEl.style.display = 'block';
                 errorEl.innerHTML = `
-                    ❌ Failed to get video: ${error.message}
+                    ❌ Error loading video
                     <br><br>
-                    <button onclick="closeVideoModal()" style="
-                        padding: 8px 20px;
-                        border-radius: 8px;
-                        border: 1px solid #667eea;
-                        background: transparent;
-                        color: #667eea;
-                        cursor: pointer;
-                    ">Close</button>
+                    <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                        📥 Try opening directly in new tab
+                    </a>
+                    <br><br>
+                    <span style="font-size: 13px; color: #888;">
+                        If the video doesn't open, the token may have expired.
+                        Try refreshing the page and clicking again.
+                    </span>
                 `;
-            }
+            };
+            
+        } catch (error) {
+            console.error('❌ Error:', error.message);
+            loading.style.display = 'none';
+            errorEl.style.display = 'block';
+            errorEl.innerHTML = `
+                ❌ Failed to get video: ${error.message}
+                <br><br>
+                <button onclick="closeVideoModal()" style="
+                    padding: 8px 20px;
+                    border-radius: 8px;
+                    border: 1px solid #667eea;
+                    background: transparent;
+                    color: #667eea;
+                    cursor: pointer;
+                ">Close</button>
+            `;
         }
+    }
 
-        // Close video modal
-        function closeVideoModal() {
-            console.log('🔒 Closing video modal');
-            const modal = document.getElementById('videoModal');
-            const video = document.getElementById('videoPlayer');
-            const source = document.getElementById('videoSource');
-            
-            video.pause();
-            video.currentTime = 0;
-            source.src = '';
-            video.load();
-            modal.classList.remove('active');
-            currentVideoUrl = null;
-            
-            document.getElementById('videoLoading').style.display = 'block';
-            document.getElementById('videoLoading').textContent = '⏳ Loading video...';
-            document.getElementById('videoError').style.display = 'none';
+    // Close video modal
+    function closeVideoModal() {
+        console.log('🔒 Closing video modal');
+        const modal = document.getElementById('videoModal');
+        const video = document.getElementById('videoPlayer');
+        const source = document.getElementById('videoSource');
+        
+        video.pause();
+        video.currentTime = 0;
+        source.src = '';
+        video.load();
+        modal.classList.remove('active');
+        currentVideoUrl = null;
+        
+        document.getElementById('videoLoading').style.display = 'block';
+        document.getElementById('videoLoading').textContent = '⏳ Loading video...';
+        document.getElementById('videoError').style.display = 'none';
+    }
+
+    // Test function for debugging
+    async function testVideoUrl() {
+        const sceneUrl = document.getElementById('testSceneUrl').value.trim();
+        const result = document.getElementById('testResult');
+        
+        if (!sceneUrl) {
+            result.textContent = '❌ Please enter a scene URL';
+            result.style.color = '#ff6b6b';
+            return;
         }
-
-        // Test function for debugging
-        async function testVideoUrl() {
-            const sceneUrl = document.getElementById('testSceneUrl').value.trim();
-            const result = document.getElementById('testResult');
+        
+        result.textContent = '⏳ Testing...';
+        result.style.color = '#888';
+        
+        try {
+            const response = await fetch(`/api/video/fetch-token?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+            const data = await response.json();
             
-            if (!sceneUrl) {
-                result.textContent = '❌ Please enter a scene URL';
-                result.style.color = '#ff6b6b';
-                return;
-            }
-            
-            result.textContent = '⏳ Testing...';
-            result.style.color = '#888';
-            
-            try {
-                const html = await fetchViaProxy(sceneUrl);
-                const match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/\d+\/([a-f0-9]+)\//);
+            if (data.success && data.token) {
+                result.innerHTML = `✅ Token found: <code style="background:#252525;padding:2px 8px;border-radius:4px;">${data.token.substring(0, 20)}...</code>`;
+                result.style.color = '#4caf50';
                 
-                if (match) {
-                    result.innerHTML = `✅ Token found: <code style="background:#252525;padding:2px 8px;border-radius:4px;">${match[1].substring(0, 20)}...</code>`;
-                    result.style.color = '#4caf50';
-                    
-                    // Optionally try to play
-                    const videoIdMatch = sceneUrl.match(/\/videos\/[^\/]+\/(\d+)\//);
-                    if (videoIdMatch) {
-                        const videoUrl = `https://www.wow.xxx/get_file/8512/${match[1]}/93815000/${videoIdMatch[1]}/${videoIdMatch[1]}_2160m.mp4/`;
-                        playVideo(sceneUrl, 'Test Video', '');
-                    }
-                } else {
-                    result.textContent = '❌ No token found in page';
-                    result.style.color = '#ff6b6b';
-                }
-            } catch (error) {
-                result.textContent = '❌ Error: ' + error.message;
+                // Try to play the video
+                playVideo(sceneUrl, 'Test Video', '');
+            } else {
+                result.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
                 result.style.color = '#ff6b6b';
             }
+        } catch (error) {
+            result.textContent = '❌ Error: ' + error.message;
+            result.style.color = '#ff6b6b';
         }
+    }
 
-        // Keyboard shortcut: Escape to close
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeVideoModal();
-            }
-        });
-
-        // Click outside to close
-        document.getElementById('videoModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeVideoModal();
-            }
-        });
-
-        // Handle page unload - clean up
-        window.addEventListener('beforeunload', function() {
+    // Keyboard shortcut: Escape to close
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
             closeVideoModal();
-        });
-    </script>
+        }
+    });
+
+    // Click outside to close
+    document.getElementById('videoModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeVideoModal();
+        }
+    });
+
+    // Handle page unload - clean up
+    window.addEventListener('beforeunload', function() {
+        closeVideoModal();
+    });
+</script>
 </body>
 </html>

@@ -1035,6 +1035,69 @@ function extractSlugFromUrl(sceneUrl) {
 }
 
 
+// =========================
+// FETCH TOKEN ENDPOINT - Server fetches token from wow.xxx
+// =========================
+app.get('/api/video/fetch-token', async (req, res) => {
+    const { sceneUrl } = req.query;
+    
+    if (!sceneUrl) {
+        return res.status(400).json({ error: 'No scene URL provided' });
+    }
+    
+    try {
+        // Extract slug from URL
+        const slug = sceneUrl.match(/\/videos\/([^\/]+)\//)?.[1];
+        if (!slug) {
+            return res.status(400).json({ error: 'Invalid scene URL' });
+        }
+        
+        const pageUrl = `https://www.wow.xxx/videos/${slug}/`;
+        console.log('📡 Server fetching token from:', pageUrl);
+        
+        const response = await fetch(pageUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Referer': 'https://www.wow.xxx/',
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        if (!response.ok) {
+            return res.status(response.status).json({ error: `HTTP ${response.status}` });
+        }
+        
+        const html = await response.text();
+        
+        // Extract token
+        const match = html.match(/https:\/\/www\.wow\.xxx\/get_file\/\d+\/([a-f0-9]+)\//);
+        const token = match ? match[1] : null;
+        
+        // Extract video ID
+        const videoIdMatch = sceneUrl.match(/\/videos\/[^\/]+\/(\d+)\//);
+        const videoId = videoIdMatch ? videoIdMatch[1] : null;
+        
+        if (!token || !videoId) {
+            return res.status(404).json({ error: 'Token or video ID not found' });
+        }
+        
+        res.json({
+            success: true,
+            token: token,
+            videoId: videoId,
+            videoUrl: `https://www.wow.xxx/get_file/8512/${token}/93815000/${videoId}/${videoId}_2160m.mp4/`
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching token:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 // Fetch fresh token from wow.xxx page
 async function fetchFreshTokenFromPage(slug) {
