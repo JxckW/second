@@ -13,7 +13,7 @@ const cheerio = require('cheerio');
 const OUTPUT_DIR = path.join(__dirname, 'data');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'wow_rss_data.json');
 const PROGRESS_FILE = path.join(OUTPUT_DIR, 'scrape_progress.json');
-const WOW_BASE = 'https://www.wow.xxx';
+const WOW_BASE = 'https://www.omg.xxx';
 const MAX_PAGES = 20;
 
 const STASHDB_FILE = path.join(__dirname, '..', 'stashdb_data.json');
