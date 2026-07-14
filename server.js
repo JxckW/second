@@ -945,119 +945,78 @@ const cheerio = require('cheerio');
 app.get('/api/download-proxy', async (req, res) => {
     const { sceneUrl, filename } = req.query;
     
-    console.log('📄 Received sceneUrl:', sceneUrl);
-    
-    // Validate it's a scene URL, not a video URL
     if (!sceneUrl || !sceneUrl.includes('/videos/')) {
-        console.error('❌ Invalid scene URL:', sceneUrl);
-        return res.status(400).json({ 
-            error: 'Invalid scene URL. Must be a wow.xxx video page.',
-            received: sceneUrl
-        });
+        return res.status(400).json({ error: 'Invalid scene URL' });
     }
     
     try {
         console.log('📄 Fetching scene:', sceneUrl);
         
-        // Fetch the scene HTML (this is the page with the video player)
+        // Fetch the scene HTML
         const sceneResponse = await axios.get(sceneUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Referer': 'https://www.wow.xxx/',
-                'Connection': 'keep-alive'
-            },
-            timeout: 30000,
-            maxRedirects: 5
-        });
-        
-        // Extract video URL from HTML
-        const $ = cheerio.load(sceneResponse.data);
-        let videoUrl = null;
-        let allQualities = [];
-        
-        // Find video source tags (most reliable)
-        $('video source').each((i, el) => {
-            const src = $(el).attr('src');
-            if (src && src.includes('get_file')) {
-                allQualities.push(src);
-                // Prefer 720p or higher
-                if (src.includes('_720p') || src.includes('_1080p') || src.includes('_2160p')) {
-                    if (!videoUrl) videoUrl = src;
-                }
+                'Referer': 'https://www.wow.xxx/'
             }
         });
         
-        // If no source, try video tag
-        if (!videoUrl) {
-            $('video').each((i, el) => {
-                const src = $(el).attr('src');
-                if (src && src.includes('get_file')) {
-                    videoUrl = src;
-                }
-            });
-        }
+        // Extract video URL
+        const $ = cheerio.load(sceneResponse.data);
+        let videoUrl = null;
         
-        // If still no video, try any get_file link
-        if (!videoUrl) {
-            $('a[href*="get_file"]').each((i, el) => {
-                const src = $(el).attr('href');
-                if (src && src.includes('get_file')) {
-                    videoUrl = src;
-                    return false;
-                }
-            });
-        }
+        $('video source').each((i, el) => {
+            const src = $(el).attr('src');
+            if (src && src.includes('get_file')) {
+                videoUrl = src;
+                return false;
+            }
+        });
         
         if (!videoUrl) {
-            console.error('❌ No video URL found in scene');
-            return res.status(404).json({ error: 'Video URL not found in scene page' });
+            return res.status(404).json({ error: 'Video URL not found' });
         }
         
         console.log('✅ Found video URL:', videoUrl.substring(0, 100) + '...');
         
-        // Add download parameters
+        // Build the download URL
         const downloadUrl = videoUrl + 
             (videoUrl.includes('?') ? '&' : '?') + 
             `download=true&download_filename=${encodeURIComponent(filename || 'video.mp4')}`;
         
-        console.log('📥 Downloading from wow.xxx...');
-        
-        // Fetch and stream the video
+        // Fetch the video from wow.xxx
         const videoResponse = await axios({
             method: 'get',
             url: downloadUrl,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Referer': 'https://www.wow.xxx/',
-                'Accept': 'video/mp4',
-                'Connection': 'keep-alive'
+                'Accept': 'video/mp4'
             },
             responseType: 'stream',
             timeout: 300000
         });
         
-        // Set headers for download
-        const fileName = filename || 'video.mp4';
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        // ===== FIX: Remove Content-Disposition for Spotify browser =====
+        // This tells the browser to play the video, not download it
         res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Length', videoResponse.headers['content-length'] || '');
+        // Don't set Content-Disposition for Spotify - this causes the play button with slash
+        // res.setHeader('Content-Disposition', `attachment; filename="${filename || 'video.mp4'}"`);
         
-        // Stream to client
+        // Instead, set a header that allows inline playback
+        res.setHeader('Content-Disposition', 'inline');
+        
+        console.log('✅ Streaming video (inline) for playback');
+        
+        // Stream the video
         videoResponse.data.pipe(res);
-        
-        console.log('✅ Streaming started for:', fileName);
         
     } catch (error) {
         console.error('❌ Proxy error:', error.message);
         if (error.response) {
             console.error('   Status:', error.response.status);
-            console.error('   Data:', error.response.data);
         }
-        res.status(500).json({ 
-            error: 'Failed to download: ' + error.message,
-            status: error.response?.status
-        });
+        res.status(500).json({ error: 'Failed to download: ' + error.message });
     }
 });
 

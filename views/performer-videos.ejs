@@ -591,12 +591,21 @@
             filename = filename.replace(/\s+/g, '_') || 'video';
             filename += '.mp4';
             
-            // Pass the SCENE URL to the proxy (not the video URL)
-            const proxyUrl = `/api/download-proxy?sceneUrl=${encodeURIComponent(currentSceneUrl)}&filename=${encodeURIComponent(filename)}`;
+            // Check if it's the Spotify browser
+            const isSpotify = /Spotify/i.test(navigator.userAgent);
             
-            console.log('⬇️ Downloading via proxy from scene:', currentSceneUrl);
+            // Use different endpoint based on browser
+            let proxyUrl;
+            if (isSpotify) {
+                // For Spotify: use play endpoint (inline playback)
+                proxyUrl = `/api/play-proxy?sceneUrl=${encodeURIComponent(currentSceneUrl)}`;
+                console.log('🎵 Spotify browser detected - using play endpoint');
+            } else {
+                // For normal browsers: use download endpoint
+                proxyUrl = `/api/download-proxy?sceneUrl=${encodeURIComponent(currentSceneUrl)}&filename=${encodeURIComponent(filename)}`;
+            }
             
-            // Open your server's URL - NOT wow.xxx
+            console.log('⬇️ Opening:', proxyUrl);
             window.open(proxyUrl, '_blank');
         }
 
