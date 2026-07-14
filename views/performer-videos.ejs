@@ -399,7 +399,7 @@
         const safeSceneUrl = JSON.stringify(sceneUrl);
         const videoUrl = scene.video_url || '';
     %>
-    <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>)">
+    <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= JSON.stringify(videoUrl) %>)">
         <div class="video-thumbnail">
             <% if (scene.thumbnail) { %>
                 <img src="<%= scene.thumbnail %>" alt="<%= scene.title %>" loading="lazy">
@@ -479,12 +479,22 @@
         let currentDownloadUrl = null;
         let currentVideoTitle = '';
 
-        async function playVideo(sceneUrl, title, thumbnail) {
+        async function playVideo(sceneUrl, title, thumbnail, videoUrlFromDb) {
             console.log('🎬 Playing video:', title);
             console.log('   Scene URL:', sceneUrl);
             
-            // Store for download
+            // Store for download - use the video URL from the database directly
             currentVideoTitle = title;
+            
+            // If we have a video URL from the database, use it for download immediately
+            if (videoUrlFromDb && videoUrlFromDb.includes('get_file')) {
+                currentDownloadUrl = videoUrlFromDb;
+                document.getElementById('downloadBtn').style.display = 'inline-block';
+                console.log('✅ Download ready from database URL');
+            } else {
+                currentDownloadUrl = null;
+                document.getElementById('downloadBtn').style.display = 'none';
+            }
             
             const loading = document.getElementById('videoLoading');
             const modal = document.getElementById('videoModal');
@@ -492,7 +502,6 @@
             const video = document.getElementById('videoPlayer');
             const titleEl = document.getElementById('videoTitle');
             const source = document.getElementById('videoSource');
-            const downloadBtn = document.getElementById('downloadBtn');
             
             modal.classList.add('active');
             loading.style.display = 'block';
@@ -504,20 +513,22 @@
             source.src = '';
             video.load();
             
-            // Hide download button until video loads
-            downloadBtn.style.display = 'none';
-            
             try {
-                const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-                const data = await response.json();
-                
-                if (!data.success || !data.videoUrl) {
-                    throw new Error(data.error || 'Video URL not found');
+                // If we don't have a video URL from the database, fetch it
+                let videoUrl = videoUrlFromDb;
+                if (!videoUrl || !videoUrl.includes('get_file')) {
+                    const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                    const data = await response.json();
+                    if (!data.success || !data.videoUrl) {
+                        throw new Error(data.error || 'Video URL not found');
+                    }
+                    videoUrl = data.videoUrl;
+                    // Update download URL
+                    currentDownloadUrl = videoUrl;
+                    document.getElementById('downloadBtn').style.display = 'inline-block';
                 }
                 
-                const videoUrl = data.videoUrl;
                 currentVideoUrl = videoUrl;
-                currentDownloadUrl = videoUrl;
                 
                 console.log('🎬 Video URL:', videoUrl);
                 
@@ -527,7 +538,6 @@
                 video.oncanplay = function() {
                     console.log('✅ Video can play');
                     loading.style.display = 'none';
-                    downloadBtn.style.display = 'inline-block';
                     video.play().catch(e => console.log('Autoplay prevented:', e));
                 };
                 
@@ -569,13 +579,12 @@
 
         function downloadVideo() {
             if (!currentDownloadUrl) {
-                alert('No video loaded to download');
+                alert('No video URL available for download');
                 return;
             }
             
             // Create a clean filename from the video title
             let filename = currentVideoTitle || 'video';
-            // Remove special characters and replace spaces with underscores
             filename = filename.replace(/[^a-zA-Z0-9 ]/g, '').trim();
             filename = filename.replace(/\s+/g, '_');
             filename = filename || 'video';
@@ -605,7 +614,8 @@
             video.load();
             modal.classList.remove('active');
             currentVideoUrl = null;
-            currentDownloadUrl = null;
+            // Keep currentDownloadUrl so download still works after closing
+            // Don't clear it
             
             document.getElementById('videoLoading').style.display = 'block';
             document.getElementById('videoLoading').textContent = '⏳ Loading video...';
