@@ -393,7 +393,7 @@ app.post('/search', async (req, res) => {
 });
 
 // =========================
-// ADVANCED SEARCH API - WITH CUPSIZE FILTER (Miget for ratings)
+// ADVANCED SEARCH API - WITH CUPSIZE FILTER (FIXED)
 // =========================
 app.get('/api/search/advanced', async (req, res) => {
     const { 
@@ -418,23 +418,39 @@ app.get('/api/search/advanced', async (req, res) => {
     
     try {
         // =========================
-        // STEP 1: Get performers from Neon with filters
+        // BUILD THE QUERY WITH PROPER PARAMETER HANDLING
         // =========================
         let params = [];
         let paramIndex = 1;
         let whereConditions = [];
+        let havingConditions = [];
+        let havingParams = [];
         
         // Studio conditions
         if (studioNames.length > 0) {
-            const studioConditions = studioNames.map(name => {
-                return `LOWER(s.studio_name) = LOWER($${paramIndex++})`;
-            });
-            studioNames.forEach(name => params.push(name));
-            
             if (match === 'any') {
+                // For 'any', we use WHERE with OR
+                const studioConditions = studioNames.map(name => {
+                    return `LOWER(s.studio_name) = LOWER($${paramIndex++})`;
+                });
+                studioNames.forEach(name => params.push(name));
                 whereConditions.push(`(${studioConditions.join(' OR ')})`);
             } else {
+                // For 'all' and 'exact', we need to include studio in HAVING
                 whereConditions.push(`s.studio_name IS NOT NULL AND s.studio_name != ''`);
+                
+                // Build HAVING conditions with proper parameter references
+                // We need to use different parameter indices for HAVING
+                const havingStartIndex = paramIndex;
+                studioNames.forEach((name, idx) => {
+                    const pIdx = havingStartIndex + idx;
+                    havingConditions.push(`COUNT(DISTINCT CASE WHEN LOWER(s.studio_name) = LOWER($${pIdx}) THEN s.studio_name END) = 1`);
+                    havingParams.push(name);
+                });
+                // Update paramIndex after adding having params
+                paramIndex += studioNames.length;
+                // Add having params to the main params array
+                params = params.concat(havingParams);
             }
         }
         
@@ -481,7 +497,7 @@ app.get('/api/search/advanced', async (req, res) => {
         }
         
         // =========================
-        // BUILD NEON QUERY - NO PAGINATION YET
+        // BUILD NEON QUERY
         // =========================
         let performerQuery = '';
         let queryParams = [...params];
@@ -513,11 +529,6 @@ app.get('/api/search/advanced', async (req, res) => {
                          p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
             `;
         } else if (match === 'all') {
-            const havingConditions = studioNames.map((name, idx) => {
-                return `COUNT(DISTINCT CASE WHEN LOWER(s.studio_name) = LOWER($${params.length + idx + 1}) THEN s.studio_name END) = 1`;
-            });
-            studioNames.forEach(name => queryParams.push(name));
-            
             performerQuery = `
                 SELECT 
                     p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
@@ -534,11 +545,6 @@ app.get('/api/search/advanced', async (req, res) => {
                     AND COUNT(DISTINCT s.studio_name) >= ${studioNames.length}
             `;
         } else if (match === 'exact') {
-            const havingConditions = studioNames.map((name, idx) => {
-                return `COUNT(DISTINCT CASE WHEN LOWER(s.studio_name) = LOWER($${params.length + idx + 1}) THEN s.studio_name END) = 1`;
-            });
-            studioNames.forEach(name => queryParams.push(name));
-            
             performerQuery = `
                 SELECT 
                     p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
@@ -587,16 +593,12 @@ app.get('/api/search/advanced', async (req, res) => {
                 const ratingValue = tier.trim().toUpperCase();
                 
                 if (ratingValue === 'RATED') {
-                    // Keep performers with any rating
                     filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] !== undefined);
                 } else if (ratingValue === 'UNRATED') {
-                    // Keep performers with no rating
                     filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === undefined);
                 } else if (['S', 'A', 'B', 'C', 'D', 'F', 'U', 'L'].includes(ratingValue)) {
-                    // Keep performers with specific rating
                     filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === ratingValue);
                 } else {
-                    // Try as number (legacy)
                     const ratingNum = parseInt(ratingValue);
                     if (!isNaN(ratingNum) && ratingNum >= 1 && ratingNum <= 5) {
                         filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === ratingNum);
@@ -659,6 +661,7 @@ app.get('/api/search/advanced', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Advanced search error:', error.message);
+        console.error('   Query params:', JSON.stringify(params));
         res.json({ success: false, error: error.message, performers: [] });
     }
 });
