@@ -940,6 +940,43 @@ app.get('/api/video/url', async (req, res) => {
 });
 
 // =========================
+// DOWNLOAD PROXY - BYPASSES WOW.XXX BLOCK
+// =========================
+app.get('/api/download-proxy', async (req, res) => {
+    const { url, filename } = req.query;
+    
+    if (!url || !url.includes('get_file')) {
+        return res.status(400).json({ error: 'Invalid video URL' });
+    }
+    
+    try {
+        // Your server fetches the video from wow.xxx
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www.wow.xxx/'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch: ${response.status}`);
+        }
+        
+        // Set headers for download
+        const fileName = filename || 'video.mp4';
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'video/mp4');
+        
+        // Stream the video to the client
+        response.body.pipe(res);
+        
+    } catch (error) {
+        console.error('Download proxy error:', error.message);
+        res.status(500).json({ error: 'Failed to download video' });
+    }
+});
+
+// =========================
 // START SERVER
 // =========================
 async function startServer() {

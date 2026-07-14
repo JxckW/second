@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+=<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -588,22 +588,11 @@
             filename = filename.replace(/\s+/g, '_') || 'video';
             filename += '.mp4';
             
-            const downloadUrl = currentDownloadUrl + 
-                (currentDownloadUrl.includes('?') ? '&' : '?') + 
-                `download=true&download_filename=${encodeURIComponent(filename)}`;
+            // Use your server as proxy - NEVER visits wow.xxx directly
+            const proxyUrl = `/api/download-proxy?url=${encodeURIComponent(currentDownloadUrl)}&filename=${encodeURIComponent(filename)}`;
             
-            // Mobile: Hidden anchor click
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = filename;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            
-            // Clean up
-            setTimeout(() => {
-                document.body.removeChild(link);
-            }, 100);
+            // Open your server's URL - NOT wow.xxx
+            window.open(proxyUrl, '_blank');
         }
 
         function closeVideoModal() {
