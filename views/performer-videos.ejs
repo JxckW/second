@@ -1,4 +1,4 @@
-=<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -476,23 +476,22 @@
 
     <script>
         let currentVideoUrl = null;
-        let currentDownloadUrl = null;
+        let currentSceneUrl = null;
         let currentVideoTitle = '';
 
         async function playVideo(sceneUrl, title, thumbnail, videoUrlFromDb) {
             console.log('🎬 Playing video:', title);
             console.log('   Scene URL:', sceneUrl);
             
-            // Store for download - use the video URL from the database directly
+            // Store the scene URL for download
+            currentSceneUrl = sceneUrl;
             currentVideoTitle = title;
             
-            // If we have a video URL from the database, use it for download immediately
+            // If we have a video URL from the database, show download button
             if (videoUrlFromDb && videoUrlFromDb.includes('get_file')) {
-                currentDownloadUrl = videoUrlFromDb;
                 document.getElementById('downloadBtn').style.display = 'inline-block';
                 console.log('✅ Download ready from database URL');
             } else {
-                currentDownloadUrl = null;
                 document.getElementById('downloadBtn').style.display = 'none';
             }
             
@@ -523,8 +522,6 @@
                         throw new Error(data.error || 'Video URL not found');
                     }
                     videoUrl = data.videoUrl;
-                    // Update download URL
-                    currentDownloadUrl = videoUrl;
                     document.getElementById('downloadBtn').style.display = 'inline-block';
                 }
                 
@@ -578,8 +575,14 @@
         }
 
         function downloadVideo() {
-            if (!currentDownloadUrl) {
-                alert('No video URL available');
+            if (!currentSceneUrl) {
+                alert('No scene URL available');
+                return;
+            }
+            
+            // Validate it's a scene URL (contains '/videos/')
+            if (!currentSceneUrl.includes('/videos/')) {
+                alert('Invalid scene URL. Please refresh and try again.');
                 return;
             }
             
@@ -588,8 +591,10 @@
             filename = filename.replace(/\s+/g, '_') || 'video';
             filename += '.mp4';
             
-            // Use your server as proxy - NEVER visits wow.xxx directly
-            const proxyUrl = `/api/download-proxy?url=${encodeURIComponent(currentDownloadUrl)}&filename=${encodeURIComponent(filename)}`;
+            // Pass the SCENE URL to the proxy (not the video URL)
+            const proxyUrl = `/api/download-proxy?sceneUrl=${encodeURIComponent(currentSceneUrl)}&filename=${encodeURIComponent(filename)}`;
+            
+            console.log('⬇️ Downloading via proxy from scene:', currentSceneUrl);
             
             // Open your server's URL - NOT wow.xxx
             window.open(proxyUrl, '_blank');
@@ -607,8 +612,7 @@
             video.load();
             modal.classList.remove('active');
             currentVideoUrl = null;
-            // Keep currentDownloadUrl so download still works after closing
-            // Don't clear it
+            // Keep currentSceneUrl so download still works after closing
             
             document.getElementById('videoLoading').style.display = 'block';
             document.getElementById('videoLoading').textContent = '⏳ Loading video...';

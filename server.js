@@ -939,40 +939,125 @@ app.get('/api/video/url', async (req, res) => {
     }
 });
 
-// =========================
-// DOWNLOAD PROXY - BYPASSES WOW.XXX BLOCK
-// =========================
+const axios = require('axios');
+const cheerio = require('cheerio');
+
 app.get('/api/download-proxy', async (req, res) => {
-    const { url, filename } = req.query;
+    const { sceneUrl, filename } = req.query;
     
-    if (!url || !url.includes('get_file')) {
-        return res.status(400).json({ error: 'Invalid video URL' });
+    console.log('📄 Received sceneUrl:', sceneUrl);
+    
+    // Validate it's a scene URL, not a video URL
+    if (!sceneUrl || !sceneUrl.includes('/videos/')) {
+        console.error('❌ Invalid scene URL:', sceneUrl);
+        return res.status(400).json({ 
+            error: 'Invalid scene URL. Must be a wow.xxx video page.',
+            received: sceneUrl
+        });
     }
     
     try {
-        // Your server fetches the video from wow.xxx
-        const response = await fetch(url, {
+        console.log('📄 Fetching scene:', sceneUrl);
+        
+        // Fetch the scene HTML (this is the page with the video player)
+        const sceneResponse = await axios.get(sceneUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': 'https://www.wow.xxx/'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.wow.xxx/',
+                'Connection': 'keep-alive'
+            },
+            timeout: 30000,
+            maxRedirects: 5
+        });
+        
+        // Extract video URL from HTML
+        const $ = cheerio.load(sceneResponse.data);
+        let videoUrl = null;
+        let allQualities = [];
+        
+        // Find video source tags (most reliable)
+        $('video source').each((i, el) => {
+            const src = $(el).attr('src');
+            if (src && src.includes('get_file')) {
+                allQualities.push(src);
+                // Prefer 720p or higher
+                if (src.includes('_720p') || src.includes('_1080p') || src.includes('_2160p')) {
+                    if (!videoUrl) videoUrl = src;
+                }
             }
         });
         
-        if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.status}`);
+        // If no source, try video tag
+        if (!videoUrl) {
+            $('video').each((i, el) => {
+                const src = $(el).attr('src');
+                if (src && src.includes('get_file')) {
+                    videoUrl = src;
+                }
+            });
         }
+        
+        // If still no video, try any get_file link
+        if (!videoUrl) {
+            $('a[href*="get_file"]').each((i, el) => {
+                const src = $(el).attr('href');
+                if (src && src.includes('get_file')) {
+                    videoUrl = src;
+                    return false;
+                }
+            });
+        }
+        
+        if (!videoUrl) {
+            console.error('❌ No video URL found in scene');
+            return res.status(404).json({ error: 'Video URL not found in scene page' });
+        }
+        
+        console.log('✅ Found video URL:', videoUrl.substring(0, 100) + '...');
+        
+        // Add download parameters
+        const downloadUrl = videoUrl + 
+            (videoUrl.includes('?') ? '&' : '?') + 
+            `download=true&download_filename=${encodeURIComponent(filename || 'video.mp4')}`;
+        
+        console.log('📥 Downloading from wow.xxx...');
+        
+        // Fetch and stream the video
+        const videoResponse = await axios({
+            method: 'get',
+            url: downloadUrl,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.wow.xxx/',
+                'Accept': 'video/mp4',
+                'Connection': 'keep-alive'
+            },
+            responseType: 'stream',
+            timeout: 300000
+        });
         
         // Set headers for download
         const fileName = filename || 'video.mp4';
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Type', 'video/mp4');
         
-        // Stream the video to the client
-        response.body.pipe(res);
+        // Stream to client
+        videoResponse.data.pipe(res);
+        
+        console.log('✅ Streaming started for:', fileName);
         
     } catch (error) {
-        console.error('Download proxy error:', error.message);
-        res.status(500).json({ error: 'Failed to download video' });
+        console.error('❌ Proxy error:', error.message);
+        if (error.response) {
+            console.error('   Status:', error.response.status);
+            console.error('   Data:', error.response.data);
+        }
+        res.status(500).json({ 
+            error: 'Failed to download: ' + error.message,
+            status: error.response?.status
+        });
     }
 });
 
