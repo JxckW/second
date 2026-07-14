@@ -784,20 +784,22 @@ app.get('/performer/:id/videos', async (req, res) => {
         const performerName = performer.name;
         
         // Get ALL wow_videos for this performer - DEDUPLICATED by video_url
+        // Using the new column names: performer, video720p (instead of video_url)
         const allWowVideos = await queryNeon(`
-            SELECT DISTINCT ON (video_url) 
-                video_url,
-                performer_name,
+            SELECT DISTINCT ON (video720p) 
+                performer as performer_name,
                 title,
                 duration,
                 studio,
                 url,
+                video720p,
+                video480p,
                 thumbnail
             FROM wow_videos
-            WHERE performer_name ILIKE $1
-              AND video_url IS NOT NULL 
-              AND video_url != ''
-            ORDER BY video_url, title
+            WHERE performer ILIKE $1
+              AND video720p IS NOT NULL 
+              AND video720p != ''
+            ORDER BY video720p, title
         `, [`%${performerName}%`]);
         
         console.log(`📊 Found ${allWowVideos.length} unique wow_videos for ${performerName}`);
@@ -842,6 +844,79 @@ app.get('/performer/:id/videos', async (req, res) => {
     } catch (error) {
         console.error('❌ Video mode error:', error.message);
         res.status(500).send('Error loading videos');
+    }
+});
+
+// =========================
+// VIDEO URL ENDPOINT - UPDATED COLUMN NAMES
+// =========================
+app.get('/api/video/url', async (req, res) => {
+    const { sceneUrl } = req.query;
+    
+    if (!sceneUrl) {
+        return res.status(400).json({ error: 'No scene URL provided' });
+    }
+    
+    try {
+        // Look up by url - using new column names
+        let result = await queryNeon(
+            `SELECT video720p, video480p FROM wow_videos WHERE url = $1 OR title ILIKE $1`,
+            [sceneUrl]
+        );
+        
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Video not found in database' });
+        }
+        
+        // Use video720p as the main video URL
+        const videoUrl = result[0].video720p || result[0].video480p || null;
+        
+        if (!videoUrl) {
+            return res.status(404).json({ error: 'No video URL available' });
+        }
+        
+        res.json({ success: true, videoUrl: videoUrl });
+    } catch (error) {
+        console.error('❌ Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// =========================
+// DIRECT VIDEO URL ENDPOINT - UPDATED COLUMN NAMES
+// =========================
+app.get('/api/direct-video', async (req, res) => {
+    const { sceneUrl } = req.query;
+    
+    if (!sceneUrl) {
+        return res.status(400).json({ error: 'Invalid scene URL' });
+    }
+    
+    try {
+        // Get video URL from database using new column names
+        const result = await queryNeon(
+            'SELECT video720p, video480p FROM wow_videos WHERE url = $1',
+            [sceneUrl]
+        );
+        
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Video not found' });
+        }
+        
+        const videoUrl = result[0].video720p || result[0].video480p || null;
+        
+        if (!videoUrl) {
+            return res.status(404).json({ error: 'No video URL available' });
+        }
+        
+        res.json({ 
+            success: true, 
+            videoUrl: videoUrl + '?download=true'
+        });
+        
+    } catch (error) {
+        console.error('❌ Direct URL error:', error.message);
+        res.status(500).json({ error: 'Failed to get video URL' });
     }
 });
 
