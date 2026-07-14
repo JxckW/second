@@ -3,515 +3,970 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Advanced Studio Search</title>
+    <title><%= title %></title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 0; margin: 0; min-height: 100vh; }
-        .app { max-width: 1200px; margin: 0 auto; padding: 16px; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #0a0a0a; 
+            color: #e0e0e0; 
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
         
-        header { margin-bottom: 20px; padding: 16px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; border-bottom: 1px solid #1a1a1a; }
-        header h1 { font-size: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block; }
-        .back-link { display: inline-block; color: #667eea; text-decoration: none; font-size: 14px; }
-        .back-link:hover { text-decoration: underline; }
-        .logout-btn { color: #ff6b6b; text-decoration: none; padding: 8px 16px; border: 1px solid #ff6b6b; border-radius: 8px; font-size: 14px; transition: all 0.2s; }
-        .logout-btn:hover { background: #ff6b6b; color: #fff; }
-
-        .filter-section { background: #1a1a1a; border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid #2a2a2a; }
-        .filter-section label { color: #888; font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px; }
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid #667eea;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        .back-link:hover { background: #667eea; color: #fff; }
         
-        .studio-search-row { display: flex; gap: 10px; margin-bottom: 12px; }
-        .studio-search-row input { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #252525; color: #e0e0e0; font-size: 14px; }
-        .studio-search-row input:focus { outline: none; border-color: #667eea; }
-        .studio-search-row button { padding: 10px 20px; border-radius: 8px; border: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; cursor: pointer; font-weight: 600; }
-        .studio-search-row button:hover { opacity: 0.9; }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
         
-        .studio-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; min-height: 40px; padding: 8px; background: #111; border-radius: 8px; border: 1px solid #2a2a2a; }
-        .studio-tag { display: inline-flex; align-items: center; gap: 6px; background: #252525; padding: 4px 10px; border-radius: 16px; font-size: 13px; border: 1px solid #667eea; }
-        .studio-tag .remove { cursor: pointer; color: #ff6b6b; font-weight: bold; margin-left: 4px; }
+        .search-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #2a2a2a;
+        }
+        .search-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .search-row label {
+            color: #888;
+            font-size: 14px;
+            min-width: 80px;
+            font-weight: 500;
+        }
+        .search-row input[type="text"],
+        .search-row select {
+            flex: 1;
+            min-width: 150px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        .search-row input[type="text"]:focus,
+        .search-row select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .search-row select option {
+            background: #1a1a1a;
+        }
+        
+        .search-btn {
+            padding: 10px 28px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .search-btn:hover { opacity: 0.85; }
+        .search-btn:active { transform: scale(0.97); }
+        .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .cupsize-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            flex: 1;
+        }
+        .cupsize-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            background: #111;
+            min-width: auto;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .cupsize-checkboxes label:hover {
+            border-color: #667eea;
+            background: #1a1a2a;
+        }
+        .cupsize-checkboxes label.active {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.15);
+        }
+        .cupsize-checkboxes input[type="checkbox"] {
+            accent-color: #667eea;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+        .cupsize-checkboxes label .checkmark {
+            display: none;
+        }
+        .cupsize-checkboxes label.checked .checkmark {
+            display: inline;
+        }
+        
+        .selected-studios {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 8px 0;
+            min-height: 36px;
+        }
+        .studio-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #2a2a2a;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 13px;
+            color: #e0e0e0;
+            border: 1px solid #333;
+        }
+        .studio-tag .remove {
+            cursor: pointer;
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0 2px;
+        }
         .studio-tag .remove:hover { color: #ff4444; }
         
-        .filter-section select { width: 100%; padding: 10px 14px; border-radius: 8px; background: #252525; color: #e0e0e0; border: 1px solid #333; font-size: 14px; cursor: pointer; }
-        .filter-section select[multiple] { min-height: 150px; }
-        .filter-section select:focus { outline: none; border-color: #667eea; }
-        .filter-section select option:checked { background: #667eea; }
-        .filter-section .hint { color: #666; font-size: 12px; margin-top: 4px; }
-        .filter-section .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-top: 16px; }
-        .filter-section .row .group { flex: 1; min-width: 200px; }
-        .filter-section .row .group label { display: block; color: #888; font-size: 13px; margin-bottom: 4px; }
-        .filter-section .row .group select { width: 100%; }
-        .filter-section .match-type { display: flex; gap: 16px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
-        .filter-section .match-type label { color: #888; font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
-        .filter-section .match-type input[type="radio"] { accent-color: #667eea; }
-        .filter-section .actions { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
-        .filter-section .actions button { padding: 12px 24px; border-radius: 8px; border: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; cursor: pointer; font-weight: 600; font-size: 16px; }
-        .filter-section .actions button:hover { opacity: 0.9; }
-        .filter-section .actions button.secondary { background: #333; }
-
-        .result-stats { color: #888; font-size: 14px; margin-bottom: 16px; }
-        
-        .performer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-        
-        .performer-card { 
-            background: #1a1a1a; 
-            border-radius: 12px; 
-            overflow: hidden; 
-            border: 1px solid #2a2a2a; 
-            transition: transform 0.2s, border-color 0.2s; 
-            cursor: pointer; 
+        .studio-search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 14px;
+            transition: border-color 0.2s;
         }
-        .performer-card:hover { 
-            transform: translateY(-4px); 
-            border-color: #667eea; 
+        .studio-search-input:focus {
+            outline: none;
+            border-color: #667eea;
         }
         
-        .performer-image { 
-            width: 100%; 
-            height: 200px; 
-            overflow: hidden; 
-            background: #111; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+        .studio-suggestions {
+            display: none;
+            position: absolute;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            min-width: 200px;
+            z-index: 100;
+            margin-top: 4px;
+        }
+        .studio-suggestions.show {
+            display: block;
+        }
+        .studio-suggestions .suggestion {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .studio-suggestions .suggestion:hover {
+            background: #2a2a2a;
+        }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .performer-card {
+            background: #1a1a1a;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #2a2a2a;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+            text-decoration: none;
+            color: #e0e0e0;
+            cursor: pointer;
+            display: block;
+        }
+        .performer-card:hover {
+            transform: translateY(-4px);
+            border-color: #667eea;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+        }
+        .performer-card .image {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #111;
+            overflow: hidden;
             position: relative;
         }
-        .performer-image img { 
-            width: 100%; 
-            height: 100%; 
-            object-fit: cover; 
+        .performer-card .image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
         }
-        .performer-image .no-image { 
-            font-size: 60px; 
-            opacity: 0.3; 
+        .performer-card:hover .image img {
+            transform: scale(1.03);
+        }
+        .performer-card .image .no-image {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            font-size: 48px;
+            opacity: 0.3;
+        }
+        .performer-card .info {
+            padding: 12px;
+        }
+        .performer-card .name {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #fff;
+        }
+        .performer-card .details {
+            font-size: 12px;
+            color: #888;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            margin-top: 4px;
+        }
+        .performer-card .details .scene-count {
+            color: #888;
+        }
+        .performer-card .cupsize-badge {
+            background: #2a2a2a;
+            padding: 1px 8px;
+            border-radius: 10px;
+            color: #667eea;
+            font-weight: bold;
+            font-size: 11px;
+        }
+        .performer-card .cupsize-badge.no-cupsize {
+            color: #666;
+            font-weight: normal;
+        }
+        .performer-card .rating {
+            font-weight: bold;
+            font-size: 15px;
+            padding: 0 4px;
+            border-radius: 4px;
+            min-width: 20px;
+            text-align: center;
+        }
+        .performer-card .favorite-icon {
+            color: #ff6b6b;
+            font-size: 14px;
         }
         
-        .performer-info { 
-            padding: 16px; 
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
         }
-        .performer-info .name { 
-            font-size: 18px; 
-            font-weight: bold; 
-            color: #fff; 
-            margin-bottom: 6px; 
+        .no-results h3 { color: #fff; margin-bottom: 8px; font-size: 20px; }
+        .no-results p { font-size: 14px; }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 24px;
+            flex-wrap: wrap;
         }
-        .performer-info .name:hover { 
-            color: #667eea; 
+        .page-link {
+            display: inline-block;
+            padding: 8px 14px;
+            border-radius: 8px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            text-decoration: none;
+            border: 1px solid #2a2a2a;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
         }
-        .performer-info .rating { 
-            display: inline-block; 
-            padding: 2px 10px; 
-            border-radius: 12px; 
-            font-size: 13px; 
-            margin-bottom: 8px; 
+        .page-link:hover {
+            background: #2a2a2a;
+            border-color: #667eea;
         }
-        .performer-info .rating.rated { 
-            background: #2a2a2a; 
-            border: 1px solid #f0c040; 
-            color: #f0c040; 
+        .page-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: #fff;
         }
-        .performer-info .rating.unrated { 
-            background: #1a1a1a; 
-            border: 1px solid #444; 
-            color: #666; 
+        .page-link:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
         }
-        .performer-info .meta { 
-            color: #888; 
-            font-size: 13px; 
-            line-height: 1.5; 
+        
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
         }
-        .performer-info .studios { 
-            color: #667eea; 
-            font-size: 12px; 
-            margin-top: 4px; 
+        .loading .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #2a2a2a;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .results-info {
+            color: #888;
+            font-size: 14px;
+            margin-top: 16px;
+            padding: 12px;
+            background: #111;
+            border-radius: 8px;
+            border: 1px solid #1a1a1a;
         }
 
-        .loading { text-align: center; padding: 40px; color: #888; }
-        .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
-        .page-link { padding: 8px 16px; border-radius: 8px; background: #1a1a1a; border: 1px solid #333; color: #e0e0e0; cursor: pointer; }
-        .page-link.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-color: #667eea; color: #fff; }
-        .page-link:hover { background: #2a2a2a; }
-
-        @media (max-width: 768px) { 
-            .filter-section .row { flex-direction: column; } 
-            .performer-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
-            .performer-image { height: 150px; }
-        }
-        @media (max-width: 480px) { 
-            .performer-grid { grid-template-columns: 1fr; }
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            .search-row { 
+                flex-direction: column; 
+                align-items: stretch; 
+            }
+            .search-row label { 
+                min-width: auto; 
+                font-size: 13px;
+            }
+            .cupsize-checkboxes { 
+                justify-content: flex-start; 
+            }
+            .cupsize-checkboxes label {
+                font-size: 12px;
+                padding: 3px 8px;
+            }
+            .results-grid { 
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); 
+                gap: 12px;
+            }
+            .studio-search-input { min-width: 100%; }
+            .search-btn { width: 100%; justify-content: center; }
+            h1 { font-size: 22px; }
         }
     </style>
 </head>
 <body>
-    <div class="app">
-        <header>
-            <div>
-                <a href="/" class="back-link">← Back to Home</a>
-                <h1>🔍 Studio Search</h1>
-            </div>
-            <a href="/logout" class="logout-btn">🚪 Logout</a>
-        </header>
-
-        <div class="filter-section">
-            <!-- Studio Search with Add Button -->
-            <div class="studio-search-row">
-                <input type="text" id="studioSearchInput" placeholder="Search for a studio..." onkeyup="if(event.key==='Enter') addStudio()">
-                <button onclick="addStudio()">➕ Add</button>
+    <div class="container">
+        <!-- Back link with preserved state -->
+        <a href="javascript:history.back()" class="back-link">← Back to Search Results</a>
+        
+        <h1>🔍 Advanced Studio Search</h1>
+        
+        <div class="search-section">
+            <!-- Studios Search -->
+            <div class="search-row" style="position: relative;">
+                <label>🎬 Studios</label>
+                <input type="text" id="studioSearch" class="studio-search-input" placeholder="Type studio name and press Enter..." autocomplete="off">
+                <div class="studio-suggestions" id="studioSuggestions"></div>
             </div>
             
-            <!-- Selected Studios Display -->
-            <div class="studio-list" id="studioList">
-                <span style="color: #666; font-size: 13px;">No studios selected. Search and add above.</span>
+            <!-- Selected Studios -->
+            <div class="selected-studios" id="selectedStudios">
+                <span style="color: #666; font-size: 14px;">No studios selected</span>
             </div>
             
-            <div style="margin-bottom: 12px;">
-                <label>🏢 Or select from list:</label>
-                <select id="studioFilter" multiple>
-                    <option value="">Loading studios...</option>
+            <!-- Match Mode -->
+            <div class="search-row">
+                <label>📋 Match</label>
+                <select id="matchMode">
+                    <option value="any">Any Studio</option>
+                    <option value="all">All Studios</option>
+                    <option value="exact">Exactly These Studios</option>
                 </select>
-                <div class="hint">Hold Ctrl (Cmd on Mac) to select multiple studios from the list</div>
             </div>
-
-            <div class="row">
-                <div class="group">
-                    <label>⭐ Tier Filter</label>
-                    <select id="tierFilter">
-                        <option value="all">All</option>
-                        <option value="rated">Rated Only</option>
-                        <option value="unrated">Unrated Only</option>
-                        <option value="S">S</option>
-                        <option value="A">A</option>
-                        <option value="B">B</option>
-                        <option value="C">C</option>
-                        <option value="D">D</option>
-                        <option value="F">F</option>
-                        <option value="U">U</option>
-                        <option value="L">L</option>
-                    </select>
-                </div>
-                <div class="group">
-                    <label>❤️ Favorites</label>
-                    <select id="favoriteFilter">
-                        <option value="all">All</option>
-                        <option value="true">Favorited Only</option>
-                        <option value="false">Not Favorited</option>
-                    </select>
+            
+            <!-- Cupsize Filter -->
+            <div class="search-row">
+                <label>📏 Cup Size</label>
+                <div class="cupsize-checkboxes" id="cupsizeFilter">
+                    <label><input type="checkbox" value="A"> A</label>
+                    <label><input type="checkbox" value="B"> B</label>
+                    <label><input type="checkbox" value="C"> C</label>
+                    <label><input type="checkbox" value="D"> D</label>
+                    <label><input type="checkbox" value="DD"> DD</label>
+                    <label><input type="checkbox" value="DDD"> DDD</label>
+                    <label><input type="checkbox" value="E"> E</label>
+                    <label><input type="checkbox" value="F"> F</label>
+                    <label><input type="checkbox" value="G"> G</label>
+                    <label><input type="checkbox" value="H"> H</label>
+                    <label><input type="checkbox" value="OTHER" id="cupsizeOther"> ❓ Other/None</label>
                 </div>
             </div>
-
-            <div class="match-type">
-                <label>
-                    <input type="radio" name="matchType" value="any" checked>
-                    Any selected studio
-                </label>
-                <label>
-                    <input type="radio" name="matchType" value="all">
-                    All selected studios
-                </label>
-                <label>
-                    <input type="radio" name="matchType" value="exact">
-                    Exactly selected studios (no others)
-                </label>
+            
+            <!-- Rating Filter -->
+            <div class="search-row">
+                <label>⭐ Rating</label>
+                <select id="ratingFilter">
+                    <option value="">All</option>
+                    <option value="rated">Rated</option>
+                    <option value="unrated">Unrated</option>
+                    <option value="S">S - Super</option>
+                    <option value="A">A - Excellent</option>
+                    <option value="B">B - Good</option>
+                    <option value="C">C - Average</option>
+                    <option value="D">D - Poor</option>
+                    <option value="F">F - Fail</option>
+                    <option value="U">U - Unrated</option>
+                    <option value="L">L - Liked</option>
+                </select>
             </div>
-
-            <div class="actions">
-                <button onclick="searchPerformers()">🔍 Search</button>
-                <button class="secondary" onclick="clearFilters()">✕ Clear All</button>
+            
+            <!-- Favorite Filter -->
+            <div class="search-row">
+                <label>❤️ Favorite</label>
+                <select id="favoriteFilter">
+                    <option value="">All</option>
+                    <option value="true">Favorites Only</option>
+                    <option value="false">Non-Favorites</option>
+                </select>
+            </div>
+            
+            <button class="search-btn" id="searchBtn">🔍 Search</button>
+        </div>
+        
+        <div id="resultsContainer">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p style="margin-top: 12px;">Search for performers by studio, cup size, or rating...</p>
             </div>
         </div>
-
-        <div id="resultStats" class="result-stats"></div>
-        <div id="results" class="performer-grid"></div>
-        <div id="pagination" class="pagination"></div>
-        <div id="loadingIndicator" class="loading" style="display:none;">Loading...</div>
     </div>
 
     <script>
-        let currentPage = 1;
-        let totalPages = 1;
-        let selectedStudios = [];
-        let isSearching = false;
-
         // =========================
-        // LOAD STUDIOS
+        // STATE MANAGEMENT
         // =========================
-        async function loadStudios() {
+        let state = {
+            studios: [],
+            matchMode: 'any',
+            cupsize: [],
+            rating: '',
+            favorite: '',
+            page: 1,
+            totalPages: 0
+        };
+        
+        // Load state from URL on page load
+        function loadStateFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            const studiosParam = params.get('studios');
+            if (studiosParam) {
+                state.studios = studiosParam.split(',').filter(s => s);
+            }
+            state.matchMode = params.get('match') || 'any';
+            state.cupsize = params.get('cupsize') ? params.get('cupsize').split(',').filter(c => c) : [];
+            state.rating = params.get('tier') || '';
+            state.favorite = params.get('favorite') || '';
+            state.page = parseInt(params.get('page')) || 1;
+        }
+        
+        // Update URL with current state
+        function updateURL() {
+            const params = new URLSearchParams();
+            if (state.studios.length > 0) {
+                params.set('studios', state.studios.join(','));
+            }
+            if (state.matchMode && state.matchMode !== 'any') {
+                params.set('match', state.matchMode);
+            }
+            if (state.cupsize.length > 0) {
+                params.set('cupsize', state.cupsize.join(','));
+            }
+            if (state.rating) {
+                params.set('tier', state.rating);
+            }
+            if (state.favorite) {
+                params.set('favorite', state.favorite);
+            }
+            if (state.page > 1) {
+                params.set('page', state.page);
+            }
+            
+            const newURL = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState({ ...state }, '', newURL);
+        }
+        
+        // =========================
+        // DOM REFS
+        // =========================
+        const studioSearch = document.getElementById('studioSearch');
+        const selectedStudios = document.getElementById('selectedStudios');
+        const studioSuggestions = document.getElementById('studioSuggestions');
+        const matchMode = document.getElementById('matchMode');
+        const cupsizeCheckboxes = document.querySelectorAll('#cupsizeFilter input[type="checkbox"]');
+        const cupsizeOther = document.getElementById('cupsizeOther');
+        const ratingFilter = document.getElementById('ratingFilter');
+        const favoriteFilter = document.getElementById('favoriteFilter');
+        const searchBtn = document.getElementById('searchBtn');
+        const resultsContainer = document.getElementById('resultsContainer');
+        
+        // =========================
+        // STUDIO SEARCH
+        // =========================
+        let studioTimeout = null;
+        let currentSuggestions = [];
+        
+        studioSearch.addEventListener('input', function() {
+            clearTimeout(studioTimeout);
+            const query = this.value.trim();
+            if (query.length < 2) {
+                studioSuggestions.classList.remove('show');
+                return;
+            }
+            
+            studioTimeout = setTimeout(() => {
+                searchStudios(query);
+            }, 300);
+        });
+        
+        studioSearch.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = this.value.trim();
+                if (query.length >= 2) {
+                    // If there are suggestions, add the first one
+                    if (currentSuggestions.length > 0) {
+                        addStudio(currentSuggestions[0].name);
+                        studioSearch.value = '';
+                        studioSuggestions.classList.remove('show');
+                    } else {
+                        // Add as typed (will be validated by backend)
+                        addStudio(query);
+                        studioSearch.value = '';
+                    }
+                }
+            }
+            if (e.key === 'Escape') {
+                studioSuggestions.classList.remove('show');
+            }
+        });
+        
+        // Close suggestions on click outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-row')) {
+                studioSuggestions.classList.remove('show');
+            }
+        });
+        
+        async function searchStudios(query) {
             try {
-                const response = await fetch('/api/search/studios?q=');
+                const response = await fetch(`/api/search/studios?q=${encodeURIComponent(query)}`);
                 const data = await response.json();
-                const select = document.getElementById('studioFilter');
+                
                 if (data.studios && data.studios.length > 0) {
-                    console.log(`📊 Loaded ${data.studios.length} studios`);
-                    select.innerHTML = data.studios.map(s => 
-                        `<option value="${s.name}">${s.name} (${s.scene_count || 0} scenes)</option>`
-                    ).join('');
+                    currentSuggestions = data.studios.slice(0, 10);
+                    renderSuggestions(currentSuggestions);
                 } else {
-                    select.innerHTML = '<option value="">No studios found</option>';
+                    studioSuggestions.classList.remove('show');
                 }
             } catch (error) {
-                console.error('Error loading studios:', error);
-                document.getElementById('studioFilter').innerHTML = '<option value="">Error loading studios</option>';
+                console.error('Studio search error:', error);
             }
         }
-
-        // =========================
-        // ADD STUDIO FROM SEARCH
-        // =========================
-        function addStudio() {
-            const input = document.getElementById('studioSearchInput');
-            const studioName = input.value.trim();
-            
-            if (!studioName) return;
-            
-            // Check if already selected
-            if (selectedStudios.includes(studioName)) {
-                alert('Studio already selected');
+        
+        function renderSuggestions(suggestions) {
+            if (suggestions.length === 0) {
+                studioSuggestions.classList.remove('show');
                 return;
             }
             
-            // Verify the studio exists in the list
-            const select = document.getElementById('studioFilter');
-            const options = Array.from(select.options).map(opt => opt.value);
-            if (!options.includes(studioName)) {
-                alert('Studio not found. Please select from the list.');
+            studioSuggestions.innerHTML = suggestions.map(s => `
+                <div class="suggestion" onclick="addStudio('${s.name.replace(/'/g, "\\'")}')">
+                    ${s.name} (${s.scene_count || 0} scenes)
+                </div>
+            `).join('');
+            studioSuggestions.classList.add('show');
+        }
+        
+        // =========================
+        // STUDIO MANAGEMENT
+        // =========================
+        function addStudio(name) {
+            if (!state.studios.includes(name)) {
+                state.studios.push(name);
+                renderStudios();
+                updateURL();
+                studioSuggestions.classList.remove('show');
+                studioSearch.value = '';
+                autoSearch();
+            }
+        }
+        
+        function removeStudio(name) {
+            state.studios = state.studios.filter(s => s !== name);
+            renderStudios();
+            updateURL();
+            autoSearch();
+        }
+        
+        function renderStudios() {
+            if (state.studios.length === 0) {
+                selectedStudios.innerHTML = '<span style="color: #666; font-size: 14px;">No studios selected</span>';
                 return;
             }
             
-            selectedStudios.push(studioName);
-            input.value = '';
-            updateStudioTags();
-        }
-
-        // =========================
-        // REMOVE STUDIO
-        // =========================
-        function removeStudio(studioName) {
-            selectedStudios = selectedStudios.filter(s => s !== studioName);
-            updateStudioTags();
-        }
-
-        // =========================
-        // UPDATE STUDIO TAGS
-        // =========================
-        function updateStudioTags() {
-            const container = document.getElementById('studioList');
-            
-            if (selectedStudios.length === 0) {
-                container.innerHTML = '<span style="color: #666; font-size: 13px;">No studios selected. Search and add above, or select from the list.</span>';
-                return;
-            }
-            
-            container.innerHTML = selectedStudios.map(name => `
+            selectedStudios.innerHTML = state.studios.map(name => `
                 <span class="studio-tag">
-                    🏢 ${name}
+                    ${name}
                     <span class="remove" onclick="removeStudio('${name.replace(/'/g, "\\'")}')">✕</span>
                 </span>
             `).join('');
         }
-
+        
         // =========================
-        // HANDLE MULTI-SELECT FROM LIST
+        // CUPSIZE MANAGEMENT
         // =========================
-        document.getElementById('studioFilter').addEventListener('change', function() {
-            const selected = Array.from(this.selectedOptions).map(opt => opt.value);
-            // Add any new selections
-            for (const name of selected) {
-                if (!selectedStudios.includes(name)) {
-                    selectedStudios.push(name);
+        function getSelectedCupsize() {
+            const selected = [];
+            let otherChecked = false;
+            
+            cupsizeCheckboxes.forEach(cb => {
+                if (cb.checked) {
+                    if (cb.value === 'OTHER') {
+                        otherChecked = true;
+                    } else {
+                        selected.push(cb.value);
+                    }
                 }
+            });
+            
+            if (otherChecked) {
+                selected.push('OTHER');
             }
-            // Remove any that were deselected
-            selectedStudios = selectedStudios.filter(s => selected.includes(s));
-            updateStudioTags();
+            
+            return selected;
+        }
+        
+        function setCupsizeFromState() {
+            cupsizeCheckboxes.forEach(cb => {
+                cb.checked = state.cupsize.includes(cb.value);
+            });
+        }
+        
+        // Update checkbox visual state
+        function updateCupsizeUI() {
+            cupsizeCheckboxes.forEach(cb => {
+                const label = cb.closest('label');
+                if (cb.checked) {
+                    label.classList.add('checked');
+                } else {
+                    label.classList.remove('checked');
+                }
+            });
+        }
+        
+        // Handle "Other" checkbox
+        cupsizeOther.addEventListener('change', function() {
+            if (this.checked) {
+                // Uncheck all other cupsize boxes when "Other" is selected
+                cupsizeCheckboxes.forEach(cb => {
+                    if (cb.value !== 'OTHER') cb.checked = false;
+                });
+            }
+            state.cupsize = getSelectedCupsize();
+            updateCupsizeUI();
+            updateURL();
+            autoSearch();
         });
-
+        
+        cupsizeCheckboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                // If a specific cup size is checked, uncheck "Other"
+                if (this.value !== 'OTHER' && this.checked) {
+                    cupsizeOther.checked = false;
+                }
+                state.cupsize = getSelectedCupsize();
+                updateCupsizeUI();
+                updateURL();
+                autoSearch();
+            });
+        });
+        
         // =========================
-        // SEARCH PERFORMERS - OPTIMIZED WITH CLEAN DISPLAY
+        // FILTER CHANGES
         // =========================
-        async function searchPerformers(page = 1) {
-            if (isSearching) return;
+        matchMode.addEventListener('change', function() {
+            state.matchMode = this.value;
+            updateURL();
+            autoSearch();
+        });
+        
+        ratingFilter.addEventListener('change', function() {
+            state.rating = this.value;
+            updateURL();
+            autoSearch();
+        });
+        
+        favoriteFilter.addEventListener('change', function() {
+            state.favorite = this.value;
+            updateURL();
+            autoSearch();
+        });
+        
+        // =========================
+        // SEARCH
+        // =========================
+        let searchTimeout = null;
+        
+        function autoSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch();
+            }, 400);
+        }
+        
+        searchBtn.addEventListener('click', function() {
+            performSearch();
+        });
+        
+        async function performSearch(page = 1) {
+            state.page = page;
+            updateURL();
             
-            const tier = document.getElementById('tierFilter').value;
-            const favorite = document.getElementById('favoriteFilter').value;
-            const matchType = document.querySelector('input[name="matchType"]:checked').value;
+            resultsContainer.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 12px;">Searching...</p>
+                </div>
+            `;
             
-            const loading = document.getElementById('loadingIndicator');
-            const results = document.getElementById('results');
-            
-            if (selectedStudios.length === 0) {
-                results.innerHTML = '<div class="loading">Please select at least one studio</div>';
-                return;
+            const params = new URLSearchParams();
+            if (state.studios.length > 0) {
+                params.set('studios', state.studios.join(','));
             }
-            
-            isSearching = true;
-            loading.style.display = 'block';
-            results.innerHTML = '';
-            document.getElementById('resultStats').textContent = '';
-            document.getElementById('pagination').innerHTML = '';
-            
-            // Send studio names
-            const url = `/api/search/advanced?studios=${selectedStudios.map(s => encodeURIComponent(s)).join(',')}&tier=${tier}&favorite=${favorite}&match=${matchType}&page=${page}&perPage=50`;
+            if (state.matchMode) {
+                params.set('match', state.matchMode);
+            }
+            if (state.cupsize.length > 0) {
+                params.set('cupsize', state.cupsize.join(','));
+            }
+            if (state.rating) {
+                params.set('tier', state.rating);
+            }
+            if (state.favorite) {
+                params.set('favorite', state.favorite);
+            }
+            params.set('page', page);
+            params.set('perPage', 50);
             
             try {
-                const response = await fetch(url);
+                const response = await fetch(`/api/search/advanced?${params.toString()}`);
                 const data = await response.json();
-                loading.style.display = 'none';
-                isSearching = false;
                 
-                if (data.success) {
-                    currentPage = data.page || 1;
-                    totalPages = data.totalPages || 1;
-                    
-                    if (data.performers.length === 0) {
-                        results.innerHTML = '<div class="loading">No performers found matching your criteria</div>';
-                        document.getElementById('resultStats').textContent = '0 results';
-                        return;
-                    }
-                    
-                    // Render performer cards - CLEAN DISPLAY
-                    results.innerHTML = data.performers.map(p => {
-                        // Check if rating exists
-                        const hasRating = p.rating && p.rating !== 'null' && p.rating !== 'undefined' && p.rating !== '';
-                        const ratingClass = hasRating ? 'rated' : 'unrated';
-                        const ratingText = hasRating ? `⭐ Grade: ${p.rating}` : 'Not rated';
-                        
-                        // Build meta info
-                        let metaParts = [];
-                        if (p.gender) metaParts.push(`⚥ ${p.gender}`);
-                        if (p.age) metaParts.push(`🎂 ${p.age}`);
-                        metaParts.push(`${p.scene_count || 0} scenes`);
-                        if (p.country) metaParts.push(p.country);
-                        if (p.is_favorited) metaParts.push('❤️');
-                        
-                        // Get image URL
-                        let imageUrl = '';
-                        if (p.images && p.images.length > 0 && p.images[0] && p.images[0].url) {
-                            imageUrl = p.images[0].url;
-                        }
-                        
-                        // Studio count
-                        const studioText = p.studio_count ? `🏢 ${p.studio_count} studios` : '';
-                        
-                        return `
-                            <div class="performer-card" onclick="window.location.href='/performer/${p.id}'">
-                                <div class="performer-image">
-                                    ${imageUrl ? 
-                                        `<img src="${imageUrl}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` :
-                                        ''
-                                    }
-                                    ${!imageUrl ? `<div class="no-image">🎭</div>` : ''}
-                                </div>
-                                <div class="performer-info">
-                                    <div class="name">${p.name}</div>
-                                    <div class="rating ${ratingClass}">
-                                        ${ratingText}
-                                    </div>
-                                    <div class="meta">
-                                        ${metaParts.join(' • ')}
-                                    </div>
-                                    ${studioText ? `<div class="studios">${studioText}</div>` : ''}
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                    
-                    document.getElementById('resultStats').textContent = `${data.total} results (Page ${data.page} of ${data.totalPages})`;
-                    updatePagination();
-                } else {
-                    results.innerHTML = `<div class="loading">Error: ${data.error || 'Please try again'}</div>`;
+                if (!data.success) {
+                    resultsContainer.innerHTML = `
+                        <div class="no-results">
+                            <h3>❌ Error</h3>
+                            <p>${data.error || 'Something went wrong'}</p>
+                        </div>
+                    `;
+                    return;
                 }
+                
+                if (data.performers.length === 0) {
+                    resultsContainer.innerHTML = `
+                        <div class="no-results">
+                            <h3>🔍 No Results Found</h3>
+                            <p>Try adjusting your search filters</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                renderResults(data);
+                
             } catch (error) {
-                loading.style.display = 'none';
-                isSearching = false;
-                results.innerHTML = '<div class="loading">Error searching. Please try again.</div>';
                 console.error('Search error:', error);
+                resultsContainer.innerHTML = `
+                    <div class="no-results">
+                        <h3>❌ Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
             }
         }
-
-        // =========================
-        // PAGINATION
-        // =========================
-        function updatePagination() {
-            const container = document.getElementById('pagination');
-            if (totalPages <= 1) {
-                container.innerHTML = '';
-                return;
+        
+        function getRatingColor(rating) {
+            switch(rating) {
+                case 'S': return '#ff6b6b'; // Red - Super
+                case 'A': return '#ff9f43'; // Orange - Excellent
+                case 'B': return '#feca57'; // Yellow - Good
+                case 'C': return '#54a0ff'; // Blue - Average
+                case 'D': return '#5f27cd'; // Purple - Poor
+                case 'F': return '#ff4757'; // Dark Red - Fail
+                case 'U': return '#747d8c'; // Grey - Unrated
+                case 'L': return '#ff6b81'; // Pink - Liked
+                default: return '#888';
             }
-            
-            let html = '';
-            // Previous button
-            if (currentPage > 1) {
-                html += `<button class="page-link" onclick="searchPerformers(${currentPage - 1})">← Prev</button>`;
-            }
-            
-            // Page numbers
-            const maxVisible = 7;
-            let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-            
-            if (endPage - startPage < maxVisible - 1) {
-                startPage = Math.max(1, endPage - maxVisible + 1);
-            }
-            
-            if (startPage > 1) {
-                html += `<button class="page-link" onclick="searchPerformers(1)">1</button>`;
-                if (startPage > 2) html += `<span class="page-link" style="border:none;background:transparent;">…</span>`;
-            }
-            
-            for (let i = startPage; i <= endPage; i++) {
-                html += `<button class="page-link ${i === currentPage ? 'active' : ''}" onclick="searchPerformers(${i})">${i}</button>`;
-            }
-            
-            if (endPage < totalPages) {
-                if (endPage < totalPages - 1) html += `<span class="page-link" style="border:none;background:transparent;">…</span>`;
-                html += `<button class="page-link" onclick="searchPerformers(${totalPages})">${totalPages}</button>`;
-            }
-            
-            // Next button
-            if (currentPage < totalPages) {
-                html += `<button class="page-link" onclick="searchPerformers(${currentPage + 1})">Next →</button>`;
-            }
-            
-            container.innerHTML = html;
         }
-
-        // =========================
-        // CLEAR FILTERS
-        // =========================
-        function clearFilters() {
-            selectedStudios = [];
-            updateStudioTags();
-            document.getElementById('studioFilter').selectedIndex = -1;
-            document.getElementById('tierFilter').value = 'all';
-            document.getElementById('favoriteFilter').value = 'all';
-            document.querySelector('input[name="matchType"][value="any"]').checked = true;
-            document.getElementById('results').innerHTML = '';
-            document.getElementById('resultStats').textContent = '';
-            document.getElementById('pagination').innerHTML = '';
-            currentPage = 1;
-            totalPages = 1;
-        }
-
-        // =========================
-        // KEYBOARD SHORTCUTS
-        // =========================
-        document.addEventListener('keydown', function(e) {
-            // Ctrl+Enter to search
-            if (e.ctrlKey && e.key === 'Enter') {
-                e.preventDefault();
-                searchPerformers();
+        
+        function renderResults(data) {
+            const performers = data.performers;
+            state.totalPages = data.totalPages || 1;
+            
+            // Results info
+            let resultsInfo = `
+                <div class="results-info">
+                    Found ${data.total || performers.length} performers 
+                    ${state.studios.length > 0 ? `in ${state.studios.join(', ')}` : ''}
+                    ${state.cupsize.length > 0 ? `with cupsize ${state.cupsize.join(', ')}` : ''}
+                    ${state.rating ? `(rating: ${state.rating})` : ''}
+                </div>
+            `;
+            
+            let html = resultsInfo;
+            html += `<div class="results-grid">`;
+            
+            performers.forEach(p => {
+                const imageUrl = p.images && p.images.length > 0 ? p.images[0].url : null;
+                const ratingLetter = p.rating || '';
+                const ratingColor = getRatingColor(ratingLetter);
+                
+                html += `
+                    <a href="/performer/${p.id}" class="performer-card">
+                        <div class="image">
+                            ${imageUrl ? `<img src="${imageUrl}" alt="${p.name}" loading="lazy">` : '<div class="no-image">👤</div>'}
+                        </div>
+                        <div class="info">
+                            <div class="name">${p.name}</div>
+                            <div class="details">
+                                <span class="scene-count">🎬 ${p.scene_count || 0}</span>
+                                ${p.cupsize ? `<span class="cupsize-badge">${p.cupsize}</span>` : '<span class="cupsize-badge no-cupsize">❓</span>'}
+                                ${ratingLetter ? `<span class="rating" style="color: ${ratingColor};">${ratingLetter}</span>` : ''}
+                                ${p.is_favorited ? '<span class="favorite-icon">❤️</span>' : ''}
+                            </div>
+                        </div>
+                    </a>
+                `;
+            });
+            
+            html += `</div>`;
+            
+            // Pagination
+            if (state.totalPages > 1) {
+                html += `<div class="pagination">`;
+                
+                if (state.page > 1) {
+                    html += `<button class="page-link" onclick="performSearch(${state.page - 1})">← Previous</button>`;
+                }
+                
+                for (let i = 1; i <= state.totalPages; i++) {
+                    if (i === state.page) {
+                        html += `<span class="page-link active">${i}</span>`;
+                    } else if (i <= 3 || i > state.totalPages - 3 || Math.abs(i - state.page) <= 1) {
+                        html += `<button class="page-link" onclick="performSearch(${i})">${i}</button>`;
+                    } else if (i === 4 && state.page > 5) {
+                        html += `<span class="page-link">…</span>`;
+                    } else if (i === state.totalPages - 3 && state.page < state.totalPages - 4) {
+                        html += `<span class="page-link">…</span>`;
+                    }
+                }
+                
+                if (state.page < state.totalPages) {
+                    html += `<button class="page-link" onclick="performSearch(${state.page + 1})">Next →</button>`;
+                }
+                
+                html += `</div>`;
             }
-            // Escape to clear
-            if (e.key === 'Escape') {
-                clearFilters();
+            
+            resultsContainer.innerHTML = html;
+        }
+        
+        // =========================
+        // HISTORY / BACK NAVIGATION
+        // =========================
+        window.addEventListener('popstate', function(event) {
+            if (event.state) {
+                state = { ...state, ...event.state };
+                // Restore UI state
+                matchMode.value = state.matchMode || 'any';
+                ratingFilter.value = state.rating || '';
+                favoriteFilter.value = state.favorite || '';
+                setCupsizeFromState();
+                updateCupsizeUI();
+                renderStudios();
+                performSearch(state.page || 1);
             }
         });
-
-        // =========================
-        // LOAD STUDIOS ON PAGE LOAD
-        // =========================
-        loadStudios();
         
-        // Auto-search on page load if studios are selected (from URL params)
-        // You can add URL param support here if needed
+        // =========================
+        // INIT
+        // =========================
+        function init() {
+            loadStateFromURL();
+            
+            // Set initial UI state
+            matchMode.value = state.matchMode || 'any';
+            ratingFilter.value = state.rating || '';
+            favoriteFilter.value = state.favorite || '';
+            setCupsizeFromState();
+            updateCupsizeUI();
+            renderStudios();
+            
+            // Perform initial search if we have studios or cupsize
+            if (state.studios.length > 0 || state.cupsize.length > 0 || state.rating) {
+                performSearch(state.page || 1);
+            } else {
+                resultsContainer.innerHTML = `
+                    <div class="no-results">
+                        <h3>🔍 Search for Performers</h3>
+                        <p>Select studios, cup sizes, or ratings to find performers</p>
+                        <p style="margin-top: 8px; font-size: 13px; color: #666;">💡 Try searching for a studio name above</p>
+                    </div>
+                `;
+            }
+        }
+        
+        init();
     </script>
 </body>
 </html>

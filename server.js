@@ -393,127 +393,239 @@ app.post('/search', async (req, res) => {
 });
 
 // =========================
-// ADVANCED SEARCH API
+// ADVANCED SEARCH API - WITH CUPSIZE FILTER (Miget for ratings)
 // =========================
 app.get('/api/search/advanced', async (req, res) => {
-    const { studios = '', tier = '', favorite = '', match = 'any', page = 1, perPage = 50 } = req.query;
-    const userData = await getUserData();
-    const studioNames = studios ? studios.split(',').map(s => s.trim()) : [];
-    const offset = (parseInt(page) - 1) * parseInt(perPage);
+    const { 
+        studios = '', 
+        tier = '', 
+        favorite = '', 
+        match = 'any', 
+        cupsize = '',
+        page = 1, 
+        perPage = 50 
+    } = req.query;
     
-    if (studioNames.length === 0) {
+    const userData = await getUserData();
+    const studioNames = studios ? studios.split(',').map(s => s.trim()).filter(s => s) : [];
+    const offset = (parseInt(page) - 1) * parseInt(perPage);
+    const limit = parseInt(perPage);
+    
+    // If no studios, no cupsize, and no rating, return empty
+    if (studioNames.length === 0 && !cupsize && !tier && !favorite) {
         return res.json({ success: true, performers: [], total: 0, page: 1, totalPages: 0 });
     }
     
     try {
+        // =========================
+        // STEP 1: Get performers from Neon with filters
+        // =========================
         let params = [];
         let paramIndex = 1;
-        const studioConditions = studioNames.map(name => {
-            return `LOWER(s.studio_name) = LOWER($${paramIndex++})`;
-        });
-        studioNames.forEach(name => params.push(name));
+        let whereConditions = [];
         
+        // Studio conditions
+        if (studioNames.length > 0) {
+            const studioConditions = studioNames.map(name => {
+                return `LOWER(s.studio_name) = LOWER($${paramIndex++})`;
+            });
+            studioNames.forEach(name => params.push(name));
+            
+            if (match === 'any') {
+                whereConditions.push(`(${studioConditions.join(' OR ')})`);
+            } else {
+                whereConditions.push(`s.studio_name IS NOT NULL AND s.studio_name != ''`);
+            }
+        }
+        
+        // Cupsize condition
+        if (cupsize) {
+            const cupsizeValues = cupsize.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
+            if (cupsizeValues.length > 0) {
+                const hasOther = cupsizeValues.includes('OTHER');
+                const specificSizes = cupsizeValues.filter(c => c !== 'OTHER');
+                
+                let cupsizeConditions = [];
+                
+                if (specificSizes.length > 0) {
+                    const sizeConditions = specificSizes.map(c => {
+                        return `p.cupsize = $${paramIndex++}`;
+                    });
+                    specificSizes.forEach(c => params.push(c));
+                    cupsizeConditions.push(`(${sizeConditions.join(' OR ')})`);
+                }
+                
+                if (hasOther) {
+                    const standardSizes = ['A', 'B', 'C', 'D', 'DD', 'DDD', 'E', 'F', 'G', 'H'];
+                    const standardConditions = standardSizes.map(c => {
+                        return `p.cupsize = $${paramIndex++}`;
+                    });
+                    standardSizes.forEach(c => params.push(c));
+                    
+                    cupsizeConditions.push(
+                        `(p.cupsize IS NULL OR p.cupsize NOT IN (${standardSizes.map((_, idx) => `$${paramIndex - standardSizes.length + idx}`).join(',')}))`
+                    );
+                }
+                
+                if (cupsizeConditions.length > 0) {
+                    whereConditions.push(`(${cupsizeConditions.join(' OR ')})`);
+                }
+            }
+        }
+        
+        // Favorite filter (Neon)
+        if (favorite === 'true') {
+            whereConditions.push(`p.is_favorite = true`);
+        } else if (favorite === 'false') {
+            whereConditions.push(`(p.is_favorite = false OR p.is_favorite IS NULL)`);
+        }
+        
+        // =========================
+        // BUILD NEON QUERY - NO PAGINATION YET
+        // =========================
         let performerQuery = '';
         let queryParams = [...params];
+        let hasStudioJoin = studioNames.length > 0;
         
-        if (match === 'any') {
+        if (!hasStudioJoin) {
+            // No studios - just performers
             performerQuery = `
                 SELECT 
-                    p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images,
+                    p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
+                    p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
+                    0 as studio_count
+                FROM performers p
+                ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''}
+                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
+                         p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
+            `;
+        } else if (match === 'any') {
+            performerQuery = `
+                SELECT 
+                    p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
+                    p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
                     COUNT(DISTINCT s.studio_name) as studio_count
                 FROM performers p
                 JOIN performer_scenes ps ON p.id = ps.performer_id
                 JOIN scenes s ON ps.scene_id = s.id
-                WHERE ${studioConditions.join(' OR ')}
-                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images
+                ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''}
+                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
+                         p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
             `;
         } else if (match === 'all') {
+            const havingConditions = studioNames.map((name, idx) => {
+                return `COUNT(DISTINCT CASE WHEN LOWER(s.studio_name) = LOWER($${params.length + idx + 1}) THEN s.studio_name END) = 1`;
+            });
+            studioNames.forEach(name => queryParams.push(name));
+            
             performerQuery = `
                 SELECT 
-                    p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images,
+                    p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
+                    p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
                     COUNT(DISTINCT s.studio_name) as studio_count
                 FROM performers p
                 JOIN performer_scenes ps ON p.id = ps.performer_id
                 JOIN scenes s ON ps.scene_id = s.id
-                WHERE s.studio_name IS NOT NULL AND s.studio_name != ''
-                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images
+                ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''}
+                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
+                         p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
                 HAVING 
-                    COUNT(DISTINCT CASE WHEN ${studioConditions.join(' OR ')} THEN s.studio_name END) = ${studioNames.length}
+                    ${havingConditions.join(' AND ')}
                     AND COUNT(DISTINCT s.studio_name) >= ${studioNames.length}
             `;
         } else if (match === 'exact') {
+            const havingConditions = studioNames.map((name, idx) => {
+                return `COUNT(DISTINCT CASE WHEN LOWER(s.studio_name) = LOWER($${params.length + idx + 1}) THEN s.studio_name END) = 1`;
+            });
+            studioNames.forEach(name => queryParams.push(name));
+            
             performerQuery = `
                 SELECT 
-                    p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images,
+                    p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
+                    p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
                     COUNT(DISTINCT s.studio_name) as studio_count
                 FROM performers p
                 JOIN performer_scenes ps ON p.id = ps.performer_id
                 JOIN scenes s ON ps.scene_id = s.id
-                WHERE s.studio_name IS NOT NULL AND s.studio_name != ''
-                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, p.ethnicity, p.aliases, p.is_favorite, p.images
+                ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''}
+                GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
+                         p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
                 HAVING 
-                    COUNT(DISTINCT CASE WHEN ${studioConditions.join(' OR ')} THEN s.studio_name END) = ${studioNames.length}
+                    ${havingConditions.join(' AND ')}
                     AND COUNT(DISTINCT s.studio_name) = ${studioNames.length}
             `;
         }
         
+        // Execute Neon query (NO PAGINATION - get all results)
         const matchedPerformers = await queryNeon(performerQuery, queryParams);
-        if (matchedPerformers.length === 0) {
-            return res.json({ success: true, performers: [], total: 0, page: parseInt(page), totalPages: 0 });
-        }
         
-        const performerIdList = matchedPerformers.map(p => p.id);
-        let filteredPerformers = matchedPerformers;
-        
-        if (tier && tier !== 'all') {
-            const ids = performerIdList.map(id => `'${id}'`).join(',');
-            if (tier === 'rated') {
-                const ratedIds = await queryMiget(`SELECT performer_id FROM performer_ratings WHERE performer_id IN (${ids})`);
-                const ratedSet = new Set(ratedIds.rows.map(r => r.performer_id));
-                filteredPerformers = filteredPerformers.filter(p => ratedSet.has(p.id));
-            } else if (tier === 'unrated') {
-                const ratedIds = await queryMiget(`SELECT performer_id FROM performer_ratings WHERE performer_id IN (${ids})`);
-                const ratedSet = new Set(ratedIds.rows.map(r => r.performer_id));
-                filteredPerformers = filteredPerformers.filter(p => !ratedSet.has(p.id));
-            } else {
-                const ratedIds = await queryMiget(`SELECT performer_id FROM performer_ratings WHERE performer_id IN (${ids}) AND rating = $1`, [tier]);
-                const ratedSet = new Set(ratedIds.rows.map(r => r.performer_id));
-                filteredPerformers = filteredPerformers.filter(p => ratedSet.has(p.id));
-            }
-        }
-        
-        if (favorite === 'true') {
-            const ids = filteredPerformers.map(p => `'${p.id}'`).join(',');
-            const favIds = await queryMiget(`SELECT performer_id FROM favorite_performers WHERE performer_id IN (${ids})`);
-            const favSet = new Set(favIds.rows.map(r => r.performer_id));
-            filteredPerformers = filteredPerformers.filter(p => favSet.has(p.id));
-        } else if (favorite === 'false') {
-            const ids = filteredPerformers.map(p => `'${p.id}'`).join(',');
-            const favIds = await queryMiget(`SELECT performer_id FROM favorite_performers WHERE performer_id IN (${ids})`);
-            const favSet = new Set(favIds.rows.map(r => r.performer_id));
-            filteredPerformers = filteredPerformers.filter(p => !favSet.has(p.id));
-        }
-        
-        const total = filteredPerformers.length;
-        if (total === 0) {
-            return res.json({ success: true, performers: [], total: 0, page: parseInt(page), totalPages: 0 });
-        }
-        
-        const paginatedPerformers = filteredPerformers.slice(offset, offset + parseInt(perPage));
-        const paginatedIds = paginatedPerformers.map(p => p.id);
+        // =========================
+        // STEP 2: Get ratings from Miget for these performers
+        // =========================
+        const performerIds = matchedPerformers.map(p => p.id);
         let performerRatings = {};
         let favoritePerformers = [];
+        let filteredPerformers = matchedPerformers;
         
-        if (paginatedIds.length > 0) {
-            const ids = paginatedIds.map(id => `'${id}'`).join(',');
+        if (performerIds.length > 0) {
+            const ids = performerIds.map(id => `'${id}'`).join(',');
+            
+            // Get ratings from Miget
             const ratingsResult = await queryMiget(`SELECT performer_id, rating FROM performer_ratings WHERE performer_id IN (${ids})`);
             ratingsResult.rows.forEach(row => {
                 performerRatings[row.performer_id] = row.rating;
             });
+            
+            // Get favorites from Miget
             const favResult = await queryMiget(`SELECT performer_id FROM favorite_performers WHERE performer_id IN (${ids})`);
             favoritePerformers = favResult.rows.map(row => row.performer_id);
+            
+            // =========================
+            // STEP 3: Filter by rating (Miget) if tier is specified
+            // =========================
+            if (tier) {
+                const ratingValue = tier.trim().toUpperCase();
+                
+                if (ratingValue === 'RATED') {
+                    // Keep performers with any rating
+                    filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] !== undefined);
+                } else if (ratingValue === 'UNRATED') {
+                    // Keep performers with no rating
+                    filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === undefined);
+                } else if (['S', 'A', 'B', 'C', 'D', 'F', 'U', 'L'].includes(ratingValue)) {
+                    // Keep performers with specific rating
+                    filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === ratingValue);
+                } else {
+                    // Try as number (legacy)
+                    const ratingNum = parseInt(ratingValue);
+                    if (!isNaN(ratingNum) && ratingNum >= 1 && ratingNum <= 5) {
+                        filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === ratingNum);
+                    }
+                }
+            }
+            
+            // =========================
+            // STEP 4: Filter by favorite (Miget) if not already filtered
+            // =========================
+            if (favorite === 'true' && !favorite.includes('is_favorite')) {
+                filteredPerformers = filteredPerformers.filter(p => favoritePerformers.includes(p.id));
+            } else if (favorite === 'false' && !favorite.includes('is_favorite')) {
+                filteredPerformers = filteredPerformers.filter(p => !favoritePerformers.includes(p.id));
+            }
         }
         
+        // =========================
+        // STEP 5: Calculate total and paginate
+        // =========================
+        const total = filteredPerformers.length;
+        const totalPages = Math.ceil(total / limit);
+        
+        // Paginate the filtered results
+        const paginatedPerformers = filteredPerformers.slice(offset, offset + limit);
+        
+        // =========================
+        // STEP 6: Format results
+        // =========================
         const formattedResults = paginatedPerformers.map(p => {
             const images = p.images ? JSON.parse(p.images) : [];
             const aliases = parseAliases(p.aliases);
@@ -527,6 +639,7 @@ app.get('/api/search/advanced', async (req, res) => {
                 country: p.country || '',
                 ethnicity: p.ethnicity || '',
                 aliases: aliases,
+                cupsize: p.cupsize || null,
                 is_favorite: p.is_favorite === 'true' || p.is_favorite === true,
                 images: images.slice(0, 1),
                 rating: performerRatings[p.id] || null,
@@ -540,9 +653,10 @@ app.get('/api/search/advanced', async (req, res) => {
             performers: formattedResults,
             total: total,
             page: parseInt(page),
-            perPage: parseInt(perPage),
-            totalPages: Math.ceil(total / parseInt(perPage))
+            perPage: limit,
+            totalPages: totalPages
         });
+        
     } catch (error) {
         console.error('❌ Advanced search error:', error.message);
         res.json({ success: false, error: error.message, performers: [] });
