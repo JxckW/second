@@ -478,17 +478,13 @@
         let currentVideoUrl = null;
         let currentSceneUrl = null;
         let currentVideoTitle = '';
-        let switchTimeout = null;
-        let proxyLoadAttempted = false;
 
         async function playVideo(sceneUrl, title, thumbnail, videoUrlFromDb) {
             console.log('🎬 Playing video:', title);
-            console.log('   Scene URL:', sceneUrl);
             
             // Store for download
             currentSceneUrl = sceneUrl;
             currentVideoTitle = title;
-            proxyLoadAttempted = false;
             
             const loading = document.getElementById('videoLoading');
             const modal = document.getElementById('videoModal');
@@ -507,208 +503,75 @@
             video.currentTime = 0;
             source.src = '';
             video.load();
-            downloadBtn.style.display = 'none';
             
-            // Clear any previous switch timeout
-            if (switchTimeout) {
-                clearTimeout(switchTimeout);
-                switchTimeout = null;
-            }
+            // Show download button immediately (uses proxy)
+            downloadBtn.style.display = 'inline-block';
             
             try {
-                // STEP 1: Try direct URL first (fastest)
-                let directUrl = null;
+                // Play video using direct URL (fast, works if network allows)
+                let videoUrl = videoUrlFromDb;
                 
-                if (videoUrlFromDb && videoUrlFromDb.includes('get_file')) {
-                    directUrl = videoUrlFromDb + '?download=true';
-                    console.log('🔗 Direct URL available from database');
-                } else {
-                    // Try to get fresh direct URL from scene
-                    console.log('🔗 Fetching direct URL from scene...');
-                    try {
-                        const response = await fetch(`/api/direct-video?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-                        const data = await response.json();
-                        if (data.success && data.videoUrl) {
-                            directUrl = data.videoUrl;
-                            console.log('✅ Got direct URL from scene');
-                        }
-                    } catch (e) {
-                        console.log('⚠️ Could not fetch direct URL:', e.message);
+                // If we don't have a video URL, fetch it from scene
+                if (!videoUrl || !videoUrl.includes('get_file')) {
+                    console.log('🔗 Fetching video URL from scene...');
+                    const response = await fetch(`/api/direct-video?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                    const data = await response.json();
+                    if (data.success && data.videoUrl) {
+                        videoUrl = data.videoUrl;
                     }
                 }
                 
-                // STEP 2: Try direct first if available
-                if (directUrl) {
-                    console.log('🚀 Attempting direct load...');
-                    source.src = directUrl;
+                // If we have a direct URL, use it (fast)
+                if (videoUrl && videoUrl.includes('get_file')) {
+                    console.log('🚀 Playing direct URL:', videoUrl);
+                    source.src = videoUrl + '?download=true';
                     video.load();
                     
-                    // Wait to see if direct works (3 second timeout)
-                    const directSuccess = await new Promise((resolve) => {
-                        let resolved = false;
-                        
-                        const onCanPlay = () => {
-                            if (!resolved) {
-                                resolved = true;
-                                video.removeEventListener('canplay', onCanPlay);
-                                video.removeEventListener('error', onError);
-                                console.log('✅ Direct load successful!');
-                                resolve(true);
-                            }
-                        };
-                        
-                        const onError = (e) => {
-                            if (!resolved) {
-                                resolved = true;
-                                video.removeEventListener('canplay', onCanPlay);
-                                video.removeEventListener('error', onError);
-                                console.log('⚠️ Direct load failed:', e);
-                                resolve(false);
-                            }
-                        };
-                        
-                        video.addEventListener('canplay', onCanPlay);
-                        video.addEventListener('error', onError);
-                        
-                        // Timeout after 3 seconds
-                        setTimeout(() => {
-                            if (!resolved) {
-                                resolved = true;
-                                video.removeEventListener('canplay', onCanPlay);
-                                video.removeEventListener('error', onError);
-                                resolve(false);
-                            }
-                        }, 3000);
-                    });
-                    
-                    if (directSuccess) {
+                    video.oncanplay = function() {
+                        console.log('✅ Video loaded (direct)!');
                         loading.style.display = 'none';
-                        downloadBtn.style.display = 'inline-block';
-                        currentVideoUrl = directUrl;
                         video.play().catch(e => console.log('Autoplay prevented:', e));
-                        return; // Direct worked, we're done!
-                    }
-                }
-                
-                // STEP 3: Direct failed or not available - use proxy
-                console.log('🔄 Switching to proxy...');
-                proxyLoadAttempted = true;
-                loading.textContent = '⏳ Loading via proxy...';
-                
-                const proxyUrl = `/api/play-proxy?sceneUrl=${encodeURIComponent(sceneUrl)}`;
-                source.src = proxyUrl;
-                video.load();
-                
-                const proxySuccess = await new Promise((resolve) => {
-                    let resolved = false;
-                    
-                    const onCanPlay = () => {
-                        if (!resolved) {
-                            resolved = true;
-                            video.removeEventListener('canplay', onCanPlay);
-                            video.removeEventListener('error', onError);
-                            console.log('✅ Proxy load successful!');
-                            resolve(true);
-                        }
                     };
                     
-                    const onError = (e) => {
-                        if (!resolved) {
-                            resolved = true;
-                            video.removeEventListener('canplay', onCanPlay);
-                            video.removeEventListener('error', onError);
-                            console.log('⚠️ Proxy load failed:', e);
-                            resolve(false);
-                        }
+                    video.onerror = function(e) {
+                        console.log('⚠️ Direct failed, trying proxy...');
+                        // Fallback to proxy if direct fails
+                        loadViaProxy(sceneUrl, loading, video, source, errorEl);
                     };
-                    
-                    video.addEventListener('canplay', onCanPlay);
-                    video.addEventListener('error', onError);
-                    
-                    // Timeout after 8 seconds
-                    setTimeout(() => {
-                        if (!resolved) {
-                            resolved = true;
-                            video.removeEventListener('canplay', onCanPlay);
-                            video.removeEventListener('error', onError);
-                            console.log('⏱️ Proxy timeout');
-                            resolve(false);
-                        }
-                    }, 8000);
-                });
-                
-                if (proxySuccess) {
-                    loading.style.display = 'none';
-                    downloadBtn.style.display = 'inline-block';
-                    currentVideoUrl = proxyUrl;
-                    video.play().catch(e => console.log('Autoplay prevented:', e));
-                    
-                    // STEP 4: If using proxy and we have a direct URL, preload it in background
-                    if (directUrl) {
-                        console.log('🔄 Preloading direct URL in background...');
-                        
-                        // After 5 seconds, try to switch to direct
-                        switchTimeout = setTimeout(() => {
-                            console.log('🔄 Attempting to switch to direct...');
-                            
-                            // Check if direct URL is accessible
-                            fetch(directUrl, { method: 'HEAD', mode: 'no-cors' })
-                                .then(() => {
-                                    console.log('✅ Direct URL is available! Switching now...');
-                                    
-                                    // Save current playback position
-                                    const currentTime = video.currentTime;
-                                    const wasPlaying = !video.paused;
-                                    
-                                    // Switch to direct URL
-                                    source.src = directUrl;
-                                    video.load();
-                                    
-                                    // Restore position and playback
-                                    video.oncanplay = function() {
-                                        video.currentTime = currentTime;
-                                        if (wasPlaying) {
-                                            video.play();
-                                        }
-                                        console.log('✅ Successfully switched to direct!');
-                                        currentVideoUrl = directUrl;
-                                        // Show download button
-                                        downloadBtn.style.display = 'inline-block';
-                                    };
-                                })
-                                .catch(() => {
-                                    console.log('⚠️ Direct URL check failed, staying on proxy');
-                                });
-                        }, 5000);
-                    }
                 } else {
-                    // Proxy failed too
-                    loading.style.display = 'none';
-                    errorEl.style.display = 'block';
-                    errorEl.innerHTML = `
-                        ❌ Failed to load video
-                        <br><br>
-                        <span style="font-size: 12px; color: #666;">
-                            The video may not be available or the link has expired.
-                        </span>
-                        <br><br>
-                        <button onclick="closeVideoModal()" style="
-                            padding: 8px 20px;
-                            border-radius: 8px;
-                            border: 1px solid #667eea;
-                            background: transparent;
-                            color: #667eea;
-                            cursor: pointer;
-                        ">Close</button>
-                    `;
+                    // No direct URL, use proxy
+                    loadViaProxy(sceneUrl, loading, video, source, errorEl);
                 }
                 
             } catch (error) {
                 console.error('❌ Error:', error.message);
+                // Fallback to proxy
+                loadViaProxy(sceneUrl, loading, video, source, errorEl);
+            }
+        }
+
+        function loadViaProxy(sceneUrl, loading, video, source, errorEl) {
+            console.log('🔄 Loading via proxy...');
+            const proxyUrl = `/api/play-proxy?sceneUrl=${encodeURIComponent(sceneUrl)}`;
+            source.src = proxyUrl;
+            video.load();
+            
+            video.oncanplay = function() {
+                console.log('✅ Video loaded (proxy)!');
+                loading.style.display = 'none';
+                video.play().catch(e => console.log('Autoplay prevented:', e));
+            };
+            
+            video.onerror = function(e) {
+                console.error('❌ Proxy failed too:', e);
                 loading.style.display = 'none';
                 errorEl.style.display = 'block';
                 errorEl.innerHTML = `
-                    ❌ ${error.message}
+                    ❌ Failed to load video
+                    <br><br>
+                    <span style="font-size: 12px; color: #666;">
+                        The video may not be available.
+                    </span>
                     <br><br>
                     <button onclick="closeVideoModal()" style="
                         padding: 8px 20px;
@@ -719,7 +582,7 @@
                         cursor: pointer;
                     ">Close</button>
                 `;
-            }
+            };
         }
 
         function downloadVideo() {
@@ -733,18 +596,8 @@
             filename = filename.replace(/\s+/g, '_') || 'video';
             filename += '.mp4';
             
-            // Check if it's the Spotify browser
-            const isSpotify = /Spotify/i.test(navigator.userAgent);
-            
-            // Try direct download first, fallback to proxy
-            let proxyUrl;
-            if (isSpotify) {
-                // Spotify: use play proxy (inline)
-                proxyUrl = `/api/play-proxy?sceneUrl=${encodeURIComponent(currentSceneUrl)}`;
-            } else {
-                // Normal: use download proxy
-                proxyUrl = `/api/download-proxy?sceneUrl=${encodeURIComponent(currentSceneUrl)}&filename=${encodeURIComponent(filename)}`;
-            }
+            // Download uses proxy (always works)
+            const proxyUrl = `/api/download-proxy?sceneUrl=${encodeURIComponent(currentSceneUrl)}&filename=${encodeURIComponent(filename)}`;
             
             console.log('⬇️ Downloading via proxy:', proxyUrl);
             window.open(proxyUrl, '_blank');
@@ -752,12 +605,6 @@
 
         function closeVideoModal() {
             console.log('🔒 Closing video modal');
-            
-            // Clear any pending switch timeout
-            if (switchTimeout) {
-                clearTimeout(switchTimeout);
-                switchTimeout = null;
-            }
             
             const modal = document.getElementById('videoModal');
             const video = document.getElementById('videoPlayer');
