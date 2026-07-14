@@ -578,55 +578,32 @@
         }
 
         function downloadVideo() {
-    if (!currentDownloadUrl) {
-        alert('No video URL available');
-        return;
-    }
-    
-    let filename = currentVideoTitle || 'video';
-    filename = filename.replace(/[^a-zA-Z0-9 ]/g, '').trim();
-    filename = filename.replace(/\s+/g, '_') || 'video';
-    filename += '.mp4';
-    
-    const downloadUrl = currentDownloadUrl + 
-        (currentDownloadUrl.includes('?') ? '&' : '?') + 
-        `download=true&download_filename=${encodeURIComponent(filename)}`;
-    
-    // Mobile: Hidden anchor click
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = filename;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    
-    // Clean up
-    setTimeout(() => {
-        document.body.removeChild(link);
-    }, 100);
-}
             if (!currentDownloadUrl) {
-                alert('No video URL available for download');
+                alert('No video URL available');
                 return;
             }
             
-            // Create a clean filename from the video title
             let filename = currentVideoTitle || 'video';
             filename = filename.replace(/[^a-zA-Z0-9 ]/g, '').trim();
-            filename = filename.replace(/\s+/g, '_');
-            filename = filename || 'video';
+            filename = filename.replace(/\s+/g, '_') || 'video';
             filename += '.mp4';
             
-            // Build download URL with parameters
             const downloadUrl = currentDownloadUrl + 
                 (currentDownloadUrl.includes('?') ? '&' : '?') + 
                 `download=true&download_filename=${encodeURIComponent(filename)}`;
             
-            console.log('⬇️ Downloading:', filename);
-            console.log('   URL:', downloadUrl);
+            // Mobile: Hidden anchor click
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
             
-            // Open in new tab to trigger download
-            window.open(downloadUrl, '_blank');
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(link);
+            }, 100);
         }
 
         function closeVideoModal() {
