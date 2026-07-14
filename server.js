@@ -720,6 +720,54 @@ app.get('/performer/:id', async (req, res) => {
 });
 
 // =========================
+// DIRECT VIDEO URL ENDPOINT
+// =========================
+app.get('/api/direct-video', async (req, res) => {
+    const { sceneUrl } = req.query;
+    
+    if (!sceneUrl || !sceneUrl.includes('/videos/')) {
+        return res.status(400).json({ error: 'Invalid scene URL' });
+    }
+    
+    try {
+        // Fetch the scene HTML to get fresh video URL
+        const sceneResponse = await axios.get(sceneUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www.wow.xxx/'
+            }
+        });
+        
+        const $ = cheerio.load(sceneResponse.data);
+        let videoUrl = null;
+        
+        $('video source').each((i, el) => {
+            const src = $(el).attr('src');
+            if (src && src.includes('get_file')) {
+                videoUrl = src;
+                return false;
+            }
+        });
+        
+        if (!videoUrl) {
+            return res.status(404).json({ error: 'Video URL not found' });
+        }
+        
+        // Return the direct video URL
+        res.json({ 
+            success: true, 
+            videoUrl: videoUrl + '?download=true'
+        });
+        
+    } catch (error) {
+        console.error('❌ Direct URL error:', error.message);
+        res.status(500).json({ error: 'Failed to get video URL' });
+    }
+});
+
+
+
+// =========================
 // VIDEO MODE PAGE - NO DATES, DEDUPLICATED VIDEOS
 // =========================
 app.get('/performer/:id/videos', async (req, res) => {
