@@ -906,41 +906,33 @@ app.get('/advanced-search', (req, res) => {
     res.render('advanced-search', { title: 'Advanced Studio Search' });
 });
 
-// =========================
-// VIDEO URL ENDPOINT - DEDUPLICATED
-// =========================
 app.get('/api/video/url', async (req, res) => {
-    const { sceneUrl } = req.query;
+    const { sceneUrl, quality = '720', download = 'false' } = req.query;
     
     if (!sceneUrl) {
         return res.status(400).json({ error: 'No scene URL provided' });
     }
     
     try {
-        // Look up by url or title - get unique video_url
         let result = await queryNeon(
-            `SELECT DISTINCT ON (video_url) video_url 
-             FROM wow_videos 
-             WHERE url = $1 OR title ILIKE $1
-             ORDER BY video_url`,
+            'SELECT video_url FROM wow_videos WHERE url = $1 OR title ILIKE $1',
             [sceneUrl]
         );
         
         if (result.length === 0) {
-            result = await queryNeon(
-                `SELECT DISTINCT ON (video_url) video_url 
-                 FROM wow_videos 
-                 WHERE scene_url = $1
-                 ORDER BY video_url`,
-                [sceneUrl]
-            );
+            return res.status(404).json({ error: 'Video not found' });
         }
         
-        if (result.length === 0) {
-            return res.status(404).json({ error: 'Video not found in database' });
+        let videoUrl = result[0].video_url;
+        
+        // If download requested, add download parameters
+        if (download === 'true') {
+            const videoId = videoUrl.match(/\/(\d+)_/)?.[1] || 'video';
+            videoUrl = videoUrl + `?download=true&download_filename=${videoId}.mp4`;
         }
         
-        res.json({ success: true, videoUrl: result[0].video_url });
+        res.json({ success: true, videoUrl: videoUrl });
+        
     } catch (error) {
         console.error('❌ Error:', error.message);
         res.status(500).json({ error: error.message });
