@@ -397,9 +397,9 @@
         const safeThumbnail = JSON.stringify(scene.thumbnail || '');
         const sceneUrl = scene.url || '';
         const safeSceneUrl = JSON.stringify(sceneUrl);
-        const videoUrl = scene.video_url || '';
+        const video720p = scene.video720p || '';
     %>
-    <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= JSON.stringify(videoUrl) %>)">
+    <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= JSON.stringify(video720p) %>)">
         <div class="video-thumbnail">
             <% if (scene.thumbnail) { %>
                 <img src="<%= scene.thumbnail %>" alt="<%= scene.title %>" loading="lazy">
@@ -478,9 +478,11 @@
         let currentVideoUrl = null;
         let currentSceneUrl = null;
         let currentVideoTitle = '';
+        let currentDownloadUrl = null;
 
         async function playVideo(sceneUrl, title, thumbnail, videoUrlFromDb) {
             console.log('🎬 Playing video:', title);
+            console.log('   Scene URL:', sceneUrl);
             
             // Store for download
             currentSceneUrl = sceneUrl;
@@ -503,75 +505,62 @@
             video.currentTime = 0;
             source.src = '';
             video.load();
-            
-            // Show download button immediately (uses proxy)
-            downloadBtn.style.display = 'inline-block';
+            downloadBtn.style.display = 'none';
             
             try {
-                // Play video using direct URL (fast, works if network allows)
+                // If we have a video URL from the database, use it
                 let videoUrl = videoUrlFromDb;
                 
-                // If we don't have a video URL, fetch it from scene
                 if (!videoUrl || !videoUrl.includes('get_file')) {
-                    console.log('🔗 Fetching video URL from scene...');
-                    const response = await fetch(`/api/direct-video?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                    // Fetch from API if no direct URL
+                    const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
                     const data = await response.json();
                     if (data.success && data.videoUrl) {
                         videoUrl = data.videoUrl;
+                    } else {
+                        throw new Error(data.error || 'Video URL not found');
                     }
                 }
                 
-                // If we have a direct URL, use it (fast)
-                if (videoUrl && videoUrl.includes('get_file')) {
-                    console.log('🚀 Playing direct URL:', videoUrl);
-                    source.src = videoUrl + '?download=true';
-                    video.load();
-                    
-                    video.oncanplay = function() {
-                        console.log('✅ Video loaded (direct)!');
-                        loading.style.display = 'none';
-                        video.play().catch(e => console.log('Autoplay prevented:', e));
-                    };
-                    
-                    video.onerror = function(e) {
-                        console.log('⚠️ Direct failed, trying proxy...');
-                        // Fallback to proxy if direct fails
-                        loadViaProxy(sceneUrl, loading, video, source, errorEl);
-                    };
-                } else {
-                    // No direct URL, use proxy
-                    loadViaProxy(sceneUrl, loading, video, source, errorEl);
-                }
+                // Clean the URL - remove any existing ?download=true or other query params
+                // Use the URL as-is from the database
+                console.log('🎬 Video URL:', videoUrl);
+                
+                currentVideoUrl = videoUrl;
+                currentDownloadUrl = videoUrl;
+                source.src = videoUrl;
+                video.load();
+                
+                video.oncanplay = function() {
+                    console.log('✅ Video can play');
+                    loading.style.display = 'none';
+                    downloadBtn.style.display = 'inline-block';
+                    video.play().catch(e => console.log('Autoplay prevented:', e));
+                };
+                
+                video.onerror = function(e) {
+                    console.error('❌ Video error:', e);
+                    loading.style.display = 'none';
+                    errorEl.style.display = 'block';
+                    errorEl.innerHTML = `
+                        ❌ Error loading video
+                        <br><br>
+                        <a href="${videoUrl}" target="_blank" style="color: #667eea; text-decoration: underline;">
+                            📥 Try opening directly in new tab
+                        </a>
+                        <br><br>
+                        <span style="font-size: 12px; color: #666;">
+                            If the video doesn't play, the link may have expired.
+                        </span>
+                    `;
+                };
                 
             } catch (error) {
                 console.error('❌ Error:', error.message);
-                // Fallback to proxy
-                loadViaProxy(sceneUrl, loading, video, source, errorEl);
-            }
-        }
-
-        function loadViaProxy(sceneUrl, loading, video, source, errorEl) {
-            console.log('🔄 Loading via proxy...');
-            const proxyUrl = `/api/play-proxy?sceneUrl=${encodeURIComponent(sceneUrl)}`;
-            source.src = proxyUrl;
-            video.load();
-            
-            video.oncanplay = function() {
-                console.log('✅ Video loaded (proxy)!');
-                loading.style.display = 'none';
-                video.play().catch(e => console.log('Autoplay prevented:', e));
-            };
-            
-            video.onerror = function(e) {
-                console.error('❌ Proxy failed too:', e);
                 loading.style.display = 'none';
                 errorEl.style.display = 'block';
                 errorEl.innerHTML = `
-                    ❌ Failed to load video
-                    <br><br>
-                    <span style="font-size: 12px; color: #666;">
-                        The video may not be available.
-                    </span>
+                    ❌ ${error.message}
                     <br><br>
                     <button onclick="closeVideoModal()" style="
                         padding: 8px 20px;
@@ -582,12 +571,12 @@
                         cursor: pointer;
                     ">Close</button>
                 `;
-            };
+            }
         }
 
         function downloadVideo() {
-            if (!currentSceneUrl) {
-                alert('No scene URL available');
+            if (!currentDownloadUrl) {
+                alert('No video URL available');
                 return;
             }
             
@@ -596,16 +585,24 @@
             filename = filename.replace(/\s+/g, '_') || 'video';
             filename += '.mp4';
             
-            // Download uses proxy (always works)
-            const proxyUrl = `/api/download-proxy?sceneUrl=${encodeURIComponent(currentSceneUrl)}&filename=${encodeURIComponent(filename)}`;
+            // Build download URL - add download parameters if not already present
+            let downloadUrl = currentDownloadUrl;
             
-            console.log('⬇️ Downloading via proxy:', proxyUrl);
-            window.open(proxyUrl, '_blank');
+            // Check if ?download=true already exists
+            if (!downloadUrl.includes('download=true')) {
+                downloadUrl = downloadUrl + 
+                    (downloadUrl.includes('?') ? '&' : '?') + 
+                    `download=true&download_filename=${encodeURIComponent(filename)}`;
+            }
+            
+            console.log('⬇️ Downloading:', downloadUrl);
+            
+            // Open in new tab to trigger download
+            window.open(downloadUrl, '_blank');
         }
 
         function closeVideoModal() {
             console.log('🔒 Closing video modal');
-            
             const modal = document.getElementById('videoModal');
             const video = document.getElementById('videoPlayer');
             const source = document.getElementById('videoSource');
