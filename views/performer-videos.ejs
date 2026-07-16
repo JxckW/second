@@ -367,6 +367,7 @@
             background: #4caf50;
             color: white;
             border-color: #4caf50;
+            display: inline-block;
         }
         .video-modal .video-controls .download-btn:hover {
             background: #45a049;
@@ -509,72 +510,66 @@
             </div>
 
             <div class="video-grid">
-    <% wowScenes.forEach(scene => { 
-        // Generate thumbnail from video720p
-        let thumbnail = '';
-        let videoId = null;
-        
-        // Try to extract video ID from video720p (handles both _720p and _720m)
-        if (scene.video720p) {
-            // Match: /VIDEOID_720m.mp4 or /VIDEOID_720p.mp4
-            const match = scene.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
-            if (match) videoId = match[1];
-        }
-        
-        // If no video720p, try video480p
-        if (!videoId && scene.video480p) {
-            const match = scene.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
-            if (match) videoId = match[1];
-        }
-        
-        // If still no video ID, try scene URL
-        if (!videoId && scene.url) {
-            const match = scene.url.match(/\/videos\/(\d+)/);
-            if (match) videoId = match[1];
-        }
-        
-        // Generate thumbnail from video ID
-        if (videoId) {
-            const prefix = String(videoId).substring(0, 5);
-            thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
-        }
-        
-        // Fix date format
-        let displayDate = '';
-        if (scene.date) {
-            const parts = scene.date.split('.');
-            if (parts.length === 3) {
-                displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
-            }
-        }
-    %>
-    <div class="video-card" onclick="playVideo('<%= scene.url %>', '<%= scene.title %>', '<%= thumbnail %>', '<%= scene.video720p %>', '<%= scene.video480p %>')">
-        <div class="video-thumbnail">
-            <% if (thumbnail && thumbnail.startsWith('http')) { %>
-                <img src="<%= thumbnail %>" alt="<%= scene.title %>" loading="lazy">
-            <% } else { %>
-                <div class="no-image">🎬</div>
-            <% } %>
-            <div class="duration"><%= scene.duration || 'N/A' %></div>
-            <div class="play-btn">▶</div>
-        </div>
-        <div class="video-info">
-            <div class="title"><%= scene.title %></div>
-            <div class="meta">
-                <% if (scene.studio) { %>
-                    <span class="studio">🏢 <%= scene.studio %></span>
-                <% } %>
-                <% if (displayDate) { %>
-                    <span class="date">📅 <%= displayDate %></span>
-                <% } %>
-                <% if (scene.performers && scene.performers.length > 0) { %>
-                    <span class="performers">👥 <%= scene.performers %></span>
-                <% } %>
+                <% wowScenes.forEach(scene => { 
+                    // Generate thumbnail from video720p
+                    let thumbnail = '';
+                    let videoId = null;
+                    
+                    if (scene.video720p) {
+                        const match = scene.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                        if (match) videoId = match[1];
+                    }
+                    
+                    if (!videoId && scene.video480p) {
+                        const match = scene.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                        if (match) videoId = match[1];
+                    }
+                    
+                    if (!videoId && scene.url) {
+                        const match = scene.url.match(/\/videos\/(\d+)/);
+                        if (match) videoId = match[1];
+                    }
+                    
+                    if (videoId) {
+                        const prefix = String(videoId).substring(0, 5);
+                        thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
+                    }
+                    
+                    let displayDate = '';
+                    if (scene.date) {
+                        const parts = scene.date.split('.');
+                        if (parts.length === 3) {
+                            displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
+                        }
+                    }
+                %>
+                <div class="video-card" onclick="playVideo('<%= scene.url %>', '<%= scene.title %>', '<%= thumbnail %>', '<%= scene.video720p %>', '<%= scene.video480p %>')">
+                    <div class="video-thumbnail">
+                        <% if (thumbnail && thumbnail.startsWith('http')) { %>
+                            <img src="<%= thumbnail %>" alt="<%= scene.title %>" loading="lazy">
+                        <% } else { %>
+                            <div class="no-image">🎬</div>
+                        <% } %>
+                        <div class="duration"><%= scene.duration || 'N/A' %></div>
+                        <div class="play-btn">▶</div>
+                    </div>
+                    <div class="video-info">
+                        <div class="title"><%= scene.title %></div>
+                        <div class="meta">
+                            <% if (scene.studio) { %>
+                                <span class="studio">🏢 <%= scene.studio %></span>
+                            <% } %>
+                            <% if (displayDate) { %>
+                                <span class="date">📅 <%= displayDate %></span>
+                            <% } %>
+                            <% if (scene.performers && scene.performers.length > 0) { %>
+                                <span class="performers">👥 <%= scene.performers %></span>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+                <% }) %>
             </div>
-        </div>
-    </div>
-    <% }) %>
-</div>
 
             <% if (totalPages > 1) { %>
                 <div class="pagination">
@@ -612,7 +607,7 @@
     <div class="video-modal" id="videoModal">
         <button class="close-modal" onclick="closeVideoModal()">✕</button>
         <div class="video-container">
-            <div id="videoLoading" class="video-loading">⏳ Loading video...</div>
+            <div id="videoLoading" class="video-loading" style="display: none;">⏳ Loading video...</div>
             <div id="videoError" class="video-error" style="display:none;"></div>
             
             <video id="videoPlayer" width="100%" controls preload="metadata" playsinline>
@@ -645,6 +640,7 @@
         let currentVideo480p = null;
         let currentQuality = '720p';
         let isLoadingQuality = false;
+        let videoLoaded = false;
 
         async function playVideo(sceneUrl, title, thumbnail, video720p, video480p) {
             console.log('🎬 Playing video:', title);
@@ -657,6 +653,7 @@
             currentVideo480p = video480p;
             currentQuality = '720p';
             isLoadingQuality = false;
+            videoLoaded = false;
             
             const loading = document.getElementById('videoLoading');
             const modal = document.getElementById('videoModal');
@@ -666,6 +663,9 @@
             const source = document.getElementById('videoSource');
             const downloadBtn = document.getElementById('downloadBtn');
             const qualitySelector = document.getElementById('qualitySelector');
+            
+            // Show download button immediately (no need to wait for video to load)
+            downloadBtn.style.display = 'inline-block';
             
             qualitySelector.value = '720p';
             
@@ -678,7 +678,6 @@
             video.currentTime = 0;
             source.src = '';
             video.load();
-            downloadBtn.style.display = 'none';
             
             try {
                 let videoUrl = video720p;
@@ -710,8 +709,8 @@
                 
                 video.oncanplay = function() {
                     console.log('✅ Video can play');
+                    videoLoaded = true;
                     loading.style.display = 'none';
-                    downloadBtn.style.display = 'inline-block';
                     video.play().catch(e => console.log('Autoplay prevented:', e));
                 };
                 
@@ -763,7 +762,12 @@
             const source = document.getElementById('videoSource');
             const loading = document.getElementById('videoLoading');
             const errorEl = document.getElementById('videoError');
+            const downloadBtn = document.getElementById('downloadBtn');
             
+            // Show download button immediately when switching quality
+            downloadBtn.style.display = 'inline-block';
+            
+            // Save current playback position
             const currentTime = video.currentTime;
             const wasPlaying = !video.paused;
             
@@ -892,7 +896,7 @@
             modal.classList.remove('active');
             currentVideoUrl = null;
             
-            document.getElementById('videoLoading').style.display = 'block';
+            document.getElementById('videoLoading').style.display = 'none';
             document.getElementById('videoLoading').textContent = '⏳ Loading video...';
             document.getElementById('videoError').style.display = 'none';
         }
