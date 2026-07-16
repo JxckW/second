@@ -768,12 +768,14 @@ app.get('/api/direct-video', async (req, res) => {
 
 
 // =========================
-// VIDEO MODE PAGE - NO DATES, DEDUPLICATED VIDEOS
+// VIDEO MODE PAGE - WITH SORTING AND SEARCH (FIXED)
 // =========================
 app.get('/performer/:id/videos', async (req, res) => {
     const performerId = req.params.id;
     const page = parseInt(req.query.page) || 1;
     const perPage = 24;
+    const sortBy = req.query.sort || 'date';
+    const searchTerm = req.query.search || '';
     
     try {
         const performer = await getPerformerById(performerId);
@@ -783,9 +785,7 @@ app.get('/performer/:id/videos', async (req, res) => {
         
         const performerName = performer.name;
         
-        // Get ALL wow_videos for this performer - DEDUPLICATED by video_url
-        // Using the new column names: performer, video720p (instead of video_url)
-        const allWowVideos = await queryNeon(`
+        let query = `
             SELECT DISTINCT ON (video720p) 
                 performer as performer_name,
                 title,
@@ -794,20 +794,94 @@ app.get('/performer/:id/videos', async (req, res) => {
                 url,
                 video720p,
                 video480p,
-                thumbnail
+                date,
+                performers
             FROM wow_videos
             WHERE performer ILIKE $1
               AND video720p IS NOT NULL 
               AND video720p != ''
-            ORDER BY video720p, title
-        `, [`%${performerName}%`]);
+        `;
+        
+        const params = [`%${performerName}%`];
+        
+        if (searchTerm && searchTerm.trim()) {
+            query += ` AND (title ILIKE $2 OR studio ILIKE $2 OR performers ILIKE $2)`;
+            params.push(`%${searchTerm.trim()}%`);
+        }
+        
+        query += ` ORDER BY video720p`;
+        
+        console.log(`🔍 Searching for ${performerName} with term: "${searchTerm}"`);
+        
+        // Execute query
+        const allWowVideos = await queryNeon(query, params);
         
         console.log(`📊 Found ${allWowVideos.length} unique wow_videos for ${performerName}`);
         
-        // Sort videos by title
-        allWowVideos.sort((a, b) => {
-            return (a.title || '').localeCompare(b.title || '');
-        });
+        // Fix thumbnails and dates
+        for (const video of allWowVideos) {
+            // Fix thumbnail
+            if (!video.thumbnail || video.thumbnail.startsWith('data:image')) {
+                let videoId = null;
+                
+                // Try multiple methods
+                if (video.video720p) {
+                    const match1 = video.video720p.match(/\/(\d+)_\d+p\.mp4/);
+                    if (match1) videoId = match1[1];
+                }
+                if (!videoId && video.video480p) {
+                    const match2 = video.video480p.match(/\/(\d+)_\d+p\.mp4/);
+                    if (match2) videoId = match2[1];
+                }
+                if (!videoId && video.url) {
+                    const match3 = video.url.match(/\/videos\/(\d+)/);
+                    if (match3) videoId = match3[1];
+                }
+                
+                if (videoId) {
+                    const prefix = String(videoId).substring(0, 5);
+                    video.thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
+                    console.log(`✅ Generated thumbnail for video ${videoId}`);
+                }
+            }
+            
+            // Fix date format for sorting (YYYY-MM-DD)
+            if (video.date) {
+                const parts = video.date.split('.');
+                if (parts.length === 3) {
+                    video.dateSort = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                } else {
+                    video.dateSort = '';
+                }
+            } else {
+                video.dateSort = '';
+            }
+            
+            // Clean up performers string
+            if (video.performers) {
+                video.performers = video.performers.replace(/\s*;\s*/g, '; ');
+            }
+        }
+        
+        // Sort
+        if (sortBy === 'date') {
+            allWowVideos.sort((a, b) => {
+                const dateA = a.dateSort || '';
+                const dateB = b.dateSort || '';
+                if (!dateA && !dateB) return 0;
+                if (!dateA) return 1;
+                if (!dateB) return -1;
+                return dateB.localeCompare(dateA);
+            });
+        } else if (sortBy === 'title') {
+            allWowVideos.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        } else if (sortBy === 'duration') {
+            allWowVideos.sort((a, b) => {
+                const durA = a.duration ? parseDuration(a.duration) : 0;
+                const durB = b.duration ? parseDuration(b.duration) : 0;
+                return durB - durA;
+            });
+        }
         
         // Paginate
         const totalWowScenes = allWowVideos.length;
@@ -838,14 +912,37 @@ app.get('/performer/:id/videos', async (req, res) => {
             totalWowScenes: totalWowScenes,
             currentPage: page,
             totalPages: totalPages,
-            perPage: perPage
+            perPage: perPage,
+            sortBy: sortBy,
+            searchTerm: searchTerm
         });
         
     } catch (error) {
         console.error('❌ Video mode error:', error.message);
+        console.error('   Query params:', JSON.stringify(params));
         res.status(500).send('Error loading videos');
     }
 });
+
+// Helper function to parse duration string to seconds
+function parseDuration(duration) {
+    if (!duration) return 0;
+    if (typeof duration === 'string') {
+        if (duration.includes(':')) {
+            const parts = duration.split(':');
+            if (parts.length === 2) {
+                return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            } else if (parts.length === 3) {
+                return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+            }
+        }
+        const match = duration.match(/(\d+)/);
+        if (match) return parseInt(match[1]);
+    }
+    return parseInt(duration) || 0;
+}
+
+
 
 // =========================
 // VIDEO URL ENDPOINT - UPDATED COLUMN NAMES

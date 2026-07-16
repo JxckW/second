@@ -95,6 +95,71 @@
             color: #fff;
         }
 
+        .controls-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            align-items: center;
+        }
+        .controls-bar .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        .controls-bar .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .controls-bar .search-btn {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .controls-bar .search-btn:hover {
+            opacity: 0.85;
+        }
+        .controls-bar .sort-select {
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .controls-bar .sort-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .controls-bar .clear-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid #ff6b6b;
+            background: transparent;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .controls-bar .clear-btn:hover {
+            background: #ff6b6b;
+            color: #fff;
+        }
+
         .video-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -193,6 +258,20 @@
         }
         .video-info .studio {
             color: #667eea;
+        }
+        .video-info .date {
+            color: #888;
+            font-size: 11px;
+        }
+        .video-info .performers {
+            color: #888;
+            font-size: 11px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+            display: block;
+            margin-top: 2px;
         }
 
         .no-videos {
@@ -373,10 +452,8 @@
             .video-modal .video-container { width: 98%; }
             .video-modal .close-modal { top: 10px; right: 20px; font-size: 30px; }
             .mode-btn { font-size: 12px; padding: 6px 14px; }
-            .video-modal .video-controls .quality-selector {
-                font-size: 12px;
-                padding: 6px 10px;
-            }
+            .controls-bar { flex-direction: column; align-items: stretch; }
+            .controls-bar .search-input { min-width: auto; }
         }
     </style>
 </head>
@@ -407,25 +484,74 @@
             </div>
         </div>
 
+        <!-- Search and Sort Controls -->
+        <div class="controls-bar">
+            <form method="get" action="" style="display: flex; flex-wrap: wrap; gap: 12px; flex: 1; width: 100%;">
+                <input type="text" name="search" class="search-input" placeholder="Search by title, studio, or performer..." value="<%= searchTerm %>">
+                <select name="sort" class="sort-select">
+                    <option value="date" <%= sortBy === 'date' ? 'selected' : '' %>>Sort by Date</option>
+                    <option value="title" <%= sortBy === 'title' ? 'selected' : '' %>>Sort by Title</option>
+                    <option value="duration" <%= sortBy === 'duration' ? 'selected' : '' %>>Sort by Duration</option>
+                </select>
+                <button type="submit" class="search-btn">🔍 Search</button>
+                <% if (searchTerm) { %>
+                    <a href="/performer/<%= performerId %>/videos?sort=<%= sortBy %>" class="clear-btn">✕ Clear</a>
+                <% } %>
+            </form>
+        </div>
+
         <% if (wowScenes && wowScenes.length > 0) { %>
             <div class="video-stats">
                 Showing <%= (currentPage - 1) * perPage + 1 %> - <%= Math.min(currentPage * perPage, totalWowScenes) %> of <%= totalWowScenes %> videos
+                <% if (searchTerm) { %>
+                    <span style="color: #667eea;">— Search: "<%= searchTerm %>"</span>
+                <% } %>
             </div>
 
             <div class="video-grid">
-                <% wowScenes.forEach(scene => { %>
-    <%
-        const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
-        const safeThumbnail = JSON.stringify(scene.thumbnail || '');
-        const sceneUrl = scene.url || '';
-        const safeSceneUrl = JSON.stringify(sceneUrl);
-        const video720p = scene.video720p || '';
-        const video480p = scene.video480p || '';
+    <% wowScenes.forEach(scene => { 
+        // Generate thumbnail from video720p
+        let thumbnail = '';
+        let videoId = null;
+        
+        // Try to extract video ID from video720p (handles both _720p and _720m)
+        if (scene.video720p) {
+            // Match: /VIDEOID_720m.mp4 or /VIDEOID_720p.mp4
+            const match = scene.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
+            if (match) videoId = match[1];
+        }
+        
+        // If no video720p, try video480p
+        if (!videoId && scene.video480p) {
+            const match = scene.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
+            if (match) videoId = match[1];
+        }
+        
+        // If still no video ID, try scene URL
+        if (!videoId && scene.url) {
+            const match = scene.url.match(/\/videos\/(\d+)/);
+            if (match) videoId = match[1];
+        }
+        
+        // Generate thumbnail from video ID
+        if (videoId) {
+            const prefix = String(videoId).substring(0, 5);
+            thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
+        }
+        
+        // Fix date format
+        let displayDate = '';
+        if (scene.date) {
+            const parts = scene.date.split('.');
+            if (parts.length === 3) {
+                displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
+            }
+        }
     %>
-    <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= JSON.stringify(video720p) %>, <%= JSON.stringify(video480p) %>)">
+    <div class="video-card" onclick="playVideo('<%= scene.url %>', '<%= scene.title %>', '<%= thumbnail %>', '<%= scene.video720p %>', '<%= scene.video480p %>')">
         <div class="video-thumbnail">
-            <% if (scene.thumbnail) { %>
-                <img src="<%= scene.thumbnail %>" alt="<%= scene.title %>" loading="lazy">
+            <% if (thumbnail && thumbnail.startsWith('http')) { %>
+                <img src="<%= thumbnail %>" alt="<%= scene.title %>" loading="lazy">
             <% } else { %>
                 <div class="no-image">🎬</div>
             <% } %>
@@ -438,22 +564,28 @@
                 <% if (scene.studio) { %>
                     <span class="studio">🏢 <%= scene.studio %></span>
                 <% } %>
+                <% if (displayDate) { %>
+                    <span class="date">📅 <%= displayDate %></span>
+                <% } %>
+                <% if (scene.performers && scene.performers.length > 0) { %>
+                    <span class="performers">👥 <%= scene.performers %></span>
+                <% } %>
             </div>
         </div>
     </div>
-<% }) %>
-            </div>
+    <% }) %>
+</div>
 
             <% if (totalPages > 1) { %>
                 <div class="pagination">
                     <% if (currentPage > 1) { %>
-                        <a href="/performer/<%= performerId %>/videos?page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
+                        <a href="/performer/<%= performerId %>/videos?page=<%= currentPage - 1 %><% if (searchTerm) { %>&search=<%= encodeURIComponent(searchTerm) %><% } %><% if (sortBy !== 'date') { %>&sort=<%= sortBy %><% } %>" class="page-link">← Previous</a>
                     <% } %>
                     <% for (let i = 1; i <= totalPages; i++) { %>
                         <% if (i === currentPage) { %>
                             <span class="page-link active"><%= i %></span>
                         <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
-                            <a href="/performer/<%= performerId %>/videos?page=<%= i %>" class="page-link"><%= i %></a>
+                            <a href="/performer/<%= performerId %>/videos?page=<%= i %><% if (searchTerm) { %>&search=<%= encodeURIComponent(searchTerm) %><% } %><% if (sortBy !== 'date') { %>&sort=<%= sortBy %><% } %>" class="page-link"><%= i %></a>
                         <% } else if (i === 4 && currentPage > 5) { %>
                             <span class="page-link">…</span>
                         <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
@@ -461,14 +593,17 @@
                         <% } %>
                     <% } %>
                     <% if (currentPage < totalPages) { %>
-                        <a href="/performer/<%= performerId %>/videos?page=<%= currentPage + 1 %>" class="page-link">Next →</a>
+                        <a href="/performer/<%= performerId %>/videos?page=<%= currentPage + 1 %><% if (searchTerm) { %>&search=<%= encodeURIComponent(searchTerm) %><% } %><% if (sortBy !== 'date') { %>&sort=<%= sortBy %><% } %>" class="page-link">Next →</a>
                     <% } %>
                 </div>
             <% } %>
         <% } else { %>
             <div class="no-videos">
                 <h3>🎬 No Videos Found</h3>
-                <p>No wow.xxx videos found for <%= performer.name %></p>
+                <p>No videos found for <%= performer.name %><% if (searchTerm) { %> matching "<%= searchTerm %>"<% } %></p>
+                <% if (searchTerm) { %>
+                    <a href="/performer/<%= performerId %>/videos?sort=<%= sortBy %>" style="color: #667eea; text-decoration: underline;">Clear search</a>
+                <% } %>
             </div>
         <% } %>
     </div>
@@ -509,17 +644,19 @@
         let currentVideo720p = null;
         let currentVideo480p = null;
         let currentQuality = '720p';
+        let isLoadingQuality = false;
 
         async function playVideo(sceneUrl, title, thumbnail, video720p, video480p) {
             console.log('🎬 Playing video:', title);
             console.log('   Scene URL:', sceneUrl);
+            console.log('   Thumbnail:', thumbnail);
             
-            // Store for download and quality switching
             currentSceneUrl = sceneUrl;
             currentVideoTitle = title;
             currentVideo720p = video720p;
             currentVideo480p = video480p;
             currentQuality = '720p';
+            isLoadingQuality = false;
             
             const loading = document.getElementById('videoLoading');
             const modal = document.getElementById('videoModal');
@@ -530,7 +667,6 @@
             const downloadBtn = document.getElementById('downloadBtn');
             const qualitySelector = document.getElementById('qualitySelector');
             
-            // Set quality selector
             qualitySelector.value = '720p';
             
             modal.classList.add('active');
@@ -545,10 +681,8 @@
             downloadBtn.style.display = 'none';
             
             try {
-                // Use 720p by default
                 let videoUrl = video720p;
                 
-                // If no 720p, try 480p
                 if (!videoUrl || !videoUrl.includes('get_file')) {
                     videoUrl = video480p;
                     if (videoUrl && videoUrl.includes('get_file')) {
@@ -557,7 +691,6 @@
                     }
                 }
                 
-                // If still no video, fetch from API
                 if (!videoUrl || !videoUrl.includes('get_file')) {
                     const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
                     const data = await response.json();
@@ -619,6 +752,11 @@
         }
 
         function changeQuality(quality) {
+            if (isLoadingQuality) {
+                console.log('⚠️ Already switching quality, please wait...');
+                return;
+            }
+            
             console.log('🔄 Switching to:', quality);
             
             const video = document.getElementById('videoPlayer');
@@ -626,16 +764,14 @@
             const loading = document.getElementById('videoLoading');
             const errorEl = document.getElementById('videoError');
             
-            // Save current playback position
             const currentTime = video.currentTime;
             const wasPlaying = !video.paused;
             
-            // Show loading
+            isLoadingQuality = true;
             loading.style.display = 'block';
             loading.textContent = '⏳ Switching quality...';
             errorEl.style.display = 'none';
             
-            // Get the appropriate video URL
             let videoUrl = null;
             if (quality === '720p') {
                 videoUrl = currentVideo720p;
@@ -643,20 +779,20 @@
                 videoUrl = currentVideo480p;
             }
             
-            // If the selected quality isn't available, try the other one
             if (!videoUrl || !videoUrl.includes('get_file')) {
                 if (quality === '720p' && currentVideo480p && currentVideo480p.includes('get_file')) {
                     videoUrl = currentVideo480p;
                     document.getElementById('qualitySelector').value = '480p';
                     currentQuality = '480p';
-                    alert('720p not available, switching to 480p');
+                    console.log('⚠️ 720p not available, switching to 480p');
                 } else if (quality === '480p' && currentVideo720p && currentVideo720p.includes('get_file')) {
                     videoUrl = currentVideo720p;
                     document.getElementById('qualitySelector').value = '720p';
                     currentQuality = '720p';
-                    alert('480p not available, switching to 720p');
+                    console.log('⚠️ 480p not available, switching to 720p');
                 } else {
                     loading.style.display = 'none';
+                    isLoadingQuality = false;
                     alert('This quality is not available for this video');
                     return;
                 }
@@ -666,31 +802,56 @@
             currentVideoUrl = videoUrl;
             currentDownloadUrl = videoUrl;
             
-            // Load the new quality
             source.src = videoUrl;
             video.load();
             
-            video.oncanplay = function() {
-                console.log('✅ Quality switched to:', quality);
-                loading.style.display = 'none';
-                video.currentTime = currentTime;
-                if (wasPlaying) {
-                    video.play();
+            let qualitySwitchDone = false;
+            
+            const onCanPlay = function() {
+                if (!qualitySwitchDone) {
+                    qualitySwitchDone = true;
+                    console.log('✅ Quality switched to:', quality);
+                    loading.style.display = 'none';
+                    video.currentTime = currentTime;
+                    if (wasPlaying) {
+                        video.play().catch(e => console.log('Autoplay prevented:', e));
+                    }
+                    isLoadingQuality = false;
+                    video.removeEventListener('canplay', onCanPlay);
+                    video.removeEventListener('error', onError);
                 }
             };
             
-            video.onerror = function(e) {
-                console.error('❌ Error switching quality:', e);
-                loading.style.display = 'none';
-                errorEl.style.display = 'block';
-                errorEl.innerHTML = `
-                    ❌ Failed to switch quality
-                    <br><br>
-                    <span style="font-size: 12px; color: #666;">
-                        The video may not be available in this quality.
-                    </span>
-                `;
+            const onError = function(e) {
+                if (!qualitySwitchDone) {
+                    qualitySwitchDone = true;
+                    console.error('❌ Error switching quality:', e);
+                    loading.style.display = 'none';
+                    errorEl.style.display = 'block';
+                    errorEl.innerHTML = `
+                        ❌ Failed to switch quality
+                        <br><br>
+                        <span style="font-size: 12px; color: #666;">
+                            The video may not be available in this quality.
+                        </span>
+                        <br><br>
+                        <button onclick="closeVideoModal()" style="
+                            padding: 8px 20px;
+                            border-radius: 8px;
+                            border: 1px solid #667eea;
+                            background: transparent;
+                            color: #667eea;
+                            cursor: pointer;
+                        ">Close</button>
+                    `;
+                    isLoadingQuality = false;
+                    video.removeEventListener('canplay', onCanPlay);
+                    video.removeEventListener('error', onError);
+                }
             };
+            
+            video.addEventListener('canplay', onCanPlay);
+            video.addEventListener('error', onError);
         }
 
         function downloadVideo() {
@@ -704,10 +865,8 @@
             filename = filename.replace(/\s+/g, '_') || 'video';
             filename += '.mp4';
             
-            // Build download URL - add download parameters if not already present
             let downloadUrl = currentDownloadUrl;
             
-            // Check if ?download=true already exists
             if (!downloadUrl.includes('download=true')) {
                 downloadUrl = downloadUrl + 
                     (downloadUrl.includes('?') ? '&' : '?') + 
@@ -715,8 +874,6 @@
             }
             
             console.log('⬇️ Downloading:', downloadUrl);
-            
-            // Open in new tab to trigger download
             window.open(downloadUrl, '_blank');
         }
 
@@ -725,6 +882,8 @@
             const modal = document.getElementById('videoModal');
             const video = document.getElementById('videoPlayer');
             const source = document.getElementById('videoSource');
+            
+            isLoadingQuality = false;
             
             video.pause();
             video.currentTime = 0;
