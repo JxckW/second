@@ -510,66 +510,73 @@
             </div>
 
             <div class="video-grid">
-                <% wowScenes.forEach(scene => { 
-                    // Generate thumbnail from video720p
-                    let thumbnail = '';
-                    let videoId = null;
-                    
-                    if (scene.video720p) {
-                        const match = scene.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
-                        if (match) videoId = match[1];
-                    }
-                    
-                    if (!videoId && scene.video480p) {
-                        const match = scene.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
-                        if (match) videoId = match[1];
-                    }
-                    
-                    if (!videoId && scene.url) {
-                        const match = scene.url.match(/\/videos\/(\d+)/);
-                        if (match) videoId = match[1];
-                    }
-                    
-                    if (videoId) {
-                        const prefix = String(videoId).substring(0, 5);
-                        thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
-                    }
-                    
-                    let displayDate = '';
-                    if (scene.date) {
-                        const parts = scene.date.split('.');
-                        if (parts.length === 3) {
-                            displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
-                        }
-                    }
-                %>
-                <div class="video-card" onclick="playVideo('<%= scene.url %>', '<%= scene.title %>', '<%= thumbnail %>', '<%= scene.video720p %>', '<%= scene.video480p %>')">
-                    <div class="video-thumbnail">
-                        <% if (thumbnail && thumbnail.startsWith('http')) { %>
-                            <img src="<%= thumbnail %>" alt="<%= scene.title %>" loading="lazy">
-                        <% } else { %>
-                            <div class="no-image">🎬</div>
-                        <% } %>
-                        <div class="duration"><%= scene.duration || 'N/A' %></div>
-                        <div class="play-btn">▶</div>
-                    </div>
-                    <div class="video-info">
-                        <div class="title"><%= scene.title %></div>
-                        <div class="meta">
-                            <% if (scene.studio) { %>
-                                <span class="studio">🏢 <%= scene.studio %></span>
-                            <% } %>
-                            <% if (displayDate) { %>
-                                <span class="date">📅 <%= displayDate %></span>
-                            <% } %>
-                            <% if (scene.performers && scene.performers.length > 0) { %>
-                                <span class="performers">👥 <%= scene.performers %></span>
-                            <% } %>
-                        </div>
-                    </div>
-                </div>
-                <% }) %>
+    <% wowScenes.forEach(scene => { 
+        // Generate thumbnail from video720p
+        let thumbnail = '';
+        let videoId = null;
+        
+        if (scene.video720p) {
+            const match = scene.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
+            if (match) videoId = match[1];
+        }
+        
+        if (!videoId && scene.video480p) {
+            const match = scene.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
+            if (match) videoId = match[1];
+        }
+        
+        if (!videoId && scene.url) {
+            const match = scene.url.match(/\/videos\/(\d+)/);
+            if (match) videoId = match[1];
+        }
+        
+        if (videoId) {
+            const prefix = String(videoId).substring(0, 5);
+            thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
+        }
+        
+        let displayDate = '';
+        if (scene.date) {
+            const parts = scene.date.split('.');
+            if (parts.length === 3) {
+                displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
+            }
+        }
+        
+        // ESCAPE FOR JAVASCRIPT - THIS IS THE KEY FIX
+        const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
+        const safeSceneUrl = JSON.stringify(scene.url || '');
+        const safeThumbnail = JSON.stringify(thumbnail || '');
+        const safeVideo720p = JSON.stringify(scene.video720p || '');
+        const safeVideo480p = JSON.stringify(scene.video480p || '');
+    %>
+    <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= safeVideo720p %>, <%= safeVideo480p %>)">
+        <div class="video-thumbnail">
+            <% if (thumbnail && thumbnail.startsWith('http')) { %>
+                <img src="<%= thumbnail %>" alt="<%= scene.title %>" loading="lazy">
+            <% } else { %>
+                <div class="no-image">🎬</div>
+            <% } %>
+            <div class="duration"><%= scene.duration || 'N/A' %></div>
+            <div class="play-btn">▶</div>
+        </div>
+        <div class="video-info">
+            <div class="title"><%= scene.title %></div>
+            <div class="meta">
+                <% if (scene.studio) { %>
+                    <span class="studio">🏢 <%= scene.studio %></span>
+                <% } %>
+                <% if (displayDate) { %>
+                    <span class="date">📅 <%= displayDate %></span>
+                <% } %>
+                <% if (scene.performers && scene.performers.length > 0) { %>
+                    <span class="performers">👥 <%= scene.performers %></span>
+                <% } %>
             </div>
+        </div>
+    </div>
+    <% }) %>
+</div>
 
             <% if (totalPages > 1) { %>
                 <div class="pagination">
