@@ -871,6 +871,17 @@
             
             let downloadUrl = currentDownloadUrl;
             
+            // If the URL is a CDN URL, use the original video URL instead
+            if (downloadUrl && downloadUrl.includes('fpvcdn.com')) {
+                downloadUrl = currentQuality === '720p' ? currentVideo720p : currentVideo480p;
+            }
+            
+            // Make sure it's a get_file URL
+            if (!downloadUrl || !downloadUrl.includes('get_file')) {
+                alert('Download URL not available');
+                return;
+            }
+            
             if (!downloadUrl.includes('download=true')) {
                 downloadUrl = downloadUrl + 
                     (downloadUrl.includes('?') ? '&' : '?') + 
