@@ -1159,6 +1159,276 @@ app.get('/api/video/url', async (req, res) => {
     }
 });
 
+
+// =========================
+// GLOBAL VIDEO SCENE SEARCH API - FIXED SORTING
+// =========================
+app.get('/api/search/videos', async (req, res) => {
+    const { 
+        q = '',           
+        page = 1, 
+        perPage = 24,
+        sortBy = 'date'   // date, title, duration
+    } = req.query;
+    
+    const offset = (parseInt(page) - 1) * parseInt(perPage);
+    const limit = parseInt(perPage);
+    
+    try {
+        let params = [];
+        let paramIndex = 1;
+        let whereConditions = [];
+        
+        if (q && q.trim()) {
+            const searchTerms = q.trim().split(/\s*,\s*/).filter(t => t);
+            
+            if (searchTerms.length > 0) {
+                const conditions = [];
+                
+                for (const term of searchTerms) {
+                    const termLower = term.toLowerCase().trim();
+                    conditions.push(`(
+                        LOWER(w.studio) ILIKE $${paramIndex} OR 
+                        LOWER(w.performers) ILIKE $${paramIndex} OR 
+                        LOWER(w.title) ILIKE $${paramIndex} OR 
+                        LOWER(w.performer) ILIKE $${paramIndex}
+                    )`);
+                    params.push(`%${termLower}%`);
+                    paramIndex++;
+                }
+                
+                if (conditions.length > 0) {
+                    whereConditions.push(`(${conditions.join(' AND ')})`);
+                }
+            }
+        }
+        
+        if (whereConditions.length === 0) {
+            return res.json({
+                success: true,
+                videos: [],
+                total: 0,
+                page: parseInt(page),
+                perPage: limit,
+                totalPages: 0,
+                searchTerm: q
+            });
+        }
+        
+        // Build the query - FIXED SORTING
+        let query = `
+            SELECT DISTINCT ON (w.video720p) 
+                w.performer,
+                w.title,
+                w.duration,
+                w.studio,
+                w.url,
+                w.video720p,
+                w.video480p,
+                w.date,
+                w.performers,
+                w.thumbnail
+            FROM wow_videos w
+            WHERE w.video720p IS NOT NULL 
+              AND w.video720p != ''
+              AND ${whereConditions.join(' AND ')}
+        `;
+        
+        // Add sorting - the ORDER BY must start with video720p for DISTINCT ON
+        if (sortBy === 'date') {
+            query += ` ORDER BY w.video720p, w.date DESC NULLS LAST`;
+        } else if (sortBy === 'title') {
+            query += ` ORDER BY w.video720p, w.title`;
+        } else if (sortBy === 'duration') {
+            // Convert duration to seconds for proper sorting
+            query += ` ORDER BY w.video720p, 
+                CASE 
+                    WHEN w.duration LIKE '%:%' THEN 
+                        CAST(SPLIT_PART(w.duration, ':', 1) AS INTEGER) * 60 + 
+                        CAST(SPLIT_PART(w.duration, ':', 2) AS INTEGER)
+                    ELSE CAST(w.duration AS INTEGER)
+                END DESC NULLS LAST`;
+        } else {
+            query += ` ORDER BY w.video720p, w.date DESC NULLS LAST`;
+        }
+        
+        // Add pagination
+        query += ` LIMIT $${paramIndex}::int OFFSET $${paramIndex + 1}::int`;
+        params.push(limit, offset);
+        
+        console.log(`🔍 Global video search: "${q}"`);
+        console.log(`📝 Sort: ${sortBy}`);
+        console.log(`📝 Query params:`, params);
+        
+        const videos = await queryNeon(query, params);
+        
+        // Get total count
+        let countQuery = `
+            SELECT COUNT(DISTINCT w.video720p) as total
+            FROM wow_videos w
+            WHERE w.video720p IS NOT NULL 
+              AND w.video720p != ''
+              AND ${whereConditions.join(' AND ')}
+        `;
+        
+        const countParams = params.slice(0, -2);
+        const countResult = await queryNeon(countQuery, countParams);
+        const total = parseInt(countResult[0]?.total || 0);
+        const totalPages = Math.ceil(total / limit);
+        
+        // Generate thumbnails and fix dates
+        for (const video of videos) {
+            if (!video.thumbnail || video.thumbnail.startsWith('data:image')) {
+                let videoId = null;
+                if (video.video720p) {
+                    const match = video.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                    if (match) videoId = match[1];
+                }
+                if (!videoId && video.video480p) {
+                    const match = video.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                    if (match) videoId = match[1];
+                }
+                if (videoId) {
+                    const prefix = String(videoId).substring(0, 5);
+                    video.thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
+                }
+            }
+            
+            // Fix date format for display
+            if (video.date) {
+                const parts = video.date.split('.');
+                if (parts.length === 3) {
+                    video.dateDisplay = `${parts[1]}/${parts[0]}/${parts[2]}`;
+                } else {
+                    video.dateDisplay = video.date;
+                }
+            }
+        }
+        
+        res.json({
+            success: true,
+            videos: videos,
+            total: total,
+            page: parseInt(page),
+            perPage: limit,
+            totalPages: totalPages,
+            searchTerm: q,
+            sortBy: sortBy
+        });
+        
+    } catch (error) {
+        console.error('❌ Global video search error:', error.message);
+        console.error('   Stack:', error.stack);
+        res.json({ success: false, error: error.message, videos: [] });
+    }
+});
+
+
+// =========================
+// GLOBAL VIDEO SEARCH PAGE
+// =========================
+app.get('/video-search', (req, res) => {
+    const searchTerm = req.query.q || '';
+    const sortBy = req.query.sort || 'date';  // ⭐ ADD THIS LINE
+    res.render('video-search', { 
+        title: 'Video Search',
+        searchTerm: searchTerm,
+        sortBy: sortBy  // ⭐ ADD THIS LINE
+    });
+});
+
+
+
+// =========================
+// VIDEO FAVORITES API ENDPOINTS
+// =========================
+
+// Get all favorited videos
+app.get('/api/video-favorites', async (req, res) => {
+    try {
+        const result = await queryNeon(
+            'SELECT * FROM video_favorites ORDER BY created_at DESC'
+        );
+        res.json({ success: true, favorites: result });
+    } catch (error) {
+        console.error('❌ Get video favorites error:', error.message);
+        res.json({ success: false, error: error.message, favorites: [] });
+    }
+});
+
+// Toggle favorite (add or remove)
+app.post('/api/video-favorites/toggle', async (req, res) => {
+    const { scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date } = req.body;
+    
+    if (!scene_url) {
+        return res.json({ success: false, error: 'Scene URL is required' });
+    }
+    
+    try {
+        // Check if already favorited
+        const existing = await queryNeon(
+            'SELECT * FROM video_favorites WHERE scene_url = $1',
+            [scene_url]
+        );
+        
+        if (existing.length > 0) {
+            // Remove from favorites
+            await queryNeon(
+                'DELETE FROM video_favorites WHERE scene_url = $1',
+                [scene_url]
+            );
+            res.json({ success: true, favorited: false, message: 'Removed from favorites' });
+        } else {
+            // Add to favorites
+            await queryNeon(
+                `INSERT INTO video_favorites (scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                [scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date]
+            );
+            res.json({ success: true, favorited: true, message: 'Added to favorites' });
+        }
+    } catch (error) {
+        console.error('❌ Toggle video favorite error:', error.message);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Check if a scene is favorited
+app.get('/api/video-favorites/check', async (req, res) => {
+    const { scene_url } = req.query;
+    
+    if (!scene_url) {
+        return res.json({ success: false, isFavorited: false });
+    }
+    
+    try {
+        const result = await queryNeon(
+            'SELECT * FROM video_favorites WHERE scene_url = $1',
+            [scene_url]
+        );
+        res.json({ success: true, isFavorited: result.length > 0 });
+    } catch (error) {
+        console.error('❌ Check video favorite error:', error.message);
+        res.json({ success: false, isFavorited: false });
+    }
+});
+
+// Get favorite scene URLs (for filtering)
+app.get('/api/video-favorites/urls', async (req, res) => {
+    try {
+        const result = await queryNeon(
+            'SELECT scene_url FROM video_favorites'
+        );
+        const urls = result.map(row => row.scene_url);
+        res.json({ success: true, urls: urls });
+    } catch (error) {
+        console.error('❌ Get favorite URLs error:', error.message);
+        res.json({ success: false, urls: [] });
+    }
+});
+
+
+
 const axios = require('axios');
 const cheerio = require('cheerio');
 
