@@ -392,8 +392,9 @@ app.post('/search', async (req, res) => {
     }
 });
 
+
 // =========================
-// ADVANCED SEARCH API - WITH CUPSIZE FILTER (FIXED)
+// ADVANCED SEARCH API - WITH MIN SCENES FILTER (FULLY FIXED)
 // =========================
 app.get('/api/search/advanced', async (req, res) => {
     const { 
@@ -402,6 +403,7 @@ app.get('/api/search/advanced', async (req, res) => {
         favorite = '', 
         match = 'any', 
         cupsize = '',
+        minScenes = '0',
         page = 1, 
         perPage = 50 
     } = req.query;
@@ -410,15 +412,16 @@ app.get('/api/search/advanced', async (req, res) => {
     const studioNames = studios ? studios.split(',').map(s => s.trim()).filter(s => s) : [];
     const offset = (parseInt(page) - 1) * parseInt(perPage);
     const limit = parseInt(perPage);
+    const minScenesInt = parseInt(minScenes) || 0;
     
-    // If no studios, no cupsize, and no rating, return empty
-    if (studioNames.length === 0 && !cupsize && !tier && !favorite) {
+    // If no filters, return empty
+    if (studioNames.length === 0 && !cupsize && !tier && !favorite && minScenesInt === 0) {
         return res.json({ success: true, performers: [], total: 0, page: 1, totalPages: 0 });
     }
     
     try {
         // =========================
-        // BUILD THE QUERY WITH PROPER PARAMETER HANDLING
+        // BUILD WHERE CONDITIONS
         // =========================
         let params = [];
         let paramIndex = 1;
@@ -426,30 +429,24 @@ app.get('/api/search/advanced', async (req, res) => {
         let havingConditions = [];
         let havingParams = [];
         
-        // Studio conditions
+        // Studio conditions - only if studios are selected
         if (studioNames.length > 0) {
             if (match === 'any') {
-                // For 'any', we use WHERE with OR
                 const studioConditions = studioNames.map(name => {
                     return `LOWER(s.studio_name) = LOWER($${paramIndex++})`;
                 });
                 studioNames.forEach(name => params.push(name));
                 whereConditions.push(`(${studioConditions.join(' OR ')})`);
             } else {
-                // For 'all' and 'exact', we need to include studio in HAVING
                 whereConditions.push(`s.studio_name IS NOT NULL AND s.studio_name != ''`);
                 
-                // Build HAVING conditions with proper parameter references
-                // We need to use different parameter indices for HAVING
                 const havingStartIndex = paramIndex;
                 studioNames.forEach((name, idx) => {
                     const pIdx = havingStartIndex + idx;
                     havingConditions.push(`COUNT(DISTINCT CASE WHEN LOWER(s.studio_name) = LOWER($${pIdx}) THEN s.studio_name END) = 1`);
                     havingParams.push(name);
                 });
-                // Update paramIndex after adding having params
                 paramIndex += studioNames.length;
-                // Add having params to the main params array
                 params = params.concat(havingParams);
             }
         }
@@ -497,76 +494,109 @@ app.get('/api/search/advanced', async (req, res) => {
         }
         
         // =========================
-        // BUILD NEON QUERY
+        // BUILD THE QUERY - HANDLE EACH SCENARIO SEPARATELY
         // =========================
         let performerQuery = '';
-        let queryParams = [...params];
-        let hasStudioJoin = studioNames.length > 0;
+        let queryParams = [];
+        let whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
         
-        if (!hasStudioJoin) {
-            // No studios - just performers
+        // CASE 1: No studios, just minScenes
+        if (studioNames.length === 0 && minScenesInt > 0) {
             performerQuery = `
+                WITH wow_counts AS (
+                    SELECT performer, COUNT(*) as wow_count
+                    FROM wow_videos
+                    WHERE performer IS NOT NULL AND performer != ''
+                    GROUP BY performer
+                )
                 SELECT 
                     p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
                     p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
+                    COALESCE(wc.wow_count, 0) as wow_scene_count,
                     0 as studio_count
                 FROM performers p
-                ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''}
+                LEFT JOIN wow_counts wc ON p.name = wc.performer
+                ${whereClause}
+                ${whereClause ? 'AND' : 'WHERE'} COALESCE(wc.wow_count, 0) >= $${paramIndex}
                 GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
-                         p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
+                         p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
+                         wc.wow_count
             `;
-        } else if (match === 'any') {
+            queryParams = [...params, minScenesInt];
+        }
+        // CASE 2: Studios AND minScenes (need both)
+        else if (studioNames.length > 0 && minScenesInt > 0) {
             performerQuery = `
+                WITH wow_counts AS (
+                    SELECT performer, COUNT(*) as wow_count
+                    FROM wow_videos
+                    WHERE performer IS NOT NULL AND performer != ''
+                    GROUP BY performer
+                )
                 SELECT 
                     p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
                     p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
+                    COALESCE(wc.wow_count, 0) as wow_scene_count,
                     COUNT(DISTINCT s.studio_name) as studio_count
                 FROM performers p
                 JOIN performer_scenes ps ON p.id = ps.performer_id
                 JOIN scenes s ON ps.scene_id = s.id
-                ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''}
+                LEFT JOIN wow_counts wc ON p.name = wc.performer
+                ${whereClause}
+                ${whereClause ? 'AND' : 'WHERE'} COALESCE(wc.wow_count, 0) >= $${paramIndex}
                 GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
-                         p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
+                         p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
+                         wc.wow_count
+                ${havingConditions.length > 0 ? `HAVING ${havingConditions.join(' AND ')}` : ''}
+                ${match === 'all' && studioNames.length > 0 ? ` AND COUNT(DISTINCT s.studio_name) >= ${studioNames.length}` : ''}
+                ${match === 'exact' && studioNames.length > 0 ? ` AND COUNT(DISTINCT s.studio_name) = ${studioNames.length}` : ''}
             `;
-        } else if (match === 'all') {
+            queryParams = [...params, minScenesInt];
+        }
+        // CASE 3: Studios only (no minScenes)
+        else if (studioNames.length > 0 && minScenesInt === 0) {
             performerQuery = `
                 SELECT 
                     p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
                     p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
-                    COUNT(DISTINCT s.studio_name) as studio_count
+                    COUNT(DISTINCT s.studio_name) as studio_count,
+                    0 as wow_scene_count
                 FROM performers p
                 JOIN performer_scenes ps ON p.id = ps.performer_id
                 JOIN scenes s ON ps.scene_id = s.id
-                ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''}
+                ${whereClause}
                 GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
                          p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
-                HAVING 
-                    ${havingConditions.join(' AND ')}
-                    AND COUNT(DISTINCT s.studio_name) >= ${studioNames.length}
+                ${havingConditions.length > 0 ? `HAVING ${havingConditions.join(' AND ')}` : ''}
+                ${match === 'all' && studioNames.length > 0 ? `HAVING COUNT(DISTINCT s.studio_name) >= ${studioNames.length}` : ''}
+                ${match === 'exact' && studioNames.length > 0 ? `HAVING COUNT(DISTINCT s.studio_name) = ${studioNames.length}` : ''}
             `;
-        } else if (match === 'exact') {
+            queryParams = [...params];
+        }
+        // CASE 4: No studios, no minScenes (just cupsize/rating/favorite)
+        else {
             performerQuery = `
                 SELECT 
                     p.id, p.name, p.gender, p.age, p.height, p.scene_count, p.country, 
                     p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize,
-                    COUNT(DISTINCT s.studio_name) as studio_count
+                    0 as studio_count,
+                    0 as wow_scene_count
                 FROM performers p
-                JOIN performer_scenes ps ON p.id = ps.performer_id
-                JOIN scenes s ON ps.scene_id = s.id
-                ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''}
+                ${whereClause}
                 GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
                          p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
-                HAVING 
-                    ${havingConditions.join(' AND ')}
-                    AND COUNT(DISTINCT s.studio_name) = ${studioNames.length}
             `;
+            queryParams = [...params];
         }
         
-        // Execute Neon query (NO PAGINATION - get all results)
+        console.log('🔍 Advanced search query:', performerQuery);
+        console.log('📝 Query params:', queryParams);
+        
+        // Execute Neon query
         const matchedPerformers = await queryNeon(performerQuery, queryParams);
         
         // =========================
-        // STEP 2: Get ratings from Miget for these performers
+        // GET RATINGS AND FAVORITES FROM MIGET
         // =========================
         const performerIds = matchedPerformers.map(p => p.id);
         let performerRatings = {};
@@ -576,19 +606,15 @@ app.get('/api/search/advanced', async (req, res) => {
         if (performerIds.length > 0) {
             const ids = performerIds.map(id => `'${id}'`).join(',');
             
-            // Get ratings from Miget
             const ratingsResult = await queryMiget(`SELECT performer_id, rating FROM performer_ratings WHERE performer_id IN (${ids})`);
             ratingsResult.rows.forEach(row => {
                 performerRatings[row.performer_id] = row.rating;
             });
             
-            // Get favorites from Miget
             const favResult = await queryMiget(`SELECT performer_id FROM favorite_performers WHERE performer_id IN (${ids})`);
             favoritePerformers = favResult.rows.map(row => row.performer_id);
             
-            // =========================
-            // STEP 3: Filter by rating (Miget) if tier is specified
-            // =========================
+            // Filter by rating
             if (tier) {
                 const ratingValue = tier.trim().toUpperCase();
                 
@@ -598,17 +624,10 @@ app.get('/api/search/advanced', async (req, res) => {
                     filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === undefined);
                 } else if (['S', 'A', 'B', 'C', 'D', 'F', 'U', 'L'].includes(ratingValue)) {
                     filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === ratingValue);
-                } else {
-                    const ratingNum = parseInt(ratingValue);
-                    if (!isNaN(ratingNum) && ratingNum >= 1 && ratingNum <= 5) {
-                        filteredPerformers = matchedPerformers.filter(p => performerRatings[p.id] === ratingNum);
-                    }
                 }
             }
             
-            // =========================
-            // STEP 4: Filter by favorite (Miget) if not already filtered
-            // =========================
+            // Filter by favorite
             if (favorite === 'true' && !favorite.includes('is_favorite')) {
                 filteredPerformers = filteredPerformers.filter(p => favoritePerformers.includes(p.id));
             } else if (favorite === 'false' && !favorite.includes('is_favorite')) {
@@ -617,16 +636,14 @@ app.get('/api/search/advanced', async (req, res) => {
         }
         
         // =========================
-        // STEP 5: Calculate total and paginate
+        // PAGINATE
         // =========================
         const total = filteredPerformers.length;
         const totalPages = Math.ceil(total / limit);
-        
-        // Paginate the filtered results
         const paginatedPerformers = filteredPerformers.slice(offset, offset + limit);
         
         // =========================
-        // STEP 6: Format results
+        // FORMAT RESULTS
         // =========================
         const formattedResults = paginatedPerformers.map(p => {
             const images = p.images ? JSON.parse(p.images) : [];
@@ -638,6 +655,7 @@ app.get('/api/search/advanced', async (req, res) => {
                 age: p.age || '',
                 height: p.height || '',
                 scene_count: parseInt(p.scene_count) || 0,
+                wow_scene_count: parseInt(p.wow_scene_count) || 0,
                 country: p.country || '',
                 ethnicity: p.ethnicity || '',
                 aliases: aliases,
@@ -661,10 +679,13 @@ app.get('/api/search/advanced', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Advanced search error:', error.message);
-        console.error('   Query params:', JSON.stringify(params));
+        console.error('   Query:', performerQuery);
+        console.error('   Query params:', JSON.stringify(queryParams));
         res.json({ success: false, error: error.message, performers: [] });
     }
 });
+
+
 
 // =========================
 // PERFORMER PROFILE

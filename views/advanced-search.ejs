@@ -367,6 +367,36 @@
             border: 1px solid #1a1a1a;
         }
 
+        /* ⭐ NEW: Min Scenes Filter Styles */
+        .min-scenes-input {
+            width: 80px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 14px;
+            text-align: center;
+        }
+        .min-scenes-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .min-scenes-label {
+            color: #888;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .min-scenes-label input[type="checkbox"] {
+            accent-color: #667eea;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
         @media (max-width: 768px) {
             .container { padding: 12px; }
             .search-row { 
@@ -391,6 +421,13 @@
             .studio-search-input { min-width: 100%; }
             .search-btn { width: 100%; justify-content: center; }
             h1 { font-size: 22px; }
+            .min-scenes-label { 
+                flex-wrap: wrap; 
+                gap: 4px;
+            }
+            .min-scenes-input { 
+                width: 60px; 
+            }
         }
     </style>
 </head>
@@ -422,6 +459,17 @@
                     <option value="all">All Studios</option>
                     <option value="exact">Exactly These Studios</option>
                 </select>
+            </div>
+            
+            <!-- ⭐ NEW: Min Scenes Filter -->
+            <div class="search-row">
+                <label>🎬 Min Scenes</label>
+                <div class="min-scenes-label">
+                    <input type="checkbox" id="minScenesToggle" checked>
+                    <span>Only performers with at least</span>
+                    <input type="number" id="minScenesValue" class="min-scenes-input" value="12" min="1" max="1000">
+                    <span>videos</span>
+                </div>
             </div>
             
             <!-- Cupsize Filter -->
@@ -488,6 +536,8 @@
         let state = {
             studios: [],
             matchMode: 'any',
+            minScenes: 12,
+            minScenesEnabled: true,
             cupsize: [],
             rating: '',
             favorite: '',
@@ -503,6 +553,8 @@
                 state.studios = studiosParam.split(',').filter(s => s);
             }
             state.matchMode = params.get('match') || 'any';
+            state.minScenes = parseInt(params.get('minScenes')) || 12;
+            state.minScenesEnabled = params.get('minScenesEnabled') !== 'false';
             state.cupsize = params.get('cupsize') ? params.get('cupsize').split(',').filter(c => c) : [];
             state.rating = params.get('tier') || '';
             state.favorite = params.get('favorite') || '';
@@ -517,6 +569,12 @@
             }
             if (state.matchMode && state.matchMode !== 'any') {
                 params.set('match', state.matchMode);
+            }
+            if (state.minScenesEnabled && state.minScenes > 0) {
+                params.set('minScenes', state.minScenes);
+                params.set('minScenesEnabled', 'true');
+            } else {
+                params.set('minScenesEnabled', 'false');
             }
             if (state.cupsize.length > 0) {
                 params.set('cupsize', state.cupsize.join(','));
@@ -542,12 +600,36 @@
         const selectedStudios = document.getElementById('selectedStudios');
         const studioSuggestions = document.getElementById('studioSuggestions');
         const matchMode = document.getElementById('matchMode');
+        const minScenesToggle = document.getElementById('minScenesToggle');
+        const minScenesValue = document.getElementById('minScenesValue');
         const cupsizeCheckboxes = document.querySelectorAll('#cupsizeFilter input[type="checkbox"]');
         const cupsizeOther = document.getElementById('cupsizeOther');
         const ratingFilter = document.getElementById('ratingFilter');
         const favoriteFilter = document.getElementById('favoriteFilter');
         const searchBtn = document.getElementById('searchBtn');
         const resultsContainer = document.getElementById('resultsContainer');
+        
+        // =========================
+        // MIN SCENES HANDLING
+        // =========================
+        function getMinScenes() {
+            if (!minScenesToggle.checked) return 0;
+            const val = parseInt(minScenesValue.value);
+            return isNaN(val) || val < 1 ? 12 : val;
+        }
+        
+        minScenesToggle.addEventListener('change', function() {
+            state.minScenesEnabled = this.checked;
+            state.minScenes = getMinScenes();
+            updateURL();
+            autoSearch();
+        });
+        
+        minScenesValue.addEventListener('change', function() {
+            state.minScenes = getMinScenes();
+            updateURL();
+            autoSearch();
+        });
         
         // =========================
         // STUDIO SEARCH
@@ -573,13 +655,11 @@
                 e.preventDefault();
                 const query = this.value.trim();
                 if (query.length >= 2) {
-                    // If there are suggestions, add the first one
                     if (currentSuggestions.length > 0) {
                         addStudio(currentSuggestions[0].name);
                         studioSearch.value = '';
                         studioSuggestions.classList.remove('show');
                     } else {
-                        // Add as typed (will be validated by backend)
                         addStudio(query);
                         studioSearch.value = '';
                     }
@@ -590,7 +670,6 @@
             }
         });
         
-        // Close suggestions on click outside
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.search-row')) {
                 studioSuggestions.classList.remove('show');
@@ -692,7 +771,6 @@
             });
         }
         
-        // Update checkbox visual state
         function updateCupsizeUI() {
             cupsizeCheckboxes.forEach(cb => {
                 const label = cb.closest('label');
@@ -704,10 +782,8 @@
             });
         }
         
-        // Handle "Other" checkbox
         cupsizeOther.addEventListener('change', function() {
             if (this.checked) {
-                // Uncheck all other cupsize boxes when "Other" is selected
                 cupsizeCheckboxes.forEach(cb => {
                     if (cb.value !== 'OTHER') cb.checked = false;
                 });
@@ -720,7 +796,6 @@
         
         cupsizeCheckboxes.forEach(cb => {
             cb.addEventListener('change', function() {
-                // If a specific cup size is checked, uncheck "Other"
                 if (this.value !== 'OTHER' && this.checked) {
                     cupsizeOther.checked = false;
                 }
@@ -786,6 +861,9 @@
             if (state.matchMode) {
                 params.set('match', state.matchMode);
             }
+            if (state.minScenesEnabled && state.minScenes > 0) {
+                params.set('minScenes', state.minScenes);
+            }
             if (state.cupsize.length > 0) {
                 params.set('cupsize', state.cupsize.join(','));
             }
@@ -837,14 +915,14 @@
         
         function getRatingColor(rating) {
             switch(rating) {
-                case 'S': return '#ff6b6b'; // Red - Super
-                case 'A': return '#ff9f43'; // Orange - Excellent
-                case 'B': return '#feca57'; // Yellow - Good
-                case 'C': return '#54a0ff'; // Blue - Average
-                case 'D': return '#5f27cd'; // Purple - Poor
-                case 'F': return '#ff4757'; // Dark Red - Fail
-                case 'U': return '#747d8c'; // Grey - Unrated
-                case 'L': return '#ff6b81'; // Pink - Liked
+                case 'S': return '#ff6b6b';
+                case 'A': return '#ff9f43';
+                case 'B': return '#feca57';
+                case 'C': return '#54a0ff';
+                case 'D': return '#5f27cd';
+                case 'F': return '#ff4757';
+                case 'U': return '#747d8c';
+                case 'L': return '#ff6b81';
                 default: return '#888';
             }
         }
@@ -853,11 +931,11 @@
             const performers = data.performers;
             state.totalPages = data.totalPages || 1;
             
-            // Results info
             let resultsInfo = `
                 <div class="results-info">
                     Found ${data.total || performers.length} performers 
                     ${state.studios.length > 0 ? `in ${state.studios.join(', ')}` : ''}
+                    ${state.minScenesEnabled ? `with ${state.minScenes}+ scenes` : ''}
                     ${state.cupsize.length > 0 ? `with cupsize ${state.cupsize.join(', ')}` : ''}
                     ${state.rating ? `(rating: ${state.rating})` : ''}
                 </div>
@@ -891,7 +969,6 @@
             
             html += `</div>`;
             
-            // Pagination
             if (state.totalPages > 1) {
                 html += `<div class="pagination">`;
                 
@@ -927,8 +1004,9 @@
         window.addEventListener('popstate', function(event) {
             if (event.state) {
                 state = { ...state, ...event.state };
-                // Restore UI state
                 matchMode.value = state.matchMode || 'any';
+                minScenesToggle.checked = state.minScenesEnabled !== false;
+                minScenesValue.value = state.minScenes || 12;
                 ratingFilter.value = state.rating || '';
                 favoriteFilter.value = state.favorite || '';
                 setCupsizeFromState();
@@ -944,16 +1022,16 @@
         function init() {
             loadStateFromURL();
             
-            // Set initial UI state
             matchMode.value = state.matchMode || 'any';
+            minScenesToggle.checked = state.minScenesEnabled !== false;
+            minScenesValue.value = state.minScenes || 12;
             ratingFilter.value = state.rating || '';
             favoriteFilter.value = state.favorite || '';
             setCupsizeFromState();
             updateCupsizeUI();
             renderStudios();
             
-            // Perform initial search if we have studios or cupsize
-            if (state.studios.length > 0 || state.cupsize.length > 0 || state.rating) {
+            if (state.studios.length > 0 || state.cupsize.length > 0 || state.rating || state.minScenesEnabled) {
                 performSearch(state.page || 1);
             } else {
                 resultsContainer.innerHTML = `
