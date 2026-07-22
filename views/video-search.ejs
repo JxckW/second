@@ -308,6 +308,25 @@
             color: #fff;
         }
 
+        /* ⭐ NEW: Original Scene Link Button */
+        .original-link-btn {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #ff9f43;
+            background: transparent;
+            color: #ff9f43;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .original-link-btn:hover {
+            background: #ff9f43;
+            color: #fff;
+        }
+
         .video-modal {
             display: none;
             position: fixed;
@@ -490,6 +509,7 @@
             
             <div id="videoTitle" class="video-title">Video</div>
             
+            <!-- ⭐ UPDATED: Video Controls with Original Scene Link -->
             <div class="video-controls">
                 <button onclick="closeVideoModal()">✕ Close</button>
                 <button onclick="document.getElementById('videoPlayer').requestFullscreen()">⛶ Fullscreen</button>
@@ -500,6 +520,10 @@
                     <option value="480p">480p (SD)</option>
                 </select>
                 <button onclick="downloadVideo()" class="download-btn" id="downloadBtn">⬇️ Download</button>
+                <!-- ⭐ NEW: Original Scene Link -->
+                <a href="#" id="originalSceneLink" target="_blank" class="original-link-btn" rel="noopener noreferrer" style="display: none;">
+                    🌐 Original Scene
+                </a>
             </div>
         </div>
     </div>
@@ -918,9 +942,16 @@
             const source = document.getElementById('videoSource');
             const downloadBtn = document.getElementById('downloadBtn');
             const qualitySelector = document.getElementById('qualitySelector');
+            const originalLink = document.getElementById('originalSceneLink');
             
             downloadBtn.style.display = 'inline-block';
             qualitySelector.value = '720p';
+            
+            // ⭐ Set the original scene link
+            if (originalLink) {
+                originalLink.href = sceneUrl;
+                originalLink.style.display = 'inline-block';
+            }
             
             modal.classList.add('active');
             loading.style.display = 'block';

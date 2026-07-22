@@ -391,6 +391,25 @@
             color: #e0e0e0;
         }
 
+        /* ⭐ NEW: Original Scene Link Button */
+        .original-link-btn {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #ff9f43;
+            background: transparent;
+            color: #ff9f43;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .original-link-btn:hover {
+            background: #ff9f43;
+            color: #fff;
+        }
+
         .video-modal .video-loading {
             color: #888;
             text-align: center;
@@ -543,7 +562,7 @@
             }
         }
         
-        // ESCAPE FOR JAVASCRIPT - THIS IS THE KEY FIX
+        // ESCAPE FOR JAVASCRIPT
         const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
         const safeSceneUrl = JSON.stringify(scene.url || '');
         const safeThumbnail = JSON.stringify(thumbnail || '');
@@ -624,6 +643,7 @@
             
             <div id="videoTitle" class="video-title">Video</div>
             
+            <!-- ⭐ UPDATED: Video Controls with Original Scene Link -->
             <div class="video-controls">
                 <button onclick="closeVideoModal()">✕ Close</button>
                 <button onclick="document.getElementById('videoPlayer').requestFullscreen()">⛶ Fullscreen</button>
@@ -634,6 +654,10 @@
                     <option value="480p">480p (SD)</option>
                 </select>
                 <button onclick="downloadVideo()" class="download-btn" id="downloadBtn">⬇️ Download</button>
+                <!-- ⭐ NEW: Original Scene Link -->
+                <a href="#" id="originalSceneLink" target="_blank" class="original-link-btn" rel="noopener noreferrer" style="display: none;">
+                    🌐 Original Scene
+                </a>
             </div>
         </div>
     </div>
@@ -670,9 +694,16 @@
             const source = document.getElementById('videoSource');
             const downloadBtn = document.getElementById('downloadBtn');
             const qualitySelector = document.getElementById('qualitySelector');
+            const originalLink = document.getElementById('originalSceneLink');
             
-            // Show download button immediately (no need to wait for video to load)
+            // Show download button immediately
             downloadBtn.style.display = 'inline-block';
+            
+            // ⭐ Set the original scene link
+            if (originalLink) {
+                originalLink.href = sceneUrl;
+                originalLink.style.display = 'inline-block';
+            }
             
             qualitySelector.value = '720p';
             
@@ -771,10 +802,8 @@
             const errorEl = document.getElementById('videoError');
             const downloadBtn = document.getElementById('downloadBtn');
             
-            // Show download button immediately when switching quality
             downloadBtn.style.display = 'inline-block';
             
-            // Save current playback position
             const currentTime = video.currentTime;
             const wasPlaying = !video.paused;
             
@@ -878,12 +907,10 @@
             
             let downloadUrl = currentDownloadUrl;
             
-            // If the URL is a CDN URL, use the original video URL instead
             if (downloadUrl && downloadUrl.includes('fpvcdn.com')) {
                 downloadUrl = currentQuality === '720p' ? currentVideo720p : currentVideo480p;
             }
             
-            // Make sure it's a get_file URL
             if (!downloadUrl || !downloadUrl.includes('get_file')) {
                 alert('Download URL not available');
                 return;
