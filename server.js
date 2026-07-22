@@ -1181,27 +1181,55 @@ app.get('/api/video/url', async (req, res) => {
 });
 
 
-// =========================
-// GLOBAL VIDEO SCENE SEARCH API - FIXED SORTING
-// =========================
 app.get('/api/search/videos', async (req, res) => {
-    const { 
-        q = '',           
-        page = 1, 
-        perPage = 24,
-        sortBy = 'date'   // date, title, duration
-    } = req.query;
+    // =========================
+    // DEBUG: Log raw query params
+    // =========================
+    console.log('🔍 RAW QUERY PARAMS:', req.query);
     
-    const offset = (parseInt(page) - 1) * parseInt(perPage);
-    const limit = parseInt(perPage);
+    // =========================
+    // GET PARAMETERS WITH FALLBACKS
+    // =========================
+    let q = req.query.q || '';
+    const page = parseInt(req.query.page) || 1;
+    const perPage = parseInt(req.query.perPage) || 24;
+    const sortBy = req.query.sortBy || 'date';
+    
+    // =========================
+    // FIX: Handle proxy encoding issues
+    // =========================
+    console.log('🔍 ORIGINAL q:', q);
+    
+    try {
+        // Try to decode if it looks URL-encoded
+        if (q.includes('%')) {
+            q = decodeURIComponent(q);
+            console.log('🔍 DECODED q:', q);
+        }
+    } catch (e) {
+        console.log('⚠️ Decoding failed, using raw value');
+    }
+    
+    // Clean up: Remove duplicate commas and trim
+    q = q.replace(/,{2,}/g, ','); // Replace multiple commas with single
+    q = q.trim();
+    
+    console.log('🔍 FINAL q:', q);
+    
+    const offset = (page - 1) * perPage;
+    const limit = perPage;
     
     try {
         let params = [];
         let paramIndex = 1;
         let whereConditions = [];
         
+        // =========================
+        // BUILD SEARCH CONDITIONS
+        // =========================
         if (q && q.trim()) {
             const searchTerms = q.trim().split(/\s*,\s*/).filter(t => t);
+            console.log('🔍 SEARCH TERMS:', searchTerms);
             
             if (searchTerms.length > 0) {
                 const conditions = [];
@@ -1224,19 +1252,25 @@ app.get('/api/search/videos', async (req, res) => {
             }
         }
         
+        // =========================
+        // RETURN EMPTY IF NO SEARCH TERMS
+        // =========================
         if (whereConditions.length === 0) {
+            console.log('⚠️ No search terms provided');
             return res.json({
                 success: true,
                 videos: [],
                 total: 0,
-                page: parseInt(page),
+                page: page,
                 perPage: limit,
                 totalPages: 0,
                 searchTerm: q
             });
         }
         
-        // Build the query - FIXED SORTING
+        // =========================
+        // BUILD THE QUERY
+        // =========================
         let query = `
             SELECT DISTINCT ON (w.video720p) 
                 w.performer,
@@ -1255,13 +1289,12 @@ app.get('/api/search/videos', async (req, res) => {
               AND ${whereConditions.join(' AND ')}
         `;
         
-        // Add sorting - the ORDER BY must start with video720p for DISTINCT ON
+        // Add sorting
         if (sortBy === 'date') {
             query += ` ORDER BY w.video720p, w.date DESC NULLS LAST`;
         } else if (sortBy === 'title') {
             query += ` ORDER BY w.video720p, w.title`;
         } else if (sortBy === 'duration') {
-            // Convert duration to seconds for proper sorting
             query += ` ORDER BY w.video720p, 
                 CASE 
                     WHEN w.duration LIKE '%:%' THEN 
@@ -1277,10 +1310,12 @@ app.get('/api/search/videos', async (req, res) => {
         query += ` LIMIT $${paramIndex}::int OFFSET $${paramIndex + 1}::int`;
         params.push(limit, offset);
         
-        console.log(`🔍 Global video search: "${q}"`);
-        console.log(`📝 Sort: ${sortBy}`);
-        console.log(`📝 Query params:`, params);
+        console.log(`🔍 FINAL QUERY:`, query);
+        console.log(`📝 QUERY PARAMS:`, params);
         
+        // =========================
+        // EXECUTE QUERY
+        // =========================
         const videos = await queryNeon(query, params);
         
         // Get total count
@@ -1297,7 +1332,9 @@ app.get('/api/search/videos', async (req, res) => {
         const total = parseInt(countResult[0]?.total || 0);
         const totalPages = Math.ceil(total / limit);
         
-        // Generate thumbnails and fix dates
+        // =========================
+        // GENERATE THUMBNAILS AND FIX DATES
+        // =========================
         for (const video of videos) {
             if (!video.thumbnail || video.thumbnail.startsWith('data:image')) {
                 let videoId = null;
@@ -1326,11 +1363,16 @@ app.get('/api/search/videos', async (req, res) => {
             }
         }
         
+        // =========================
+        // RETURN RESPONSE
+        // =========================
+        console.log(`✅ Found ${videos.length} videos out of ${total} total`);
+        
         res.json({
             success: true,
             videos: videos,
             total: total,
-            page: parseInt(page),
+            page: page,
             perPage: limit,
             totalPages: totalPages,
             searchTerm: q,
@@ -1340,6 +1382,7 @@ app.get('/api/search/videos', async (req, res) => {
     } catch (error) {
         console.error('❌ Global video search error:', error.message);
         console.error('   Stack:', error.stack);
+        console.error('   Query params:', JSON.stringify(params));
         res.json({ success: false, error: error.message, videos: [] });
     }
 });
