@@ -1389,16 +1389,173 @@ app.get('/api/search/videos', async (req, res) => {
 
 
 // =========================
-// GLOBAL VIDEO SEARCH PAGE
+// GLOBAL VIDEO SEARCH PAGE - SERVER RENDERED
 // =========================
-app.get('/video-search', (req, res) => {
+app.get('/video-search', async (req, res) => {
     const searchTerm = req.query.q || '';
-    const sortBy = req.query.sort || 'date';  // ⭐ ADD THIS LINE
-    res.render('video-search', { 
-        title: 'Video Search',
-        searchTerm: searchTerm,
-        sortBy: sortBy  // ⭐ ADD THIS LINE
-    });
+    const sortBy = req.query.sort || 'date';
+    const page = parseInt(req.query.page) || 1;
+    const perPage = 24;
+    
+    try {
+        // If no search term, just show the empty search page
+        if (!searchTerm) {
+            return res.render('video-search', { 
+                title: 'Video Search',
+                searchTerm: '',
+                sortBy: sortBy,
+                videos: [],
+                totalVideos: 0,
+                currentPage: 1,
+                totalPages: 0,
+                perPage: perPage
+            });
+        }
+        
+        // Build the search query
+        const offset = (page - 1) * perPage;
+        let params = [];
+        let paramIndex = 1;
+        let whereConditions = [];
+        
+        const searchTerms = searchTerm.trim().split(/\s*,\s*/).filter(t => t);
+        
+        if (searchTerms.length > 0) {
+            const conditions = [];
+            for (const term of searchTerms) {
+                const termLower = term.toLowerCase().trim();
+                conditions.push(`(
+                    LOWER(w.studio) ILIKE $${paramIndex} OR 
+                    LOWER(w.performers) ILIKE $${paramIndex} OR 
+                    LOWER(w.title) ILIKE $${paramIndex} OR 
+                    LOWER(w.performer) ILIKE $${paramIndex}
+                )`);
+                params.push(`%${termLower}%`);
+                paramIndex++;
+            }
+            if (conditions.length > 0) {
+                whereConditions.push(`(${conditions.join(' AND ')})`);
+            }
+        }
+        
+        if (whereConditions.length === 0) {
+            return res.render('video-search', { 
+                title: 'Video Search',
+                searchTerm: searchTerm,
+                sortBy: sortBy,
+                videos: [],
+                totalVideos: 0,
+                currentPage: 1,
+                totalPages: 0,
+                perPage: perPage
+            });
+        }
+        
+        // Get total count
+        const countResult = await queryNeon(`
+            SELECT COUNT(DISTINCT w.video720p) as total
+            FROM wow_videos w
+            WHERE w.video720p IS NOT NULL 
+              AND w.video720p != ''
+              AND ${whereConditions.join(' AND ')}
+        `, params);
+        const totalVideos = parseInt(countResult[0]?.total || 0);
+        const totalPages = Math.ceil(totalVideos / perPage);
+        
+        // Get paginated results
+        let query = `
+            SELECT DISTINCT ON (w.video720p) 
+                w.performer,
+                w.title,
+                w.duration,
+                w.studio,
+                w.url,
+                w.video720p,
+                w.video480p,
+                w.date,
+                w.performers,
+                w.thumbnail
+            FROM wow_videos w
+            WHERE w.video720p IS NOT NULL 
+              AND w.video720p != ''
+              AND ${whereConditions.join(' AND ')}
+        `;
+        
+        // Add sorting
+        if (sortBy === 'date') {
+            query += ` ORDER BY w.video720p, w.date DESC NULLS LAST`;
+        } else if (sortBy === 'title') {
+            query += ` ORDER BY w.video720p, w.title`;
+        } else if (sortBy === 'duration') {
+            query += ` ORDER BY w.video720p, 
+                CASE 
+                    WHEN w.duration LIKE '%:%' THEN 
+                        CAST(SPLIT_PART(w.duration, ':', 1) AS INTEGER) * 60 + 
+                        CAST(SPLIT_PART(w.duration, ':', 2) AS INTEGER)
+                    ELSE CAST(w.duration AS INTEGER)
+                END DESC NULLS LAST`;
+        } else {
+            query += ` ORDER BY w.video720p, w.date DESC NULLS LAST`;
+        }
+        
+        query += ` LIMIT $${paramIndex}::int OFFSET $${paramIndex + 1}::int`;
+        params.push(perPage, offset);
+        
+        const videos = await queryNeon(query, params);
+        
+        // Fix thumbnails and dates
+        for (const video of videos) {
+            if (!video.thumbnail || video.thumbnail.startsWith('data:image')) {
+                let videoId = null;
+                if (video.video720p) {
+                    const match = video.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                    if (match) videoId = match[1];
+                }
+                if (!videoId && video.video480p) {
+                    const match = video.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                    if (match) videoId = match[1];
+                }
+                if (videoId) {
+                    const prefix = String(videoId).substring(0, 5);
+                    video.thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
+                }
+            }
+            
+            if (video.date) {
+                const parts = video.date.split('.');
+                if (parts.length === 3) {
+                    video.displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
+                } else {
+                    video.displayDate = video.date;
+                }
+            }
+        }
+        
+        res.render('video-search', { 
+            title: 'Video Search',
+            searchTerm: searchTerm,
+            sortBy: sortBy,
+            videos: videos,
+            totalVideos: totalVideos,
+            currentPage: page,
+            totalPages: totalPages,
+            perPage: perPage
+        });
+        
+    } catch (error) {
+        console.error('❌ Video search error:', error.message);
+        res.render('video-search', { 
+            title: 'Video Search',
+            searchTerm: searchTerm,
+            sortBy: sortBy,
+            videos: [],
+            totalVideos: 0,
+            currentPage: 1,
+            totalPages: 0,
+            perPage: perPage,
+            error: error.message
+        });
+    }
 });
 
 
