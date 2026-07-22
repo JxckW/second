@@ -530,6 +530,44 @@
 
     <script>
         // =========================
+        // BASE URL - FIX FOR PROXY SITES
+        // =========================
+        // ⭐ REPLACE WITH YOUR ACTUAL RENDER URL
+        const BASE_URL = 'https://second-hmg0.onrender.com';
+        
+        // Detect if we're behind a proxy
+        function getApiBase() {
+            // If we're on a proxy site, use the absolute URL
+            if (window.location.hostname.includes('proxysite') || 
+                window.location.hostname.includes('proxy') ||
+                window.location.href.includes('proxysite')) {
+                return BASE_URL;
+            }
+            // Otherwise use relative URLs
+            return '';
+        }
+
+        // =========================
+        // API HELPER FUNCTION
+        // =========================
+        async function apiFetch(endpoint, options = {}) {
+            const base = getApiBase();
+            const url = `${base}${endpoint}`;
+            console.log('🌐 API Call:', url);
+            
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                return response;
+            } catch (error) {
+                console.error('❌ API fetch error:', error.message);
+                throw error;
+            }
+        }
+
+        // =========================
         // GLOBAL VARIABLES
         // =========================
         let currentVideoUrl = null;
@@ -554,7 +592,7 @@
         // =========================
         async function loadFavorites() {
             try {
-                const response = await fetch('/api/video-favorites/urls');
+                const response = await apiFetch('/api/video-favorites/urls');
                 const data = await response.json();
                 if (data.success) {
                     favoriteUrls = new Set(data.urls);
@@ -574,7 +612,7 @@
             }
 
             try {
-                const response = await fetch('/api/video-favorites/toggle', {
+                const response = await apiFetch('/api/video-favorites/toggle', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -694,7 +732,7 @@
             `;
 
             try {
-                const response = await fetch(`/api/search/videos?q=${encodeURIComponent(searchTerm)}&page=1&perPage=10000`);
+                const response = await apiFetch(`/api/search/videos?q=${encodeURIComponent(searchTerm)}&page=1&perPage=10000`);
                 const data = await response.json();
 
                 if (!data.success) {
@@ -976,7 +1014,7 @@
                 
                 if (!videoUrl || !videoUrl.includes('get_file')) {
                     if (sceneUrl) {
-                        const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                        const response = await apiFetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
                         const data = await response.json();
                         if (data.success && data.videoUrl) {
                             videoUrl = data.videoUrl;
