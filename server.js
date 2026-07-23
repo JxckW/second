@@ -799,9 +799,6 @@ app.post('/performer/:id/favorite', async (req, res) => {
 });
 
 
-// =========================
-// VIDEO FAVORITES TOGGLE - FORM SUBMISSION (Works through proxy)
-// =========================
 app.post('/video-favorites/toggle', async (req, res) => {
     console.log('🔍 ===== VIDEO FAVORITE FORM SUBMITTED =====');
     console.log('📝 Body:', req.body);
@@ -825,26 +822,32 @@ app.post('/video-favorites/toggle', async (req, res) => {
         return res.redirect(referer);
     }
     
+    // ⭐ Normalize the URL
+    let normalizedUrl = scene_url;
+    if (normalizedUrl && normalizedUrl.startsWith('/videos/')) {
+        normalizedUrl = `https://www.freesexvideos.xxx${normalizedUrl}`;
+    }
+    console.log(`📝 Normalized URL: ${normalizedUrl}`);
+    
     try {
-        // Check if already favorited
         const existing = await queryNeon(
             'SELECT * FROM video_favorites WHERE scene_url = $1',
-            [scene_url]
+            [normalizedUrl]
         );
         
         if (existing.length > 0) {
             await queryNeon(
                 'DELETE FROM video_favorites WHERE scene_url = $1',
-                [scene_url]
+                [normalizedUrl]
             );
-            console.log(`🗑️ Removed favorite: ${scene_url}`);
+            console.log(`🗑️ Removed favorite: ${normalizedUrl}`);
         } else {
             await queryNeon(
                 `INSERT INTO video_favorites (scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date) 
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [scene_url, title || '', thumbnail || '', video720p || '', video480p || '', studio || '', performers || '', duration || '', date || '']
+                [normalizedUrl, title || '', thumbnail || '', video720p || '', video480p || '', studio || '', performers || '', duration || '', date || '']
             );
-            console.log(`⭐ Added favorite: ${scene_url}`);
+            console.log(`⭐ Added favorite: ${normalizedUrl}`);
         }
         
         res.redirect(referer);
@@ -1620,15 +1623,23 @@ app.get('/video-search', async (req, res) => {
             });
         }
         
-        // ⭐ Get ALL favorite URLs from the database (not just when filtering)
+        // ⭐ Get ALL favorite URLs from the database - NORMALIZE URLs
         const favResult = await queryNeon('SELECT scene_url FROM video_favorites');
-        const allFavoriteUrls = new Set(favResult.map(row => row.scene_url));
+        const allFavoriteUrls = new Set();
+        for (const row of favResult) {
+            let url = row.scene_url;
+            // If it's a relative path, make it full
+            if (url && url.startsWith('/videos/')) {
+                url = `https://www.freesexvideos.xxx${url}`;
+            }
+            allFavoriteUrls.add(url);
+        }
         console.log(`⭐ Total favorites: ${allFavoriteUrls.size}`);
         
         // ⭐ If showing only favorites, filter the list
         let favoriteUrls = [];
         if (showFavoritesOnly) {
-            favoriteUrls = favResult.map(row => row.scene_url);
+            favoriteUrls = Array.from(allFavoriteUrls);
             console.log(`⭐ Favorites only: ${favoriteUrls.length} favorited videos`);
         }
         
@@ -1758,39 +1769,7 @@ app.get('/video-search', async (req, res) => {
 });
 
 
-// Check if a scene is favorited
-app.get('/api/video-favorites/check', async (req, res) => {
-    const { scene_url } = req.query;
-    
-    if (!scene_url) {
-        return res.json({ success: false, isFavorited: false });
-    }
-    
-    try {
-        const result = await queryNeon(
-            'SELECT * FROM video_favorites WHERE scene_url = $1',
-            [scene_url]
-        );
-        res.json({ success: true, isFavorited: result.length > 0 });
-    } catch (error) {
-        console.error('❌ Check video favorite error:', error.message);
-        res.json({ success: false, isFavorited: false });
-    }
-});
 
-// Get favorite scene URLs (for filtering)
-app.get('/api/video-favorites/urls', async (req, res) => {
-    try {
-        const result = await queryNeon(
-            'SELECT scene_url FROM video_favorites'
-        );
-        const urls = result.map(row => row.scene_url);
-        res.json({ success: true, urls: urls });
-    } catch (error) {
-        console.error('❌ Get favorite URLs error:', error.message);
-        res.json({ success: false, urls: [] });
-    }
-});
 
 
 
