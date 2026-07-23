@@ -116,21 +116,11 @@
             border-color: #667eea;
             background: #1a1a2a;
         }
-        .cupsize-checkboxes label.active {
-            border-color: #667eea;
-            background: rgba(102, 126, 234, 0.15);
-        }
-        .cupsize-checkboxes input[type="checkbox"] {
+        .cupsize-checkboxes label input[type="checkbox"] {
             accent-color: #667eea;
             width: 14px;
             height: 14px;
             cursor: pointer;
-        }
-        .cupsize-checkboxes label .checkmark {
-            display: none;
-        }
-        .cupsize-checkboxes label.checked .checkmark {
-            display: inline;
         }
         
         .selected-studios {
@@ -367,7 +357,6 @@
             border: 1px solid #1a1a1a;
         }
 
-        /* ⭐ NEW: Min Scenes Filter Styles */
         .min-scenes-input {
             width: 80px;
             padding: 8px 12px;
@@ -395,6 +384,22 @@
             width: 16px;
             height: 16px;
             cursor: pointer;
+        }
+
+        .clear-filters-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #ff6b6b;
+            background: transparent;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .clear-filters-btn:hover {
+            background: #ff6b6b;
+            color: #fff;
         }
 
         @media (max-width: 768px) {
@@ -433,210 +438,273 @@
 </head>
 <body>
     <div class="container">
-        <!-- Back link with preserved state -->
-        <a href="javascript:history.back()" class="back-link">← Back to Search Results</a>
+        <a href="/" class="back-link">← Back to Home</a>
         
         <h1>🔍 Advanced Studio Search</h1>
         
+        <!-- Server-side search form -->
         <div class="search-section">
-            <!-- Studios Search -->
-            <div class="search-row" style="position: relative;">
-                <label>🎬 Studios</label>
-                <input type="text" id="studioSearch" class="studio-search-input" placeholder="Type studio name and press Enter..." autocomplete="off">
-                <div class="studio-suggestions" id="studioSuggestions"></div>
-            </div>
-            
-            <!-- Selected Studios -->
-            <div class="selected-studios" id="selectedStudios">
-                <span style="color: #666; font-size: 14px;">No studios selected</span>
-            </div>
-            
-            <!-- Match Mode -->
-            <div class="search-row">
-                <label>📋 Match</label>
-                <select id="matchMode">
-                    <option value="any">Any Studio</option>
-                    <option value="all">All Studios</option>
-                    <option value="exact">Exactly These Studios</option>
-                </select>
-            </div>
-            
-            <!-- ⭐ NEW: Min Scenes Filter -->
-            <div class="search-row">
-                <label>🎬 Min Scenes</label>
-                <div class="min-scenes-label">
-                    <input type="checkbox" id="minScenesToggle" checked>
-                    <span>Only performers with at least</span>
-                    <input type="number" id="minScenesValue" class="min-scenes-input" value="12" min="1" max="1000">
-                    <span>videos</span>
+            <form method="get" action="/advanced-search" style="width: 100%;">
+                <!-- Studios Search -->
+                <div class="search-row" style="position: relative;">
+                    <label>🎬 Studios</label>
+                    <input type="text" id="studioSearch" class="studio-search-input" placeholder="Type studio name and press Enter..." autocomplete="off" value="">
+                    <div class="studio-suggestions" id="studioSuggestions"></div>
                 </div>
-            </div>
-            
-            <!-- Cupsize Filter -->
-            <div class="search-row">
-                <label>📏 Cup Size</label>
-                <div class="cupsize-checkboxes" id="cupsizeFilter">
-                    <label><input type="checkbox" value="A"> A</label>
-                    <label><input type="checkbox" value="B"> B</label>
-                    <label><input type="checkbox" value="C"> C</label>
-                    <label><input type="checkbox" value="D"> D</label>
-                    <label><input type="checkbox" value="DD"> DD</label>
-                    <label><input type="checkbox" value="DDD"> DDD</label>
-                    <label><input type="checkbox" value="E"> E</label>
-                    <label><input type="checkbox" value="F"> F</label>
-                    <label><input type="checkbox" value="G"> G</label>
-                    <label><input type="checkbox" value="H"> H</label>
-                    <label><input type="checkbox" value="OTHER" id="cupsizeOther"> ❓ Other/None</label>
+                
+                <!-- Selected Studios -->
+                <div class="selected-studios" id="selectedStudios">
+                    <% if (studios && studios.length > 0) { %>
+                        <% studios.forEach(name => { %>
+                            <span class="studio-tag">
+                                <%= name %>
+                                <span class="remove" onclick="removeStudio('<%= name %>')">✕</span>
+                            </span>
+                        <% }) %>
+                    <% } else { %>
+                        <span style="color: #666; font-size: 14px;">No studios selected</span>
+                    <% } %>
                 </div>
-            </div>
-            
-            <!-- Rating Filter -->
-            <div class="search-row">
-                <label>⭐ Rating</label>
-                <select id="ratingFilter">
-                    <option value="">All</option>
-                    <option value="rated">Rated</option>
-                    <option value="unrated">Unrated</option>
-                    <option value="S">S - Super</option>
-                    <option value="A">A - Excellent</option>
-                    <option value="B">B - Good</option>
-                    <option value="C">C - Average</option>
-                    <option value="D">D - Poor</option>
-                    <option value="F">F - Fail</option>
-                    <option value="U">U - Unrated</option>
-                    <option value="L">L - Liked</option>
-                </select>
-            </div>
-            
-            <!-- Favorite Filter -->
-            <div class="search-row">
-                <label>❤️ Favorite</label>
-                <select id="favoriteFilter">
-                    <option value="">All</option>
-                    <option value="true">Favorites Only</option>
-                    <option value="false">Non-Favorites</option>
-                </select>
-            </div>
-            
-            <button class="search-btn" id="searchBtn">🔍 Search</button>
+                
+                <!-- Hidden input for studios -->
+                <input type="hidden" name="studios" id="studiosHidden" value="<%= studios ? studios.join(',') : '' %>">
+                
+                <!-- Match Mode -->
+                <div class="search-row">
+                    <label>📋 Match</label>
+                    <select name="match" id="matchMode">
+                        <option value="any" <%= match === 'any' ? 'selected' : '' %>>Any Studio</option>
+                        <option value="all" <%= match === 'all' ? 'selected' : '' %>>All Studios</option>
+                        <option value="exact" <%= match === 'exact' ? 'selected' : '' %>>Exactly These Studios</option>
+                    </select>
+                </div>
+                
+                <!-- Min Scenes Filter -->
+                <div class="search-row">
+                    <label>🎬 Min Scenes</label>
+                    <div class="min-scenes-label">
+                        <input type="checkbox" name="minScenesEnabled" id="minScenesToggle" <%= minScenesEnabled !== false ? 'checked' : '' %>>
+                        <span>Only performers with at least</span>
+                        <input type="number" name="minScenes" id="minScenesValue" class="min-scenes-input" value="<%= minScenes || 12 %>" min="1" max="1000">
+                        <span>videos</span>
+                    </div>
+                </div>
+                
+                <!-- Cupsize Filter -->
+                <div class="search-row">
+                    <label>📏 Cup Size</label>
+                    <div class="cupsize-checkboxes" id="cupsizeFilter">
+                        <label><input type="checkbox" name="cupsize" value="A" <%= cupsize && cupsize.includes('A') ? 'checked' : '' %>> A</label>
+                        <label><input type="checkbox" name="cupsize" value="B" <%= cupsize && cupsize.includes('B') ? 'checked' : '' %>> B</label>
+                        <label><input type="checkbox" name="cupsize" value="C" <%= cupsize && cupsize.includes('C') ? 'checked' : '' %>> C</label>
+                        <label><input type="checkbox" name="cupsize" value="D" <%= cupsize && cupsize.includes('D') ? 'checked' : '' %>> D</label>
+                        <label><input type="checkbox" name="cupsize" value="DD" <%= cupsize && cupsize.includes('DD') ? 'checked' : '' %>> DD</label>
+                        <label><input type="checkbox" name="cupsize" value="DDD" <%= cupsize && cupsize.includes('DDD') ? 'checked' : '' %>> DDD</label>
+                        <label><input type="checkbox" name="cupsize" value="E" <%= cupsize && cupsize.includes('E') ? 'checked' : '' %>> E</label>
+                        <label><input type="checkbox" name="cupsize" value="F" <%= cupsize && cupsize.includes('F') ? 'checked' : '' %>> F</label>
+                        <label><input type="checkbox" name="cupsize" value="G" <%= cupsize && cupsize.includes('G') ? 'checked' : '' %>> G</label>
+                        <label><input type="checkbox" name="cupsize" value="H" <%= cupsize && cupsize.includes('H') ? 'checked' : '' %>> H</label>
+                        <label><input type="checkbox" name="cupsize" value="OTHER" <%= cupsize && cupsize.includes('OTHER') ? 'checked' : '' %>> ❓ Other/None</label>
+                    </div>
+                </div>
+                
+                <!-- Rating Filter -->
+                <div class="search-row">
+                    <label>⭐ Rating</label>
+                    <select name="tier" id="ratingFilter">
+                        <option value="">All</option>
+                        <option value="rated" <%= tier === 'rated' ? 'selected' : '' %>>Rated</option>
+                        <option value="unrated" <%= tier === 'unrated' ? 'selected' : '' %>>Unrated</option>
+                        <option value="S" <%= tier === 'S' ? 'selected' : '' %>>S - Super</option>
+                        <option value="A" <%= tier === 'A' ? 'selected' : '' %>>A - Excellent</option>
+                        <option value="B" <%= tier === 'B' ? 'selected' : '' %>>B - Good</option>
+                        <option value="C" <%= tier === 'C' ? 'selected' : '' %>>C - Average</option>
+                        <option value="D" <%= tier === 'D' ? 'selected' : '' %>>D - Poor</option>
+                        <option value="F" <%= tier === 'F' ? 'selected' : '' %>>F - Fail</option>
+                        <option value="U" <%= tier === 'U' ? 'selected' : '' %>>U - Unrated</option>
+                        <option value="L" <%= tier === 'L' ? 'selected' : '' %>>L - Liked</option>
+                    </select>
+                </div>
+                
+                <!-- Favorite Filter -->
+                <div class="search-row">
+                    <label>❤️ Favorite</label>
+                    <select name="favorite" id="favoriteFilter">
+                        <option value="">All</option>
+                        <option value="true" <%= favorite === 'true' ? 'selected' : '' %>>Favorites Only</option>
+                        <option value="false" <%= favorite === 'false' ? 'selected' : '' %>>Non-Favorites</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button type="submit" class="search-btn">🔍 Search</button>
+                    <a href="/advanced-search" class="clear-filters-btn">✕ Clear All Filters</a>
+                </div>
+            </form>
         </div>
         
+        <!-- Results - Server Rendered -->
         <div id="resultsContainer">
-            <div class="loading">
-                <div class="spinner"></div>
-                <p style="margin-top: 12px;">Search for performers by studio, cup size, or rating...</p>
-            </div>
+            <% if (performers && performers.length > 0) { %>
+                <div class="results-info">
+                    Found <%= total %> performers 
+                    <% if (studios && studios.length > 0) { %>in <%= studios.join(', ') %><% } %>
+                    <% if (minScenesEnabled !== false && minScenes > 0) { %>with <%= minScenes %>+ scenes<% } %>
+                    <% if (cupsize && cupsize.length > 0) { %>with cupsize <%= cupsize.join(', ') %><% } %>
+                    <% if (tier) { %>(rating: <%= tier %>)<% } %>
+                </div>
+
+                <div class="results-grid">
+                    <% 
+                    // ⭐ Define helper inside the EJS for rendering
+                    function getRatingColor(rating) {
+                        switch(rating) {
+                            case 'S': return '#ff6b6b';
+                            case 'A': return '#ff9f43';
+                            case 'B': return '#feca57';
+                            case 'C': return '#54a0ff';
+                            case 'D': return '#5f27cd';
+                            case 'F': return '#ff4757';
+                            case 'U': return '#747d8c';
+                            case 'L': return '#ff6b81';
+                            default: return '#888';
+                        }
+                    }
+                    %>
+                    <% performers.forEach(p => { 
+                        const imageUrl = p.images && p.images.length > 0 ? p.images[0].url : null;
+                        const ratingLetter = p.rating || '';
+                        const ratingColor = getRatingColor(ratingLetter);
+                    %>
+                    <a href="/performer/<%= p.id %>" class="performer-card">
+                        <div class="image">
+                            <% if (imageUrl) { %>
+                                <img src="<%= imageUrl %>" alt="<%= p.name %>" loading="lazy">
+                            <% } else { %>
+                                <div class="no-image">👤</div>
+                            <% } %>
+                        </div>
+                        <div class="info">
+                            <div class="name"><%= p.name %></div>
+                            <div class="details">
+                                <span class="scene-count">🎬 <%= p.scene_count || 0 %></span>
+                                <% if (p.cupsize) { %>
+                                    <span class="cupsize-badge"><%= p.cupsize %></span>
+                                <% } else { %>
+                                    <span class="cupsize-badge no-cupsize">❓</span>
+                                <% } %>
+                                <% if (ratingLetter) { %>
+                                    <span class="rating" style="color: <%= ratingColor %>;"><%= ratingLetter %></span>
+                                <% } %>
+                                <% if (p.is_favorited) { %>
+                                    <span class="favorite-icon">❤️</span>
+                                <% } %>
+                            </div>
+                        </div>
+                    </a>
+                    <% }) %>
+                </div>
+
+                <% if (totalPages > 1) { %>
+                    <div class="pagination">
+                        <% if (currentPage > 1) { %>
+                            <a href="?<%= buildQueryString({ page: currentPage - 1 }) %>" class="page-link">← Previous</a>
+                        <% } %>
+                        <% for (let i = 1; i <= totalPages; i++) { %>
+                            <% if (i === currentPage) { %>
+                                <span class="page-link active"><%= i %></span>
+                            <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
+                                <a href="?<%= buildQueryString({ page: i }) %>" class="page-link"><%= i %></a>
+                            <% } else if (i === 4 && currentPage > 5) { %>
+                                <span class="page-link">…</span>
+                            <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
+                                <span class="page-link">…</span>
+                            <% } %>
+                        <% } %>
+                        <% if (currentPage < totalPages) { %>
+                            <a href="?<%= buildQueryString({ page: currentPage + 1 }) %>" class="page-link">Next →</a>
+                        <% } %>
+                    </div>
+                <% } %>
+
+            <% } else if (hasFilters) { %>
+                <div class="no-results">
+                    <h3>🔍 No Results Found</h3>
+                    <p>Try adjusting your search filters</p>
+                </div>
+            <% } else { %>
+                <div class="no-results">
+                    <h3>🔍 Search for Performers</h3>
+                    <p>Select studios, cup sizes, or ratings to find performers</p>
+                    <p style="margin-top: 8px; font-size: 13px; color: #666;">💡 Try searching for a studio name above</p>
+                </div>
+            <% } %>
         </div>
     </div>
 
     <script>
         // =========================
-        // STATE MANAGEMENT
+        // HELPER FUNCTIONS FOR PAGINATION (Client-side)
         // =========================
-        let state = {
-            studios: [],
-            matchMode: 'any',
-            minScenes: 12,
-            minScenesEnabled: true,
-            cupsize: [],
-            rating: '',
-            favorite: '',
-            page: 1,
-            totalPages: 0
-        };
-        
-        // Load state from URL on page load
-        function loadStateFromURL() {
-            const params = new URLSearchParams(window.location.search);
-            const studiosParam = params.get('studios');
-            if (studiosParam) {
-                state.studios = studiosParam.split(',').filter(s => s);
-            }
-            state.matchMode = params.get('match') || 'any';
-            state.minScenes = parseInt(params.get('minScenes')) || 12;
-            state.minScenesEnabled = params.get('minScenesEnabled') !== 'false';
-            state.cupsize = params.get('cupsize') ? params.get('cupsize').split(',').filter(c => c) : [];
-            state.rating = params.get('tier') || '';
-            state.favorite = params.get('favorite') || '';
-            state.page = parseInt(params.get('page')) || 1;
+        function buildQueryString(params) {
+            const current = new URLSearchParams(window.location.search);
+            Object.keys(params).forEach(key => {
+                if (params[key] !== null && params[key] !== undefined) {
+                    current.set(key, params[key]);
+                }
+            });
+            return current.toString();
         }
-        
-        // Update URL with current state
-        function updateURL() {
-            const params = new URLSearchParams();
-            if (state.studios.length > 0) {
-                params.set('studios', state.studios.join(','));
-            }
-            if (state.matchMode && state.matchMode !== 'any') {
-                params.set('match', state.matchMode);
-            }
-            if (state.minScenesEnabled && state.minScenes > 0) {
-                params.set('minScenes', state.minScenes);
-                params.set('minScenesEnabled', 'true');
-            } else {
-                params.set('minScenesEnabled', 'false');
-            }
-            if (state.cupsize.length > 0) {
-                params.set('cupsize', state.cupsize.join(','));
-            }
-            if (state.rating) {
-                params.set('tier', state.rating);
-            }
-            if (state.favorite) {
-                params.set('favorite', state.favorite);
-            }
-            if (state.page > 1) {
-                params.set('page', state.page);
-            }
-            
-            const newURL = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-            window.history.replaceState({ ...state }, '', newURL);
-        }
-        
+
         // =========================
-        // DOM REFS
-        // =========================
-        const studioSearch = document.getElementById('studioSearch');
-        const selectedStudios = document.getElementById('selectedStudios');
-        const studioSuggestions = document.getElementById('studioSuggestions');
-        const matchMode = document.getElementById('matchMode');
-        const minScenesToggle = document.getElementById('minScenesToggle');
-        const minScenesValue = document.getElementById('minScenesValue');
-        const cupsizeCheckboxes = document.querySelectorAll('#cupsizeFilter input[type="checkbox"]');
-        const cupsizeOther = document.getElementById('cupsizeOther');
-        const ratingFilter = document.getElementById('ratingFilter');
-        const favoriteFilter = document.getElementById('favoriteFilter');
-        const searchBtn = document.getElementById('searchBtn');
-        const resultsContainer = document.getElementById('resultsContainer');
-        
-        // =========================
-        // MIN SCENES HANDLING
-        // =========================
-        function getMinScenes() {
-            if (!minScenesToggle.checked) return 0;
-            const val = parseInt(minScenesValue.value);
-            return isNaN(val) || val < 1 ? 12 : val;
-        }
-        
-        minScenesToggle.addEventListener('change', function() {
-            state.minScenesEnabled = this.checked;
-            state.minScenes = getMinScenes();
-            updateURL();
-            autoSearch();
-        });
-        
-        minScenesValue.addEventListener('change', function() {
-            state.minScenes = getMinScenes();
-            updateURL();
-            autoSearch();
-        });
-        
-        // =========================
-        // STUDIO SEARCH
+        // STUDIO SEARCH (Client-side for autocomplete)
         // =========================
         let studioTimeout = null;
         let currentSuggestions = [];
-        
+        const studioSearch = document.getElementById('studioSearch');
+        const studioSuggestions = document.getElementById('studioSuggestions');
+        const selectedStudios = document.getElementById('selectedStudios');
+        const studiosHidden = document.getElementById('studiosHidden');
+
+        function getSelectedStudios() {
+            return studiosHidden.value ? studiosHidden.value.split(',').filter(s => s) : [];
+        }
+
+        function renderStudios() {
+            const studios = getSelectedStudios();
+            if (studios.length === 0) {
+                selectedStudios.innerHTML = '<span style="color: #666; font-size: 14px;">No studios selected</span>';
+            } else {
+                selectedStudios.innerHTML = studios.map(name => `
+                    <span class="studio-tag">
+                        ${name}
+                        <span class="remove" onclick="removeStudio('${name.replace(/'/g, "\\'")}')">✕</span>
+                    </span>
+                `).join('');
+            }
+            studiosHidden.value = studios.join(',');
+        }
+
+        function addStudio(name) {
+            const studios = getSelectedStudios();
+            if (!studios.includes(name)) {
+                studios.push(name);
+                studiosHidden.value = studios.join(',');
+                renderStudios();
+                studioSuggestions.classList.remove('show');
+                studioSearch.value = '';
+            }
+        }
+
+        function removeStudio(name) {
+            let studios = getSelectedStudios();
+            studios = studios.filter(s => s !== name);
+            studiosHidden.value = studios.join(',');
+            renderStudios();
+            // Auto-submit after removing
+            document.querySelector('form').submit();
+        }
+
         studioSearch.addEventListener('input', function() {
             clearTimeout(studioTimeout);
             const query = this.value.trim();
@@ -644,12 +712,11 @@
                 studioSuggestions.classList.remove('show');
                 return;
             }
-            
             studioTimeout = setTimeout(() => {
                 searchStudios(query);
             }, 300);
         });
-        
+
         studioSearch.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -657,11 +724,8 @@
                 if (query.length >= 2) {
                     if (currentSuggestions.length > 0) {
                         addStudio(currentSuggestions[0].name);
-                        studioSearch.value = '';
-                        studioSuggestions.classList.remove('show');
                     } else {
                         addStudio(query);
-                        studioSearch.value = '';
                     }
                 }
             }
@@ -669,18 +733,17 @@
                 studioSuggestions.classList.remove('show');
             }
         });
-        
+
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.search-row')) {
                 studioSuggestions.classList.remove('show');
             }
         });
-        
+
         async function searchStudios(query) {
             try {
                 const response = await fetch(`/api/search/studios?q=${encodeURIComponent(query)}`);
                 const data = await response.json();
-                
                 if (data.studios && data.studios.length > 0) {
                     currentSuggestions = data.studios.slice(0, 10);
                     renderSuggestions(currentSuggestions);
@@ -691,13 +754,12 @@
                 console.error('Studio search error:', error);
             }
         }
-        
+
         function renderSuggestions(suggestions) {
             if (suggestions.length === 0) {
                 studioSuggestions.classList.remove('show');
                 return;
             }
-            
             studioSuggestions.innerHTML = suggestions.map(s => `
                 <div class="suggestion" onclick="addStudio('${s.name.replace(/'/g, "\\'")}')">
                     ${s.name} (${s.scene_count || 0} scenes)
@@ -705,346 +767,11 @@
             `).join('');
             studioSuggestions.classList.add('show');
         }
-        
-        // =========================
-        // STUDIO MANAGEMENT
-        // =========================
-        function addStudio(name) {
-            if (!state.studios.includes(name)) {
-                state.studios.push(name);
-                renderStudios();
-                updateURL();
-                studioSuggestions.classList.remove('show');
-                studioSearch.value = '';
-                autoSearch();
-            }
-        }
-        
-        function removeStudio(name) {
-            state.studios = state.studios.filter(s => s !== name);
-            renderStudios();
-            updateURL();
-            autoSearch();
-        }
-        
-        function renderStudios() {
-            if (state.studios.length === 0) {
-                selectedStudios.innerHTML = '<span style="color: #666; font-size: 14px;">No studios selected</span>';
-                return;
-            }
-            
-            selectedStudios.innerHTML = state.studios.map(name => `
-                <span class="studio-tag">
-                    ${name}
-                    <span class="remove" onclick="removeStudio('${name.replace(/'/g, "\\'")}')">✕</span>
-                </span>
-            `).join('');
-        }
-        
-        // =========================
-        // CUPSIZE MANAGEMENT
-        // =========================
-        function getSelectedCupsize() {
-            const selected = [];
-            let otherChecked = false;
-            
-            cupsizeCheckboxes.forEach(cb => {
-                if (cb.checked) {
-                    if (cb.value === 'OTHER') {
-                        otherChecked = true;
-                    } else {
-                        selected.push(cb.value);
-                    }
-                }
-            });
-            
-            if (otherChecked) {
-                selected.push('OTHER');
-            }
-            
-            return selected;
-        }
-        
-        function setCupsizeFromState() {
-            cupsizeCheckboxes.forEach(cb => {
-                cb.checked = state.cupsize.includes(cb.value);
-            });
-        }
-        
-        function updateCupsizeUI() {
-            cupsizeCheckboxes.forEach(cb => {
-                const label = cb.closest('label');
-                if (cb.checked) {
-                    label.classList.add('checked');
-                } else {
-                    label.classList.remove('checked');
-                }
-            });
-        }
-        
-        cupsizeOther.addEventListener('change', function() {
-            if (this.checked) {
-                cupsizeCheckboxes.forEach(cb => {
-                    if (cb.value !== 'OTHER') cb.checked = false;
-                });
-            }
-            state.cupsize = getSelectedCupsize();
-            updateCupsizeUI();
-            updateURL();
-            autoSearch();
-        });
-        
-        cupsizeCheckboxes.forEach(cb => {
-            cb.addEventListener('change', function() {
-                if (this.value !== 'OTHER' && this.checked) {
-                    cupsizeOther.checked = false;
-                }
-                state.cupsize = getSelectedCupsize();
-                updateCupsizeUI();
-                updateURL();
-                autoSearch();
-            });
-        });
-        
-        // =========================
-        // FILTER CHANGES
-        // =========================
-        matchMode.addEventListener('change', function() {
-            state.matchMode = this.value;
-            updateURL();
-            autoSearch();
-        });
-        
-        ratingFilter.addEventListener('change', function() {
-            state.rating = this.value;
-            updateURL();
-            autoSearch();
-        });
-        
-        favoriteFilter.addEventListener('change', function() {
-            state.favorite = this.value;
-            updateURL();
-            autoSearch();
-        });
-        
-        // =========================
-        // SEARCH
-        // =========================
-        let searchTimeout = null;
-        
-        function autoSearch() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                performSearch();
-            }, 400);
-        }
-        
-        searchBtn.addEventListener('click', function() {
-            performSearch();
-        });
-        
-        async function performSearch(page = 1) {
-            state.page = page;
-            updateURL();
-            
-            resultsContainer.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p style="margin-top: 12px;">Searching...</p>
-                </div>
-            `;
-            
-            const params = new URLSearchParams();
-            if (state.studios.length > 0) {
-                params.set('studios', state.studios.join(','));
-            }
-            if (state.matchMode) {
-                params.set('match', state.matchMode);
-            }
-            if (state.minScenesEnabled && state.minScenes > 0) {
-                params.set('minScenes', state.minScenes);
-            }
-            if (state.cupsize.length > 0) {
-                params.set('cupsize', state.cupsize.join(','));
-            }
-            if (state.rating) {
-                params.set('tier', state.rating);
-            }
-            if (state.favorite) {
-                params.set('favorite', state.favorite);
-            }
-            params.set('page', page);
-            params.set('perPage', 50);
-            
-            try {
-                const response = await fetch(`/api/search/advanced?${params.toString()}`);
-                const data = await response.json();
-                
-                if (!data.success) {
-                    resultsContainer.innerHTML = `
-                        <div class="no-results">
-                            <h3>❌ Error</h3>
-                            <p>${data.error || 'Something went wrong'}</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                if (data.performers.length === 0) {
-                    resultsContainer.innerHTML = `
-                        <div class="no-results">
-                            <h3>🔍 No Results Found</h3>
-                            <p>Try adjusting your search filters</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                renderResults(data);
-                
-            } catch (error) {
-                console.error('Search error:', error);
-                resultsContainer.innerHTML = `
-                    <div class="no-results">
-                        <h3>❌ Error</h3>
-                        <p>${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-        
-        function getRatingColor(rating) {
-            switch(rating) {
-                case 'S': return '#ff6b6b';
-                case 'A': return '#ff9f43';
-                case 'B': return '#feca57';
-                case 'C': return '#54a0ff';
-                case 'D': return '#5f27cd';
-                case 'F': return '#ff4757';
-                case 'U': return '#747d8c';
-                case 'L': return '#ff6b81';
-                default: return '#888';
-            }
-        }
-        
-        function renderResults(data) {
-            const performers = data.performers;
-            state.totalPages = data.totalPages || 1;
-            
-            let resultsInfo = `
-                <div class="results-info">
-                    Found ${data.total || performers.length} performers 
-                    ${state.studios.length > 0 ? `in ${state.studios.join(', ')}` : ''}
-                    ${state.minScenesEnabled ? `with ${state.minScenes}+ scenes` : ''}
-                    ${state.cupsize.length > 0 ? `with cupsize ${state.cupsize.join(', ')}` : ''}
-                    ${state.rating ? `(rating: ${state.rating})` : ''}
-                </div>
-            `;
-            
-            let html = resultsInfo;
-            html += `<div class="results-grid">`;
-            
-            performers.forEach(p => {
-                const imageUrl = p.images && p.images.length > 0 ? p.images[0].url : null;
-                const ratingLetter = p.rating || '';
-                const ratingColor = getRatingColor(ratingLetter);
-                
-                html += `
-                    <a href="/performer/${p.id}" class="performer-card">
-                        <div class="image">
-                            ${imageUrl ? `<img src="${imageUrl}" alt="${p.name}" loading="lazy">` : '<div class="no-image">👤</div>'}
-                        </div>
-                        <div class="info">
-                            <div class="name">${p.name}</div>
-                            <div class="details">
-                                <span class="scene-count">🎬 ${p.scene_count || 0}</span>
-                                ${p.cupsize ? `<span class="cupsize-badge">${p.cupsize}</span>` : '<span class="cupsize-badge no-cupsize">❓</span>'}
-                                ${ratingLetter ? `<span class="rating" style="color: ${ratingColor};">${ratingLetter}</span>` : ''}
-                                ${p.is_favorited ? '<span class="favorite-icon">❤️</span>' : ''}
-                            </div>
-                        </div>
-                    </a>
-                `;
-            });
-            
-            html += `</div>`;
-            
-            if (state.totalPages > 1) {
-                html += `<div class="pagination">`;
-                
-                if (state.page > 1) {
-                    html += `<button class="page-link" onclick="performSearch(${state.page - 1})">← Previous</button>`;
-                }
-                
-                for (let i = 1; i <= state.totalPages; i++) {
-                    if (i === state.page) {
-                        html += `<span class="page-link active">${i}</span>`;
-                    } else if (i <= 3 || i > state.totalPages - 3 || Math.abs(i - state.page) <= 1) {
-                        html += `<button class="page-link" onclick="performSearch(${i})">${i}</button>`;
-                    } else if (i === 4 && state.page > 5) {
-                        html += `<span class="page-link">…</span>`;
-                    } else if (i === state.totalPages - 3 && state.page < state.totalPages - 4) {
-                        html += `<span class="page-link">…</span>`;
-                    }
-                }
-                
-                if (state.page < state.totalPages) {
-                    html += `<button class="page-link" onclick="performSearch(${state.page + 1})">Next →</button>`;
-                }
-                
-                html += `</div>`;
-            }
-            
-            resultsContainer.innerHTML = html;
-        }
-        
-        // =========================
-        // HISTORY / BACK NAVIGATION
-        // =========================
-        window.addEventListener('popstate', function(event) {
-            if (event.state) {
-                state = { ...state, ...event.state };
-                matchMode.value = state.matchMode || 'any';
-                minScenesToggle.checked = state.minScenesEnabled !== false;
-                minScenesValue.value = state.minScenes || 12;
-                ratingFilter.value = state.rating || '';
-                favoriteFilter.value = state.favorite || '';
-                setCupsizeFromState();
-                updateCupsizeUI();
-                renderStudios();
-                performSearch(state.page || 1);
-            }
-        });
-        
+
         // =========================
         // INIT
         // =========================
-        function init() {
-            loadStateFromURL();
-            
-            matchMode.value = state.matchMode || 'any';
-            minScenesToggle.checked = state.minScenesEnabled !== false;
-            minScenesValue.value = state.minScenes || 12;
-            ratingFilter.value = state.rating || '';
-            favoriteFilter.value = state.favorite || '';
-            setCupsizeFromState();
-            updateCupsizeUI();
-            renderStudios();
-            
-            if (state.studios.length > 0 || state.cupsize.length > 0 || state.rating || state.minScenesEnabled) {
-                performSearch(state.page || 1);
-            } else {
-                resultsContainer.innerHTML = `
-                    <div class="no-results">
-                        <h3>🔍 Search for Performers</h3>
-                        <p>Select studios, cup sizes, or ratings to find performers</p>
-                        <p style="margin-top: 8px; font-size: 13px; color: #666;">💡 Try searching for a studio name above</p>
-                    </div>
-                `;
-            }
-        }
-        
-        init();
+        renderStudios();
     </script>
 </body>
 </html>

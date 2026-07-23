@@ -394,42 +394,36 @@ app.post('/search', async (req, res) => {
 
 
 // =========================
-// ADVANCED SEARCH API - WITH MIN SCENES FILTER (FULLY FIXED)
+// ADVANCED SEARCH PAGE - SERVER RENDERED (Direct DB Query)
 // =========================
-app.get('/api/search/advanced', async (req, res) => {
-    const { 
-        studios = '', 
-        tier = '', 
-        favorite = '', 
-        match = 'any', 
-        cupsize = '',
-        minScenes = '0',
-        page = 1, 
-        perPage = 50 
-    } = req.query;
-    
-    const userData = await getUserData();
-    const studioNames = studios ? studios.split(',').map(s => s.trim()).filter(s => s) : [];
-    const offset = (parseInt(page) - 1) * parseInt(perPage);
-    const limit = parseInt(perPage);
-    const minScenesInt = parseInt(minScenes) || 0;
-    
-    // If no filters, return empty
-    if (studioNames.length === 0 && !cupsize && !tier && !favorite && minScenesInt === 0) {
-        return res.json({ success: true, performers: [], total: 0, page: 1, totalPages: 0 });
-    }
+app.get('/advanced-search', async (req, res) => {
+    const studios = req.query.studios ? req.query.studios.split(',').filter(s => s) : [];
+    const match = req.query.match || 'any';
+    const minScenes = parseInt(req.query.minScenes) || 0;
+    const minScenesEnabled = req.query.minScenesEnabled !== 'false';
+    const cupsize = req.query.cupsize ? (Array.isArray(req.query.cupsize) ? req.query.cupsize : [req.query.cupsize]) : [];
+    const tier = req.query.tier || '';
+    const favorite = req.query.favorite || '';
+    const page = parseInt(req.query.page) || 1;
+    const perPage = 50;
     
     try {
         // =========================
-        // BUILD WHERE CONDITIONS
+        // BUILD THE QUERY DIRECTLY
         // =========================
+        const userData = await getUserData();
+        const studioNames = studios;
+        const offset = (page - 1) * perPage;
+        const limit = perPage;
+        const minScenesInt = minScenesEnabled ? minScenes : 0;
+        
         let params = [];
         let paramIndex = 1;
         let whereConditions = [];
         let havingConditions = [];
         let havingParams = [];
         
-        // Studio conditions - only if studios are selected
+        // Studio conditions
         if (studioNames.length > 0) {
             if (match === 'any') {
                 const studioConditions = studioNames.map(name => {
@@ -452,37 +446,34 @@ app.get('/api/search/advanced', async (req, res) => {
         }
         
         // Cupsize condition
-        if (cupsize) {
-            const cupsizeValues = cupsize.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
-            if (cupsizeValues.length > 0) {
-                const hasOther = cupsizeValues.includes('OTHER');
-                const specificSizes = cupsizeValues.filter(c => c !== 'OTHER');
+        if (cupsize && cupsize.length > 0) {
+            const hasOther = cupsize.includes('OTHER');
+            const specificSizes = cupsize.filter(c => c !== 'OTHER');
+            
+            let cupsizeConditions = [];
+            
+            if (specificSizes.length > 0) {
+                const sizeConditions = specificSizes.map(c => {
+                    return `p.cupsize = $${paramIndex++}`;
+                });
+                specificSizes.forEach(c => params.push(c));
+                cupsizeConditions.push(`(${sizeConditions.join(' OR ')})`);
+            }
+            
+            if (hasOther) {
+                const standardSizes = ['A', 'B', 'C', 'D', 'DD', 'DDD', 'E', 'F', 'G', 'H'];
+                const standardConditions = standardSizes.map(c => {
+                    return `p.cupsize = $${paramIndex++}`;
+                });
+                standardSizes.forEach(c => params.push(c));
                 
-                let cupsizeConditions = [];
-                
-                if (specificSizes.length > 0) {
-                    const sizeConditions = specificSizes.map(c => {
-                        return `p.cupsize = $${paramIndex++}`;
-                    });
-                    specificSizes.forEach(c => params.push(c));
-                    cupsizeConditions.push(`(${sizeConditions.join(' OR ')})`);
-                }
-                
-                if (hasOther) {
-                    const standardSizes = ['A', 'B', 'C', 'D', 'DD', 'DDD', 'E', 'F', 'G', 'H'];
-                    const standardConditions = standardSizes.map(c => {
-                        return `p.cupsize = $${paramIndex++}`;
-                    });
-                    standardSizes.forEach(c => params.push(c));
-                    
-                    cupsizeConditions.push(
-                        `(p.cupsize IS NULL OR p.cupsize NOT IN (${standardSizes.map((_, idx) => `$${paramIndex - standardSizes.length + idx}`).join(',')}))`
-                    );
-                }
-                
-                if (cupsizeConditions.length > 0) {
-                    whereConditions.push(`(${cupsizeConditions.join(' OR ')})`);
-                }
+                cupsizeConditions.push(
+                    `(p.cupsize IS NULL OR p.cupsize NOT IN (${standardSizes.map((_, idx) => `$${paramIndex - standardSizes.length + idx}`).join(',')}))`
+                );
+            }
+            
+            if (cupsizeConditions.length > 0) {
+                whereConditions.push(`(${cupsizeConditions.join(' OR ')})`);
             }
         }
         
@@ -493,9 +484,7 @@ app.get('/api/search/advanced', async (req, res) => {
             whereConditions.push(`(p.is_favorite = false OR p.is_favorite IS NULL)`);
         }
         
-        // =========================
-        // BUILD THE QUERY - HANDLE EACH SCENARIO SEPARATELY
-        // =========================
+        // Build the query
         let performerQuery = '';
         let queryParams = [];
         let whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -524,7 +513,7 @@ app.get('/api/search/advanced', async (req, res) => {
             `;
             queryParams = [...params, minScenesInt];
         }
-        // CASE 2: Studios AND minScenes (need both)
+        // CASE 2: Studios AND minScenes
         else if (studioNames.length > 0 && minScenesInt > 0) {
             performerQuery = `
                 WITH wow_counts AS (
@@ -553,7 +542,7 @@ app.get('/api/search/advanced', async (req, res) => {
             `;
             queryParams = [...params, minScenesInt];
         }
-        // CASE 3: Studios only (no minScenes)
+        // CASE 3: Studios only
         else if (studioNames.length > 0 && minScenesInt === 0) {
             performerQuery = `
                 SELECT 
@@ -573,7 +562,7 @@ app.get('/api/search/advanced', async (req, res) => {
             `;
             queryParams = [...params];
         }
-        // CASE 4: No studios, no minScenes (just cupsize/rating/favorite)
+        // CASE 4: No studios, no minScenes
         else {
             performerQuery = `
                 SELECT 
@@ -595,9 +584,7 @@ app.get('/api/search/advanced', async (req, res) => {
         // Execute Neon query
         const matchedPerformers = await queryNeon(performerQuery, queryParams);
         
-        // =========================
-        // GET RATINGS AND FAVORITES FROM MIGET
-        // =========================
+        // Get ratings and favorites from Miget
         const performerIds = matchedPerformers.map(p => p.id);
         let performerRatings = {};
         let favoritePerformers = [];
@@ -635,16 +622,12 @@ app.get('/api/search/advanced', async (req, res) => {
             }
         }
         
-        // =========================
-        // PAGINATE
-        // =========================
+        // Paginate
         const total = filteredPerformers.length;
         const totalPages = Math.ceil(total / limit);
         const paginatedPerformers = filteredPerformers.slice(offset, offset + limit);
         
-        // =========================
-        // FORMAT RESULTS
-        // =========================
+        // Format results
         const formattedResults = paginatedPerformers.map(p => {
             const images = p.images ? JSON.parse(p.images) : [];
             const aliases = parseAliases(p.aliases);
@@ -668,20 +651,77 @@ app.get('/api/search/advanced', async (req, res) => {
             };
         });
         
-        res.json({
-            success: true,
+        // ⭐ Define helper functions for the template
+        function getRatingColor(rating) {
+            switch(rating) {
+                case 'S': return '#ff6b6b';
+                case 'A': return '#ff9f43';
+                case 'B': return '#feca57';
+                case 'C': return '#54a0ff';
+                case 'D': return '#5f27cd';
+                case 'F': return '#ff4757';
+                case 'U': return '#747d8c';
+                case 'L': return '#ff6b81';
+                default: return '#888';
+            }
+        }
+        
+        function buildQueryString(params) {
+            const current = new URLSearchParams();
+            if (studios.length > 0) current.set('studios', studios.join(','));
+            if (match) current.set('match', match);
+            if (minScenesEnabled && minScenes > 0) {
+                current.set('minScenes', minScenes);
+                current.set('minScenesEnabled', 'true');
+            }
+            if (cupsize.length > 0) current.set('cupsize', cupsize.join(','));
+            if (tier) current.set('tier', tier);
+            if (favorite) current.set('favorite', favorite);
+            Object.keys(params).forEach(key => {
+                if (params[key] !== null && params[key] !== undefined) {
+                    current.set(key, params[key]);
+                }
+            });
+            return current.toString();
+        }
+        
+        res.render('advanced-search', {
+            title: 'Advanced Studio Search',
+            studios: studios,
+            match: match,
+            minScenes: minScenes,
+            minScenesEnabled: minScenesEnabled,
+            cupsize: cupsize,
+            tier: tier,
+            favorite: favorite,
             performers: formattedResults,
             total: total,
-            page: parseInt(page),
-            perPage: limit,
-            totalPages: totalPages
+            currentPage: page,
+            totalPages: totalPages,
+            hasFilters: studios.length > 0 || cupsize.length > 0 || tier || favorite || (minScenesEnabled && minScenes > 0),
+            getRatingColor: getRatingColor,
+            buildQueryString: buildQueryString
         });
         
     } catch (error) {
         console.error('❌ Advanced search error:', error.message);
-        console.error('   Query:', performerQuery);
-        console.error('   Query params:', JSON.stringify(queryParams));
-        res.json({ success: false, error: error.message, performers: [] });
+        console.error('   Stack:', error.stack);
+        res.render('advanced-search', {
+            title: 'Advanced Studio Search',
+            studios: studios,
+            match: match,
+            minScenes: minScenes,
+            minScenesEnabled: minScenesEnabled,
+            cupsize: cupsize,
+            tier: tier,
+            favorite: favorite,
+            performers: [],
+            total: 0,
+            currentPage: 1,
+            totalPages: 0,
+            hasFilters: false,
+            error: error.message
+        });
     }
 });
 
@@ -1388,14 +1428,12 @@ app.get('/api/search/videos', async (req, res) => {
 });
 
 
-// =========================
-// GLOBAL VIDEO SEARCH PAGE - SERVER RENDERED
-// =========================
 app.get('/video-search', async (req, res) => {
     const searchTerm = req.query.q || '';
     const sortBy = req.query.sort || 'date';
     const page = parseInt(req.query.page) || 1;
     const perPage = 24;
+    const showFavoritesOnly = req.query.favorites === 'true'; // ⭐ NEW
     
     try {
         // If no search term, just show the empty search page
@@ -1408,12 +1446,12 @@ app.get('/video-search', async (req, res) => {
                 totalVideos: 0,
                 currentPage: 1,
                 totalPages: 0,
-                perPage: perPage
+                perPage: perPage,
+                showFavoritesOnly: showFavoritesOnly
             });
         }
         
         // Build the search query
-        const offset = (page - 1) * perPage;
         let params = [];
         let paramIndex = 1;
         let whereConditions = [];
@@ -1447,22 +1485,20 @@ app.get('/video-search', async (req, res) => {
                 totalVideos: 0,
                 currentPage: 1,
                 totalPages: 0,
-                perPage: perPage
+                perPage: perPage,
+                showFavoritesOnly: showFavoritesOnly
             });
         }
         
-        // Get total count
-        const countResult = await queryNeon(`
-            SELECT COUNT(DISTINCT w.video720p) as total
-            FROM wow_videos w
-            WHERE w.video720p IS NOT NULL 
-              AND w.video720p != ''
-              AND ${whereConditions.join(' AND ')}
-        `, params);
-        const totalVideos = parseInt(countResult[0]?.total || 0);
-        const totalPages = Math.ceil(totalVideos / perPage);
+        // ⭐ Get favorite URLs from the database
+        let favoriteUrls = [];
+        if (showFavoritesOnly) {
+            const favResult = await queryNeon('SELECT scene_url FROM video_favorites');
+            favoriteUrls = favResult.map(row => row.scene_url);
+            console.log(`⭐ Favorites only: ${favoriteUrls.length} favorited videos`);
+        }
         
-        // Get paginated results
+        // ⭐ Fetch ALL matching videos
         let query = `
             SELECT DISTINCT ON (w.video720p) 
                 w.performer,
@@ -1479,32 +1515,20 @@ app.get('/video-search', async (req, res) => {
             WHERE w.video720p IS NOT NULL 
               AND w.video720p != ''
               AND ${whereConditions.join(' AND ')}
+            ORDER BY w.video720p
         `;
         
-        // Add sorting
-        if (sortBy === 'date') {
-            query += ` ORDER BY w.video720p, w.date DESC NULLS LAST`;
-        } else if (sortBy === 'title') {
-            query += ` ORDER BY w.video720p, w.title`;
-        } else if (sortBy === 'duration') {
-            query += ` ORDER BY w.video720p, 
-                CASE 
-                    WHEN w.duration LIKE '%:%' THEN 
-                        CAST(SPLIT_PART(w.duration, ':', 1) AS INTEGER) * 60 + 
-                        CAST(SPLIT_PART(w.duration, ':', 2) AS INTEGER)
-                    ELSE CAST(w.duration AS INTEGER)
-                END DESC NULLS LAST`;
-        } else {
-            query += ` ORDER BY w.video720p, w.date DESC NULLS LAST`;
+        let allVideos = await queryNeon(query, params);
+        
+        // ⭐ Filter by favorites if enabled
+        if (showFavoritesOnly && favoriteUrls.length > 0) {
+            const favSet = new Set(favoriteUrls);
+            allVideos = allVideos.filter(video => favSet.has(video.url));
+            console.log(`⭐ Filtered to ${allVideos.length} favorited videos`);
         }
         
-        query += ` LIMIT $${paramIndex}::int OFFSET $${paramIndex + 1}::int`;
-        params.push(perPage, offset);
-        
-        const videos = await queryNeon(query, params);
-        
         // Fix thumbnails and dates
-        for (const video of videos) {
+        for (const video of allVideos) {
             if (!video.thumbnail || video.thumbnail.startsWith('data:image')) {
                 let videoId = null;
                 if (video.video720p) {
@@ -1524,26 +1548,63 @@ app.get('/video-search', async (req, res) => {
             if (video.date) {
                 const parts = video.date.split('.');
                 if (parts.length === 3) {
+                    video.dateSort = `${parts[2]}-${parts[1]}-${parts[0]}`;
                     video.displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
                 } else {
+                    video.dateSort = '';
                     video.displayDate = video.date;
                 }
+            } else {
+                video.dateSort = '';
+            }
+            
+            if (video.performers) {
+                video.performers = video.performers.replace(/\s*;\s*/g, '; ');
             }
         }
+        
+        // Sort in JavaScript
+        if (sortBy === 'date') {
+            allVideos.sort((a, b) => {
+                const dateA = a.dateSort || '';
+                const dateB = b.dateSort || '';
+                if (!dateA && !dateB) return 0;
+                if (!dateA) return 1;
+                if (!dateB) return -1;
+                return dateB.localeCompare(dateA);
+            });
+        } else if (sortBy === 'title') {
+            allVideos.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        } else if (sortBy === 'duration') {
+            allVideos.sort((a, b) => {
+                const durA = a.duration ? parseDuration(a.duration) : 0;
+                const durB = b.duration ? parseDuration(b.duration) : 0;
+                return durB - durA;
+            });
+        }
+        
+        // Paginate
+        const totalVideos = allVideos.length;
+        const totalPages = Math.ceil(totalVideos / perPage);
+        const startIndex = (page - 1) * perPage;
+        const endIndex = Math.min(startIndex + perPage, totalVideos);
+        const paginatedVideos = allVideos.slice(startIndex, endIndex);
         
         res.render('video-search', { 
             title: 'Video Search',
             searchTerm: searchTerm,
             sortBy: sortBy,
-            videos: videos,
+            videos: paginatedVideos,
             totalVideos: totalVideos,
             currentPage: page,
             totalPages: totalPages,
-            perPage: perPage
+            perPage: perPage,
+            showFavoritesOnly: showFavoritesOnly
         });
         
     } catch (error) {
         console.error('❌ Video search error:', error.message);
+        console.error('   Stack:', error.stack);
         res.render('video-search', { 
             title: 'Video Search',
             searchTerm: searchTerm,
@@ -1553,6 +1614,7 @@ app.get('/video-search', async (req, res) => {
             currentPage: 1,
             totalPages: 0,
             perPage: perPage,
+            showFavoritesOnly: showFavoritesOnly,
             error: error.message
         });
     }

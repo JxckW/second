@@ -119,11 +119,37 @@
         .controls-bar .sort-select:focus {
             border-color: #667eea;
         }
+        .controls-bar .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #888;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .controls-bar .filter-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
         .controls-bar .results-count {
             color: #888;
             font-size: 14px;
             margin-left: auto;
         }
+        .controls-bar .apply-btn {
+            padding: 6px 16px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .controls-bar .apply-btn:hover { opacity: 0.85; }
 
         .video-grid {
             display: grid;
@@ -144,6 +170,35 @@
         .video-card:hover {
             transform: translateY(-4px);
             border-color: #667eea;
+        }
+        
+        .video-card .favorite-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            pointer-events: auto;
+        }
+        .video-card .favorite-btn:hover {
+            transform: scale(1.15);
+        }
+        .video-card .favorite-btn.favorited {
+            color: #ff6b6b;
+        }
+        .video-card .favorite-btn.favorited:hover {
+            color: #ff4444;
         }
 
         .video-thumbnail {
@@ -265,6 +320,24 @@
             color: #fff;
         }
 
+        .original-link-btn {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #ff9f43;
+            background: transparent;
+            color: #ff9f43;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .original-link-btn:hover {
+            background: #ff9f43;
+            color: #fff;
+        }
+
         .video-modal {
             display: none;
             position: fixed;
@@ -312,14 +385,12 @@
             text-align: center;
             max-width: 90%;
         }
-
         .video-modal .video-controls {
             display: flex;
             justify-content: center;
             gap: 12px;
             margin-top: 12px;
             flex-wrap: wrap;
-            align-items: center;
         }
         .video-modal .video-controls button {
             padding: 8px 20px;
@@ -339,7 +410,6 @@
             background: #4caf50;
             color: white;
             border-color: #4caf50;
-            display: inline-block;
         }
         .video-modal .video-controls .download-btn:hover {
             background: #45a049;
@@ -358,11 +428,6 @@
         .video-modal .video-controls .quality-selector:focus {
             border-color: #667eea;
         }
-        .video-modal .video-controls .quality-selector option {
-            background: #1a1a1a;
-            color: #e0e0e0;
-        }
-
         .video-modal .video-loading {
             color: #888;
             text-align: center;
@@ -384,28 +449,6 @@
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 10;
-        }
-        .video-modal .video-error a {
-            color: #667eea;
-        }
-
-        /* Original Scene Link Button */
-        .original-link-btn {
-            display: inline-block;
-            padding: 8px 20px;
-            border-radius: 20px;
-            border: 1px solid #ff9f43;
-            background: transparent;
-            color: #ff9f43;
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 14px;
-            font-family: inherit;
-        }
-        .original-link-btn:hover {
-            background: #ff9f43;
-            color: #fff;
         }
 
         @media (max-width: 768px) {
@@ -429,7 +472,7 @@
             </div>
         </header>
 
-        <!-- ⭐ Search Form - Server Rendered -->
+        <!-- Main Search Form -->
         <div class="search-section">
             <form method="get" action="/video-search" style="width: 100%;">
                 <div class="search-row">
@@ -449,29 +492,47 @@
             </form>
         </div>
 
-        <!-- ⭐ Results - Server Rendered -->
         <% if (videos && videos.length > 0) { %>
+            <!-- Sort Form with Favorites Filter -->
             <div class="controls-bar">
                 <form method="get" action="/video-search" style="display: flex; flex-wrap: wrap; gap: 12px; flex: 1; width: 100%; align-items: center;">
                     <input type="hidden" name="q" value="<%= searchTerm %>">
-                    <select name="sort" class="sort-select" onchange="this.closest('form').submit()">
+                    <input type="hidden" name="favorites" id="favoritesHidden" value="<%= showFavoritesOnly ? 'true' : 'false' %>">
+                    <select name="sort" id="sortSelect" class="sort-select" onchange="this.closest('form').submit()">
                         <option value="date" <%= sortBy === 'date' ? 'selected' : '' %>>Sort by Date</option>
                         <option value="title" <%= sortBy === 'title' ? 'selected' : '' %>>Sort by Title</option>
                         <option value="duration" <%= sortBy === 'duration' ? 'selected' : '' %>>Sort by Duration</option>
                     </select>
-                    <span class="results-count"><%= totalVideos %> videos found for "<%= searchTerm %>"</span>
+                    <button type="submit" class="apply-btn">Apply</button>
+                    
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="favoritesFilter" onchange="toggleFavoritesFilter()" <%= showFavoritesOnly ? 'checked' : '' %>>
+                        ⭐ Favorites Only
+                    </label>
+                    
+                    <span class="results-count" id="resultsCount"><%= totalVideos %> videos found</span>
                 </form>
             </div>
 
-            <div class="video-grid">
+            <div class="video-grid" id="videoGrid">
                 <% videos.forEach(video => { 
                     const safeTitle = JSON.stringify(video.title || 'Untitled Scene');
                     const safeSceneUrl = JSON.stringify(video.url || '');
                     const safeThumbnail = JSON.stringify(video.thumbnail || '');
                     const safeVideo720p = JSON.stringify(video.video720p || '');
                     const safeVideo480p = JSON.stringify(video.video480p || '');
+                    // Check if this video is favorited (for the heart icon)
+                    const isFavorited = typeof video.isFavorited !== 'undefined' ? video.isFavorited : false;
                 %>
-                <div class="video-card" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= safeVideo720p %>, <%= safeVideo480p %>)">
+                <div class="video-card" 
+                     data-scene-url="<%= video.url %>"
+                     data-favorited="<%= isFavorited ? 'true' : 'false' %>"
+                     data-video720p="<%= video.video720p || '' %>"
+                     data-video480p="<%= video.video480p || '' %>"
+                     onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= safeVideo720p %>, <%= safeVideo480p %>)">
+                    <button class="favorite-btn <%= isFavorited ? 'favorited' : '' %>" onclick="event.stopPropagation(); toggleFavoriteFromCard(this, '<%= video.url %>')">
+                        <%= isFavorited ? '❤️' : '🤍' %>
+                    </button>
                     <div class="video-thumbnail">
                         <% if (video.thumbnail && video.thumbnail.startsWith('http')) { %>
                             <img src="<%= video.thumbnail %>" alt="<%= video.title %>" loading="lazy">
@@ -499,17 +560,17 @@
                 <% }) %>
             </div>
 
-            <!-- ⭐ Pagination -->
+            <!-- Pagination - preserves sort and favorites parameters -->
             <% if (totalPages > 1) { %>
                 <div class="pagination">
                     <% if (currentPage > 1) { %>
-                        <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
+                        <a href="?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&favorites=<%= showFavoritesOnly ? 'true' : 'false' %>&page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
                     <% } %>
                     <% for (let i = 1; i <= totalPages; i++) { %>
                         <% if (i === currentPage) { %>
                             <span class="page-link active"><%= i %></span>
                         <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
-                            <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= i %>" class="page-link"><%= i %></a>
+                            <a href="?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&favorites=<%= showFavoritesOnly ? 'true' : 'false' %>&page=<%= i %>" class="page-link"><%= i %></a>
                         <% } else if (i === 4 && currentPage > 5) { %>
                             <span class="page-link">…</span>
                         <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
@@ -517,7 +578,7 @@
                         <% } %>
                     <% } %>
                     <% if (currentPage < totalPages) { %>
-                        <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= currentPage + 1 %>" class="page-link">Next →</a>
+                        <a href="?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&favorites=<%= showFavoritesOnly ? 'true' : 'false' %>&page=<%= currentPage + 1 %>" class="page-link">Next →</a>
                     <% } %>
                 </div>
             <% } %>
@@ -526,7 +587,6 @@
             <div class="no-results">
                 <h3>🔍 No Results Found</h3>
                 <p>No videos found for "<%= searchTerm %>"</p>
-                <p style="margin-top: 8px; font-size: 13px; color: #666;">💡 Try different terms or check your spelling</p>
             </div>
         <% } else { %>
             <div class="no-results">
@@ -537,7 +597,7 @@
         <% } %>
     </div>
 
-    <!-- ⭐ Video Player Modal -->
+    <!-- Video Player Modal -->
     <div class="video-modal" id="videoModal">
         <button class="close-modal" onclick="closeVideoModal()">✕</button>
         <div class="video-container">
@@ -570,7 +630,7 @@
 
     <script>
         // =========================
-        // VIDEO PLAYER FUNCTIONS
+        // GLOBAL VARIABLES
         // =========================
         let currentVideoUrl = null;
         let currentSceneUrl = null;
@@ -581,10 +641,150 @@
         let currentQuality = '720p';
         let isLoadingQuality = false;
         let videoLoaded = false;
+        let favoriteUrls = new Set();
+        let showFavoritesOnly = <%= showFavoritesOnly ? 'true' : 'false' %>;
 
+        // =========================
+        // BASE URL DETECTION
+        // =========================
+        function getApiBase() {
+            const hostname = window.location.hostname;
+            const href = window.location.href;
+            
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return '';
+            }
+            if (hostname.includes('onrender.com')) {
+                return '';
+            }
+            if (hostname.includes('proxysite') || hostname.includes('proxy') || href.includes('proxysite')) {
+                return 'https://second-hmg0.onrender.com';
+            }
+            return '';
+        }
+
+        async function apiFetch(endpoint, options = {}) {
+            const base = getApiBase();
+            const url = `${base}${endpoint}`;
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+            return response;
+        }
+
+        // =========================
+        // FAVORITES
+        // =========================
+        async function loadFavorites() {
+            try {
+                const response = await apiFetch('/api/video-favorites/urls');
+                const data = await response.json();
+                if (data.success) {
+                    favoriteUrls = new Set(data.urls);
+                    updateFavoriteButtons();
+                    console.log('✅ Loaded', favoriteUrls.size, 'favorites');
+                }
+            } catch (error) {
+                console.error('❌ Error loading favorites:', error);
+            }
+        }
+
+        function updateFavoriteButtons() {
+            document.querySelectorAll('.video-card').forEach(card => {
+                const sceneUrl = card.dataset.sceneUrl;
+                const btn = card.querySelector('.favorite-btn');
+                if (btn && sceneUrl) {
+                    if (favoriteUrls.has(sceneUrl)) {
+                        btn.classList.add('favorited');
+                        btn.textContent = '❤️';
+                        card.dataset.favorited = 'true';
+                    } else {
+                        btn.classList.remove('favorited');
+                        btn.textContent = '🤍';
+                        card.dataset.favorited = 'false';
+                    }
+                }
+            });
+        }
+
+        async function toggleFavoriteFromCard(button, sceneUrl) {
+            if (!sceneUrl) {
+                console.error('No scene URL provided');
+                return;
+            }
+            
+            button.disabled = true;
+            try {
+                const card = button.closest('.video-card');
+                if (!card) {
+                    console.error('Card not found');
+                    return;
+                }
+                
+                const title = card.querySelector('.title')?.textContent || 'Untitled';
+                const thumbnail = card.querySelector('.video-thumbnail img')?.src || '';
+                const video720p = card.dataset.video720p || '';
+                const video480p = card.dataset.video480p || '';
+                const studio = card.querySelector('.studio')?.textContent?.replace('🏢 ', '') || '';
+                const performers = card.querySelector('.performers')?.textContent?.replace('👥 ', '') || '';
+                const duration = card.querySelector('.duration')?.textContent || '';
+                
+                const response = await apiFetch('/api/video-favorites/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scene_url: sceneUrl,
+                        title: title,
+                        thumbnail: thumbnail,
+                        video720p: video720p,
+                        video480p: video480p,
+                        studio: studio,
+                        performers: performers,
+                        duration: duration,
+                        date: ''
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.favorited) {
+                        favoriteUrls.add(sceneUrl);
+                        button.classList.add('favorited');
+                        button.textContent = '❤️';
+                        card.dataset.favorited = 'true';
+                    } else {
+                        favoriteUrls.delete(sceneUrl);
+                        button.classList.remove('favorited');
+                        button.textContent = '🤍';
+                        card.dataset.favorited = 'false';
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error toggling favorite:', error);
+            }
+            button.disabled = false;
+        }
+
+        // ⭐ Toggle favorites filter - reloads page with favorites param
+        function toggleFavoritesFilter() {
+            const checkbox = document.getElementById('favoritesFilter');
+            const form = checkbox.closest('form');
+            const hiddenInput = document.getElementById('favoritesHidden');
+            
+            if (hiddenInput) {
+                hiddenInput.value = checkbox.checked ? 'true' : 'false';
+            }
+            
+            // Submit the form to reload with the favorites filter
+            form.submit();
+        }
+
+        // =========================
+        // VIDEO PLAYER FUNCTIONS
+        // =========================
         async function playVideo(sceneUrl, title, thumbnail, video720p, video480p) {
             console.log('🎬 Playing video:', title);
-            console.log('   Scene URL:', sceneUrl);
             
             currentSceneUrl = sceneUrl;
             currentVideoTitle = title;
@@ -606,7 +806,6 @@
             
             downloadBtn.style.display = 'inline-block';
             
-            // Set the original scene link
             if (originalLink) {
                 originalLink.href = sceneUrl;
                 originalLink.style.display = 'inline-block';
@@ -637,7 +836,7 @@
                 
                 if (!videoUrl || !videoUrl.includes('get_file')) {
                     if (sceneUrl) {
-                        const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                        const response = await apiFetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
                         const data = await response.json();
                         if (data.success && data.videoUrl) {
                             videoUrl = data.videoUrl;
@@ -869,8 +1068,26 @@
             }
         });
 
-        window.addEventListener('beforeunload', function() {
-            closeVideoModal();
+        // =========================
+        // INIT
+        // =========================
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFavorites();
+            
+            // Set the sort select to match the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const sortParam = urlParams.get('sort') || 'date';
+            const favoritesParam = urlParams.get('favorites') === 'true';
+            
+            const sortSelect = document.getElementById('sortSelect');
+            if (sortSelect) {
+                sortSelect.value = sortParam;
+            }
+            
+            const favCheckbox = document.getElementById('favoritesFilter');
+            if (favCheckbox) {
+                favCheckbox.checked = favoritesParam;
+            }
         });
     </script>
 </body>
