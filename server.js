@@ -799,6 +799,59 @@ app.post('/performer/:id/favorite', async (req, res) => {
 });
 
 
+// =========================
+// VIDEO FAVORITES TOGGLE - FORM SUBMISSION (Works through proxy)
+// =========================
+app.post('/video-favorites/toggle', async (req, res) => {
+    const { 
+        scene_url, 
+        title, 
+        thumbnail, 
+        video720p, 
+        video480p, 
+        studio, 
+        performers, 
+        duration, 
+        date 
+    } = req.body;
+    
+    // Get the referer to redirect back
+    const referer = req.headers.referer || '/video-search';
+    
+    if (!scene_url) {
+        return res.redirect(referer);
+    }
+    
+    try {
+        // Check if already favorited
+        const existing = await queryNeon(
+            'SELECT * FROM video_favorites WHERE scene_url = $1',
+            [scene_url]
+        );
+        
+        if (existing.length > 0) {
+            // Remove from favorites
+            await queryNeon(
+                'DELETE FROM video_favorites WHERE scene_url = $1',
+                [scene_url]
+            );
+        } else {
+            // Add to favorites
+            await queryNeon(
+                `INSERT INTO video_favorites (scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                [scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date]
+            );
+        }
+        
+        res.redirect(referer);
+    } catch (error) {
+        console.error('❌ Video favorite error:', error.message);
+        res.redirect(referer);
+    }
+});
+
+
 
 // =========================
 // PERFORMER PROFILE
@@ -1506,7 +1559,7 @@ app.get('/video-search', async (req, res) => {
     const sortBy = req.query.sort || 'date';
     const page = parseInt(req.query.page) || 1;
     const perPage = 24;
-    const showFavoritesOnly = req.query.favorites === 'true'; // ⭐ NEW
+    const showFavoritesOnly = req.query.favorites === 'true';
     
     try {
         // If no search term, just show the empty search page
@@ -1563,10 +1616,14 @@ app.get('/video-search', async (req, res) => {
             });
         }
         
-        // ⭐ Get favorite URLs from the database
+        // ⭐ Get ALL favorite URLs from the database (not just when filtering)
+        const favResult = await queryNeon('SELECT scene_url FROM video_favorites');
+        const allFavoriteUrls = new Set(favResult.map(row => row.scene_url));
+        console.log(`⭐ Total favorites: ${allFavoriteUrls.size}`);
+        
+        // ⭐ If showing only favorites, filter the list
         let favoriteUrls = [];
         if (showFavoritesOnly) {
-            const favResult = await queryNeon('SELECT scene_url FROM video_favorites');
             favoriteUrls = favResult.map(row => row.scene_url);
             console.log(`⭐ Favorites only: ${favoriteUrls.length} favorited videos`);
         }
@@ -1634,6 +1691,9 @@ app.get('/video-search', async (req, res) => {
             if (video.performers) {
                 video.performers = video.performers.replace(/\s*;\s*/g, '; ');
             }
+            
+            // ⭐ CRITICAL: Mark if this video is favorited
+            video.isFavorited = allFavoriteUrls.has(video.url);
         }
         
         // Sort in JavaScript
