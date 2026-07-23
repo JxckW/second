@@ -803,6 +803,9 @@ app.post('/performer/:id/favorite', async (req, res) => {
 // VIDEO FAVORITES TOGGLE - FORM SUBMISSION (Works through proxy)
 // =========================
 app.post('/video-favorites/toggle', async (req, res) => {
+    console.log('🔍 ===== VIDEO FAVORITE FORM SUBMITTED =====');
+    console.log('📝 Body:', req.body);
+    
     const { 
         scene_url, 
         title, 
@@ -815,10 +818,10 @@ app.post('/video-favorites/toggle', async (req, res) => {
         date 
     } = req.body;
     
-    // Get the referer to redirect back
     const referer = req.headers.referer || '/video-search';
     
     if (!scene_url) {
+        console.log('❌ No scene_url provided');
         return res.redirect(referer);
     }
     
@@ -830,14 +833,12 @@ app.post('/video-favorites/toggle', async (req, res) => {
         );
         
         if (existing.length > 0) {
-            // Remove from favorites
             await queryNeon(
                 'DELETE FROM video_favorites WHERE scene_url = $1',
                 [scene_url]
             );
             console.log(`🗑️ Removed favorite: ${scene_url}`);
         } else {
-            // Add to favorites
             await queryNeon(
                 `INSERT INTO video_favorites (scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date) 
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -849,6 +850,7 @@ app.post('/video-favorites/toggle', async (req, res) => {
         res.redirect(referer);
     } catch (error) {
         console.error('❌ Video favorite error:', error.message);
+        console.error('   Stack:', error.stack);
         res.redirect(referer);
     }
 });
@@ -1755,45 +1757,6 @@ app.get('/video-search', async (req, res) => {
     }
 });
 
-
-
-
-// Toggle favorite (add or remove)
-app.post('/api/video-favorites/toggle', async (req, res) => {
-    const { scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date } = req.body;
-    
-    if (!scene_url) {
-        return res.json({ success: false, error: 'Scene URL is required' });
-    }
-    
-    try {
-        // Check if already favorited
-        const existing = await queryNeon(
-            'SELECT * FROM video_favorites WHERE scene_url = $1',
-            [scene_url]
-        );
-        
-        if (existing.length > 0) {
-            // Remove from favorites
-            await queryNeon(
-                'DELETE FROM video_favorites WHERE scene_url = $1',
-                [scene_url]
-            );
-            res.json({ success: true, favorited: false, message: 'Removed from favorites' });
-        } else {
-            // Add to favorites
-            await queryNeon(
-                `INSERT INTO video_favorites (scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date) 
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date]
-            );
-            res.json({ success: true, favorited: true, message: 'Added to favorites' });
-        }
-    } catch (error) {
-        console.error('❌ Toggle video favorite error:', error.message);
-        res.json({ success: false, error: error.message });
-    }
-});
 
 // Check if a scene is favorited
 app.get('/api/video-favorites/check', async (req, res) => {
