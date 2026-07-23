@@ -728,6 +728,79 @@ app.get('/advanced-search', async (req, res) => {
 
 
 // =========================
+// RATE PERFORMER - FORM SUBMISSION (Works through proxy)
+// =========================
+app.post('/performer/:id/rate', async (req, res) => {
+    const performerId = req.params.id;
+    const rating = req.body.rating;
+    
+    try {
+        // Check if rating exists
+        const existing = await queryMiget(
+            'SELECT performer_id FROM performer_ratings WHERE performer_id = $1',
+            [performerId]
+        );
+        
+        if (existing.rows.length > 0) {
+            // Update existing rating
+            await queryMiget(
+                `UPDATE performer_ratings 
+                 SET rating = $1, updated_at = CURRENT_TIMESTAMP 
+                 WHERE performer_id = $2`,
+                [rating, performerId]
+            );
+        } else {
+            // Insert new rating
+            await queryMiget(
+                `INSERT INTO performer_ratings (performer_id, rating, updated_at) 
+                 VALUES ($1, $2, CURRENT_TIMESTAMP)`,
+                [performerId, rating]
+            );
+        }
+        
+        res.redirect(`/performer/${performerId}`);
+    } catch (error) {
+        console.error('❌ Rating error:', error.message);
+        res.redirect(`/performer/${performerId}?error=rating_failed`);
+    }
+});
+
+// =========================
+// FAVORITE PERFORMER - FORM SUBMISSION (Works through proxy)
+// =========================
+app.post('/performer/:id/favorite', async (req, res) => {
+    const performerId = req.params.id;
+    
+    try {
+        const result = await queryMiget(
+            'SELECT performer_id FROM favorite_performers WHERE performer_id = $1',
+            [performerId]
+        );
+        
+        if (result.rows.length > 0) {
+            // Remove from favorites
+            await queryMiget(
+                'DELETE FROM favorite_performers WHERE performer_id = $1',
+                [performerId]
+            );
+        } else {
+            // Add to favorites
+            await queryMiget(
+                'INSERT INTO favorite_performers (performer_id) VALUES ($1)',
+                [performerId]
+            );
+        }
+        
+        res.redirect(`/performer/${performerId}`);
+    } catch (error) {
+        console.error('❌ Favorite error:', error.message);
+        res.redirect(`/performer/${performerId}?error=favorite_failed`);
+    }
+});
+
+
+
+// =========================
 // PERFORMER PROFILE
 // =========================
 app.get('/performer/:id', async (req, res) => {

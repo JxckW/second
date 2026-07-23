@@ -79,20 +79,21 @@
             <div class="performer-profile">
                 <div class="profile-header">
 
-                    <!-- Add this button in the performer profile header -->
-<a href="/performer/<%= performerId %>/videos" class="mode-btn" style="
-    display: inline-block;
-    padding: 8px 20px;
-    border-radius: 20px;
-    border: 1px solid #667eea;
-    background: transparent;
-    color: #667eea;
-    text-decoration: none;
-    transition: all 0.2s;
-    margin-left: 10px;
-">
-    🎬 Video Mode
-</a>
+                    <!-- Video Mode Button -->
+                    <a href="/performer/<%= performerId %>/videos" class="mode-btn" style="
+                        display: inline-block;
+                        padding: 8px 20px;
+                        border-radius: 20px;
+                        border: 1px solid #667eea;
+                        background: transparent;
+                        color: #667eea;
+                        text-decoration: none;
+                        transition: all 0.2s;
+                        margin-left: 10px;
+                    ">
+                        🎬 Video Mode
+                    </a>
+                    
                     <div class="profile-image-container">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <button onclick="changeImage(-1)" class="image-nav-btn">❮</button>
@@ -122,23 +123,29 @@
                                 <h2><%= performer.name %></h2>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap;">
+                                <!-- ⭐ RATING - Updated to use form submission (works through proxy) -->
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <span style="color: #888; font-size: 13px;">Grade:</span>
-                                    <select id="performerGrade" onchange="ratePerformer(this.value)" class="grade-select">
-                                        <option value="">—</option>
-                                        <option value="S" <%= performerRating === 'S' ? 'selected' : '' %>>S</option>
-                                        <option value="A" <%= performerRating === 'A' ? 'selected' : '' %>>A</option>
-                                        <option value="B" <%= performerRating === 'B' ? 'selected' : '' %>>B</option>
-                                        <option value="C" <%= performerRating === 'C' ? 'selected' : '' %>>C</option>
-                                        <option value="D" <%= performerRating === 'D' ? 'selected' : '' %>>D</option>
-                                        <option value="F" <%= performerRating === 'F' ? 'selected' : '' %>>F</option>
-                                        <option value="U" <%= performerRating === 'U' ? 'selected' : '' %>>U</option>
-                                        <option value="L" <%= performerRating === 'L' ? 'selected' : '' %>>L</option>
-                                    </select>
+                                    <form method="post" action="/performer/<%= performerId %>/rate" style="display: inline;">
+                                        <select name="rating" class="grade-select" onchange="this.closest('form').submit()">
+                                            <option value="">—</option>
+                                            <option value="S" <%= performerRating === 'S' ? 'selected' : '' %>>S</option>
+                                            <option value="A" <%= performerRating === 'A' ? 'selected' : '' %>>A</option>
+                                            <option value="B" <%= performerRating === 'B' ? 'selected' : '' %>>B</option>
+                                            <option value="C" <%= performerRating === 'C' ? 'selected' : '' %>>C</option>
+                                            <option value="D" <%= performerRating === 'D' ? 'selected' : '' %>>D</option>
+                                            <option value="F" <%= performerRating === 'F' ? 'selected' : '' %>>F</option>
+                                            <option value="U" <%= performerRating === 'U' ? 'selected' : '' %>>U</option>
+                                            <option value="L" <%= performerRating === 'L' ? 'selected' : '' %>>L</option>
+                                        </select>
+                                    </form>
                                 </div>
-                                <button onclick="toggleFavoritePerformer()" class="favorite-btn <%= isPerformerFavorited ? 'active' : '' %>">
-                                    <%= isPerformerFavorited ? '❤️ Favorited' : '🤍 Favorite' %>
-                                </button>
+                                <!-- ⭐ FAVORITE - Updated to use form submission (works through proxy) -->
+                                <form method="post" action="/performer/<%= performerId %>/favorite" style="display: inline;">
+                                    <button type="submit" class="favorite-btn <%= isPerformerFavorited ? 'active' : '' %>">
+                                        <%= isPerformerFavorited ? '❤️ Favorited' : '🤍 Favorite' %>
+                                    </button>
+                                </form>
                             </div>
                         </div>
                         <% if (performerRating) { %>
@@ -263,35 +270,12 @@
 
     <script>
         // =========================
-        // PERFORMER RATING
+        // NOTE: ratePerformer and toggleFavoritePerformer have been replaced with form submissions
+        // The functions below are kept for other functionality
         // =========================
-        function ratePerformer(rating) {
-            fetch('/api/rate/performer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ performerId: '<%= performerId %>', rating: rating })
-            })
-            .then(res => res.json())
-            .then(data => { if (data.success) location.reload(); })
-            .catch(err => console.error('Error rating performer:', err));
-        }
 
         // =========================
-        // FAVORITE PERFORMER
-        // =========================
-        function toggleFavoritePerformer() {
-            fetch('/api/favorite/performer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ performerId: '<%= performerId %>' })
-            })
-            .then(res => res.json())
-            .then(data => { if (data.success) location.reload(); })
-            .catch(err => console.error('Error toggling favorite:', err));
-        }
-
-        // =========================
-        // FAVORITE SCENE
+        // FAVORITE SCENE (Still uses fetch - this is for scenes, not performer)
         // =========================
         function toggleFavoriteScene(sceneId, button) {
             event.preventDefault();
