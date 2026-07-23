@@ -859,6 +859,186 @@ app.post('/video-favorites/toggle', async (req, res) => {
 });
 
 
+// Get deleted performers list
+app.get('/api/admin/deleted-performers', async (req, res) => {
+    try {
+        const performers = await queryNeon(`
+            SELECT id, name FROM deleted_performers ORDER BY name
+        `);
+        res.json({ success: true, performers: performers });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Deleted performers page
+app.get('/admin/deleted', (req, res) => {
+    res.render('admin-deleted', { title: 'Deleted Performers' });
+});
+
+
+// =========================
+// CLEANUP LOW-RATED PERFORMERS - WITH MINIMAL ARCHIVE
+// =========================
+app.post('/api/admin/cleanup-performers', async (req, res) => {
+    const { ratings = ['C', 'D', 'F', 'L'], dryRun = true } = req.body;
+    
+    try {
+        // Find performers with low ratings
+        const ratingsList = ratings.map(r => `'${r}'`).join(',');
+        const lowRatedPerformers = await queryMiget(`
+            SELECT performer_id, rating 
+            FROM performer_ratings 
+            WHERE rating IN (${ratingsList})
+        `);
+        
+        if (lowRatedPerformers.rows.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No low-rated performers found',
+                performers: [],
+                dryRun: dryRun
+            });
+        }
+        
+        const performerIds = lowRatedPerformers.rows.map(row => row.performer_id);
+        const performerRatings = {};
+        lowRatedPerformers.rows.forEach(row => {
+            performerRatings[row.performer_id] = row.rating;
+        });
+        
+        // Get performer details from Neon
+        const placeholders = performerIds.map((_, i) => `$${i + 1}`).join(',');
+        const performers = await queryNeon(`
+            SELECT id, name, scene_count 
+            FROM performers 
+            WHERE id IN (${placeholders})
+        `, performerIds);
+        
+        if (performers.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No performers found in Neon with these ratings',
+                performers: [],
+                dryRun: dryRun
+            });
+        }
+        
+        // Check scenes
+        const perfIds = performers.map(p => `'${p.id}'`).join(',');
+        const sceneData = await queryNeon(`
+            SELECT 
+                ps.scene_id,
+                COUNT(DISTINCT ps.performer_id) as performer_count
+            FROM performer_scenes ps
+            WHERE ps.performer_id IN (${perfIds})
+            GROUP BY ps.scene_id
+        `);
+        
+        const orphanedScenes = sceneData.filter(row => row.performer_count === 1);
+        const estimatedFreedMB = (performers.length * 0.001) + (orphanedScenes.length * 0.005);
+        
+        let results = {
+            performersRemoved: 0,
+            scenesRemoved: 0,
+            performerScenesRemoved: 0,
+            archivedPerformers: [],
+            estimatedFreedMB: estimatedFreedMB.toFixed(2)
+        };
+        
+        if (!dryRun) {
+            // ⭐ Archive ONLY id and name
+            const archiveValues = performers.map(p => 
+                `('${p.id}', '${p.name.replace(/'/g, "''")}')`
+            ).join(',');
+            
+            await queryNeon(`
+                INSERT INTO deleted_performers (id, name)
+                VALUES ${archiveValues}
+                ON CONFLICT (id) DO NOTHING
+            `);
+            
+            const deleteIds = performers.map(p => `'${p.id}'`).join(',');
+            
+            // Delete from performer_scenes
+            const psResult = await queryNeon(`
+                DELETE FROM performer_scenes 
+                WHERE performer_id IN (${deleteIds})
+                RETURNING scene_id
+            `);
+            results.performerScenesRemoved = psResult.length;
+            
+            // Delete orphaned scenes
+            const orphanedSceneIds = orphanedScenes.map(row => `'${row.scene_id}'`).join(',');
+            if (orphanedSceneIds.length > 0) {
+                const sceneResult = await queryNeon(`
+                    DELETE FROM scenes 
+                    WHERE id IN (${orphanedSceneIds})
+                    RETURNING id
+                `);
+                results.scenesRemoved = sceneResult.length;
+            }
+            
+            // Delete performers
+            const perfResult = await queryNeon(`
+                DELETE FROM performers 
+                WHERE id IN (${deleteIds})
+                RETURNING id, name
+            `);
+            results.performersRemoved = perfResult.length;
+            
+            // Clean up Miget
+            await queryMiget(`
+                DELETE FROM performer_ratings 
+                WHERE performer_id IN (${deleteIds})
+            `);
+            await queryMiget(`
+                DELETE FROM favorite_performers 
+                WHERE performer_id IN (${deleteIds})
+            `);
+            
+            // VACUUM
+            await queryNeon('VACUUM ANALYZE performers');
+            await queryNeon('VACUUM ANALYZE performer_scenes');
+            await queryNeon('VACUUM ANALYZE scenes');
+            
+            results.message = `✅ Removed ${results.performersRemoved} performers (archived), ${results.scenesRemoved} orphaned scenes`;
+        } else {
+            results.message = `🔍 DRY RUN: Would remove ${performers.length} performers and ${orphanedScenes.length} orphaned scenes (est. ${estimatedFreedMB.toFixed(2)} MB freed)`;
+        }
+        
+        res.json({
+            success: true,
+            dryRun: dryRun,
+            results: results,
+            performers: performers.map(p => ({
+                id: p.id,
+                name: p.name,
+                rating: performerRatings[p.id] || 'Unknown',
+                scene_count: p.scene_count || 0
+            })),
+            summary: {
+                totalLowRatedPerformers: performers.length,
+                totalOrphanedScenes: orphanedScenes.length,
+                estimatedFreedMB: estimatedFreedMB.toFixed(2)
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Cleanup error:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+
+// =========================
+// ADMIN CLEANUP PAGE
+// =========================
+app.get('/admin/cleanup', (req, res) => {
+    res.render('admin-cleanup', { title: 'Admin Cleanup' });
+});
+
+
 
 // =========================
 // PERFORMER PROFILE
