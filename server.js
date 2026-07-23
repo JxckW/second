@@ -835,13 +835,15 @@ app.post('/video-favorites/toggle', async (req, res) => {
                 'DELETE FROM video_favorites WHERE scene_url = $1',
                 [scene_url]
             );
+            console.log(`🗑️ Removed favorite: ${scene_url}`);
         } else {
             // Add to favorites
             await queryNeon(
                 `INSERT INTO video_favorites (scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date) 
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [scene_url, title, thumbnail, video720p, video480p, studio, performers, duration, date]
+                [scene_url, title || '', thumbnail || '', video720p || '', video480p || '', studio || '', performers || '', duration || '', date || '']
             );
+            console.log(`⭐ Added favorite: ${scene_url}`);
         }
         
         res.redirect(referer);
@@ -1755,22 +1757,6 @@ app.get('/video-search', async (req, res) => {
 
 
 
-// =========================
-// VIDEO FAVORITES API ENDPOINTS
-// =========================
-
-// Get all favorited videos
-app.get('/api/video-favorites', async (req, res) => {
-    try {
-        const result = await queryNeon(
-            'SELECT * FROM video_favorites ORDER BY created_at DESC'
-        );
-        res.json({ success: true, favorites: result });
-    } catch (error) {
-        console.error('❌ Get video favorites error:', error.message);
-        res.json({ success: false, error: error.message, favorites: [] });
-    }
-});
 
 // Toggle favorite (add or remove)
 app.post('/api/video-favorites/toggle', async (req, res) => {
