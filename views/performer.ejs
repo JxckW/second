@@ -63,6 +63,13 @@
         .scene-search button:hover { transform: scale(1.02); opacity: 0.9; }
         .filter-count { color: #888; font-size: 13px; margin-left: auto; }
         .loading-indicator { text-align: center; padding: 40px; color: #888; }
+        .search-form { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center; }
+        .search-form input { flex: 1; min-width: 200px; padding: 10px 14px; border: 2px solid #333; border-radius: 10px; background: #1a1a1a; color: #fff; font-size: 14px; transition: border-color 0.3s; }
+        .search-form input:focus { outline: none; border-color: #667eea; }
+        .search-form .btn-search { padding: 10px 18px; border: none; border-radius: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; }
+        .search-form .btn-clear { padding: 10px 18px; border: none; border-radius: 10px; background: #333; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+        .search-form .btn-search:hover, .search-form .btn-clear:hover { transform: scale(1.02); opacity: 0.9; }
+        .search-info { color: #888; font-size: 13px; margin-left: auto; }
         @media (max-width: 1024px) { .scene-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 768px) { .scene-grid { grid-template-columns: repeat(2, 1fr); } .profile-image { width: 100px; height: 100px; } }
         @media (max-width: 480px) { .scene-grid { grid-template-columns: 1fr; } }
@@ -121,6 +128,11 @@
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;">
                             <div>
                                 <h2><%= performer.name %></h2>
+                                <% if (searchTerm && searchTerm.trim()) { %>
+                                    <div style="color: #667eea; font-size: 14px; margin-top: 4px;">
+                                        🔍 Searching: "<%= searchTerm %>"
+                                    </div>
+                                <% } %>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap;">
                                 <!-- ⭐ RATING - Updated to use form submission (works through proxy) -->
@@ -169,21 +181,20 @@
                 <div class="scenes-section">
                     <h3>🎬 Scenes (<span id="totalSceneCount"><%= totalScenes %></span>)</h3>
 
-                    <!-- Scene Search Bar - Global Search -->
+                    <!-- Scene Search Bar - Server Side Form -->
                     <div class="scene-search">
-                        <input type="text" 
-                               id="sceneSearchInput" 
-                               placeholder="Search all scenes by title or studio..." 
-                               onkeyup="handleSearchKeyup(event)">
-                        <button onclick="performGlobalSearch()">🔍 Search</button>
-                        <button onclick="clearGlobalSearch()">✕ Clear</button>
-                        <span id="sceneCount" class="filter-count">Showing <%= scenes.length %> of <%= totalScenes %> scenes</span>
-                        <span id="searchStatus" style="color: #888; font-size: 12px; display: none;"></span>
-                    </div>
-
-                    <!-- Loading indicator -->
-                    <div id="searchLoading" class="loading-indicator" style="display: none;">
-                        <p>🔍 Searching scenes...</p>
+                        <form method="get" action="/performer/<%= performerId %>" class="search-form">
+                            <input type="text" 
+                                   name="q" 
+                                   value="<%= searchTerm || '' %>" 
+                                   placeholder="Search scenes by title or studio..." 
+                                   autofocus>
+                            <button type="submit" class="btn-search">🔍 Search</button>
+                            <% if (searchTerm && searchTerm.trim()) { %>
+                                <a href="/performer/<%= performerId %>" class="btn-clear">✕ Clear</a>
+                            <% } %>
+                            <span class="search-info">Showing <%= scenes.length %> of <%= totalScenes %> scenes</span>
+                        </form>
                     </div>
 
                     <div class="scene-grid" id="sceneGrid">
@@ -208,8 +219,8 @@
                                     <div class="scene-info">
                                         <h4><%= scene.title || 'Untitled Scene' %></h4>
                                         <div class="scene-meta">
-                                            <% if (scene.studio) { %>
-                                                <span class="studio">🏢 <%= scene.studio.name %></span>
+                                            <% if (scene.studio_name) { %>
+                                                <span class="studio">🏢 <%= scene.studio_name %></span>
                                             <% } %>
                                             <% if (scene.date) { %>
                                                 <span class="date">📅 <%= new Date(scene.date).toLocaleDateString() %></span>
@@ -222,22 +233,25 @@
                     </div>
 
                     <!-- No results message -->
-                    <div id="noResults" style="display: none; text-align: center; padding: 40px; color: #888;">
-                        <p>No scenes found matching your search.</p>
-                    </div>
+                    <% if (scenes.length === 0) { %>
+                        <div style="text-align: center; padding: 40px; color: #888;">
+                            <p>No scenes found matching "<%= searchTerm %>"</p>
+                            <a href="/performer/<%= performerId %>" style="color: #667eea; text-decoration: none;">Clear search</a>
+                        </div>
+                    <% } %>
 
                     <!-- Pagination -->
                     <div id="paginationContainer">
                         <% if (totalPages > 1) { %>
                             <div class="pagination" id="pagination">
                                 <% if (currentPage > 1) { %>
-                                    <a href="/performer/<%= performerId %>?page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
+                                    <a href="/performer/<%= performerId %>?q=<%= searchTerm || '' %>&page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
                                 <% } %>
                                 <% for (let i = 1; i <= totalPages; i++) { %>
                                     <% if (i === currentPage) { %>
                                         <span class="page-link active"><%= i %></span>
                                     <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
-                                        <a href="/performer/<%= performerId %>?page=<%= i %>" class="page-link"><%= i %></a>
+                                        <a href="/performer/<%= performerId %>?q=<%= searchTerm || '' %>&page=<%= i %>" class="page-link"><%= i %></a>
                                     <% } else if (i === 4 && currentPage > 5) { %>
                                         <span class="page-link">…</span>
                                     <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
@@ -245,7 +259,7 @@
                                     <% } %>
                                 <% } %>
                                 <% if (currentPage < totalPages) { %>
-                                    <a href="/performer/<%= performerId %>?page=<%= currentPage + 1 %>" class="page-link">Next →</a>
+                                    <a href="/performer/<%= performerId %>?q=<%= searchTerm || '' %>&page=<%= currentPage + 1 %>" class="page-link">Next →</a>
                                 <% } %>
                             </div>
                         <% } %>
@@ -269,11 +283,6 @@
     </div>
 
     <script>
-        // =========================
-        // NOTE: ratePerformer and toggleFavoritePerformer have been replaced with form submissions
-        // The functions below are kept for other functionality
-        // =========================
-
         // =========================
         // FAVORITE SCENE (Still uses fetch - this is for scenes, not performer)
         // =========================
@@ -324,156 +333,6 @@
             if (mainImage) mainImage.src = performerImages[currentImageIndex].url;
             if (imageCounter) imageCounter.textContent = performerImages.length + ' photos';
             if (imageIndexDisplay) imageIndexDisplay.textContent = (currentImageIndex + 1) + ' / ' + performerImages.length;
-        }
-
-        // =========================
-        // GLOBAL SCENE SEARCH
-        // =========================
-        var currentSearchTerm = '';
-        var currentSearchPage = 1;
-        var isSearching = false;
-
-        function handleSearchKeyup(event) {
-            if (event.key === 'Enter') {
-                performGlobalSearch();
-            }
-        }
-
-        function performGlobalSearch() {
-            var input = document.getElementById('sceneSearchInput');
-            var searchTerm = input.value.trim();
-            currentSearchTerm = searchTerm;
-            currentSearchPage = 1;
-            fetchScenes(searchTerm, 1);
-        }
-
-        function clearGlobalSearch() {
-            document.getElementById('sceneSearchInput').value = '';
-            currentSearchTerm = '';
-            currentSearchPage = 1;
-            fetchScenes('', 1);
-        }
-
-        function fetchScenes(searchTerm, page) {
-            var performerId = '<%= performerId %>';
-            var loading = document.getElementById('searchLoading');
-            var grid = document.getElementById('sceneGrid');
-            var noResults = document.getElementById('noResults');
-            var countSpan = document.getElementById('sceneCount');
-            var totalSpan = document.getElementById('totalSceneCount');
-            var statusSpan = document.getElementById('searchStatus');
-            var paginationContainer = document.getElementById('paginationContainer');
-
-            if (isSearching) return;
-            isSearching = true;
-
-            // Show loading
-            if (loading) loading.style.display = 'block';
-            if (grid) grid.style.display = 'none';
-            if (noResults) noResults.style.display = 'none';
-            if (statusSpan) statusSpan.textContent = 'Searching...';
-            if (statusSpan) statusSpan.style.display = 'inline';
-
-            var url = '/api/performer/' + performerId + '/scenes?q=' + encodeURIComponent(searchTerm) + '&page=' + page;
-
-            fetch(url)
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    isSearching = false;
-                    if (loading) loading.style.display = 'none';
-                    if (statusSpan) statusSpan.style.display = 'none';
-
-                    if (data.success) {
-                        // Update scene grid
-                        if (grid) {
-                            grid.innerHTML = '';
-                            if (data.scenes.length === 0) {
-                                if (noResults) noResults.style.display = 'block';
-                                if (grid) grid.style.display = 'none';
-                            } else {
-                                if (noResults) noResults.style.display = 'none';
-                                if (grid) grid.style.display = 'grid';
-                                data.scenes.forEach(function(scene) {
-                                    var card = document.createElement('div');
-                                    card.className = 'scene-card';
-                                    card.setAttribute('data-scene-id', scene.id);
-                                    card.innerHTML = `
-                                        <a href="/scene/${scene.id}" style="text-decoration: none; color: inherit; display: block; height: 100%;">
-                                            <div class="scene-thumbnail">
-                                                ${scene.images && scene.images.length > 0 && scene.images[0].url ? 
-                                                    `<img src="${scene.images[0].url}" alt="${scene.title || 'Scene'}" loading="lazy">` :
-                                                    '<div class="no-image">🎬</div>'
-                                                }
-                                                ${scene.duration ? `<div class="scene-duration">${Math.floor(scene.duration / 60)}m</div>` : ''}
-                                                <button onclick="event.preventDefault(); event.stopPropagation(); toggleFavoriteScene('${scene.id}', this)" 
-                                                        class="scene-favorite-btn" 
-                                                        style="color: ${scene.isFavorited ? '#f0c040' : '#555'};">
-                                                    ${scene.isFavorited ? '⭐' : '☆'}
-                                                </button>
-                                            </div>
-                                            <div class="scene-info">
-                                                <h4>${scene.title || 'Untitled Scene'}</h4>
-                                                <div class="scene-meta">
-                                                    ${scene.studio ? `<span class="studio">🏢 ${scene.studio.name}</span>` : ''}
-                                                    ${scene.date ? `<span class="date">📅 ${new Date(scene.date).toLocaleDateString()}</span>` : ''}
-                                                </div>
-                                            </div>
-                                        </a>
-                                    `;
-                                    grid.appendChild(card);
-                                });
-                            }
-                        }
-
-                        // Update count
-                        if (countSpan) countSpan.textContent = 'Showing ' + data.scenes.length + ' of ' + data.totalCount + ' scenes';
-                        if (totalSpan) totalSpan.textContent = data.totalCount;
-
-                        // Update pagination
-                        if (paginationContainer) {
-                            if (data.totalPages > 1) {
-                                var paginationHtml = '<div class="pagination">';
-                                if (data.currentPage > 1) {
-                                    paginationHtml += `<a href="#" onclick="event.preventDefault(); fetchScenes('${searchTerm}', ${data.currentPage - 1}); return false;" class="page-link">← Previous</a>`;
-                                }
-                                for (var i = 1; i <= data.totalPages; i++) {
-                                    if (i === data.currentPage) {
-                                        paginationHtml += `<span class="page-link active">${i}</span>`;
-                                    } else if (i <= 3 || i > data.totalPages - 3 || Math.abs(i - data.currentPage) <= 1) {
-                                        paginationHtml += `<a href="#" onclick="event.preventDefault(); fetchScenes('${searchTerm}', ${i}); return false;" class="page-link">${i}</a>`;
-                                    } else if (i === 4 && data.currentPage > 5) {
-                                        paginationHtml += '<span class="page-link">…</span>';
-                                    } else if (i === data.totalPages - 3 && data.currentPage < data.totalPages - 4) {
-                                        paginationHtml += '<span class="page-link">…</span>';
-                                    }
-                                }
-                                if (data.currentPage < data.totalPages) {
-                                    paginationHtml += `<a href="#" onclick="event.preventDefault(); fetchScenes('${searchTerm}', ${data.currentPage + 1}); return false;" class="page-link">Next →</a>`;
-                                }
-                                paginationHtml += '</div>';
-                                paginationContainer.innerHTML = paginationHtml;
-                            } else {
-                                paginationContainer.innerHTML = '';
-                            }
-                        }
-                    } else {
-                        console.error('Search error:', data.error);
-                        if (noResults) {
-                            noResults.style.display = 'block';
-                            noResults.innerHTML = '<p>❌ Error searching: ' + data.error + '</p>';
-                        }
-                    }
-                })
-                .catch(function(error) {
-                    isSearching = false;
-                    if (loading) loading.style.display = 'none';
-                    if (statusSpan) statusSpan.style.display = 'none';
-                    console.error('Fetch error:', error);
-                    if (noResults) {
-                        noResults.style.display = 'block';
-                        noResults.innerHTML = '<p>❌ Error searching scenes. Please try again.</p>';
-                    }
-                });
         }
     </script>
 </body>

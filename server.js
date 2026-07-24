@@ -162,18 +162,23 @@ async function getPerformerScenes(performerId, page = 1, perPage = 24) {
     const offset = (page - 1) * perPage;
     
     const countResult = await queryNeon(
-        'SELECT COUNT(*) FROM performer_scenes WHERE performer_id = $1',
-        [performerId]
+        `SELECT COUNT(*) FROM scenes 
+         WHERE performer_ids IS NOT NULL 
+         AND performer_ids != ''
+         AND performer_ids LIKE $1`,
+        [`%${performerId}%`]
     );
     const total = parseInt(countResult[0]?.count || 0);
     
+    // ✅ Added ORDER BY date DESC - most recent first
     const scenes = await queryNeon(`
-        SELECT s.* 
-        FROM scenes s
-        JOIN performer_scenes ps ON s.id = ps.scene_id
-        WHERE ps.performer_id = $1
+        SELECT * FROM scenes 
+        WHERE performer_ids IS NOT NULL 
+        AND performer_ids != ''
+        AND performer_ids LIKE $1
+        ORDER BY date DESC NULLS LAST
         LIMIT $2 OFFSET $3
-    `, [performerId, perPage, offset]);
+    `, [`%${performerId}%`, perPage, offset]);
     
     return {
         scenes: scenes.map(s => ({
@@ -408,9 +413,6 @@ app.get('/advanced-search', async (req, res) => {
     const perPage = 50;
     
     try {
-        // =========================
-        // BUILD THE QUERY DIRECTLY
-        // =========================
         const userData = await getUserData();
         const studioNames = studios;
         const offset = (page - 1) * perPage;
@@ -528,8 +530,7 @@ app.get('/advanced-search', async (req, res) => {
                     COALESCE(wc.wow_count, 0) as wow_scene_count,
                     COUNT(DISTINCT s.studio_name) as studio_count
                 FROM performers p
-                JOIN performer_scenes ps ON p.id = ps.performer_id
-                JOIN scenes s ON ps.scene_id = s.id
+                JOIN scenes s ON s.performer_ids LIKE '%' || p.id || '%'
                 LEFT JOIN wow_counts wc ON p.name = wc.performer
                 ${whereClause}
                 ${whereClause ? 'AND' : 'WHERE'} COALESCE(wc.wow_count, 0) >= $${paramIndex}
@@ -551,8 +552,7 @@ app.get('/advanced-search', async (req, res) => {
                     COUNT(DISTINCT s.studio_name) as studio_count,
                     0 as wow_scene_count
                 FROM performers p
-                JOIN performer_scenes ps ON p.id = ps.performer_id
-                JOIN scenes s ON ps.scene_id = s.id
+                JOIN scenes s ON s.performer_ids LIKE '%' || p.id || '%'
                 ${whereClause}
                 GROUP BY p.id, p.name, p.gender, p.age, p.height, p.scene_count, 
                          p.country, p.ethnicity, p.aliases, p.is_favorite, p.images, p.cupsize
@@ -924,18 +924,20 @@ app.post('/api/admin/cleanup-performers', async (req, res) => {
             });
         }
         
-        // Check scenes
+        // Check scenes - using performer_ids column
         const perfIds = performers.map(p => `'${p.id}'`).join(',');
         const sceneData = await queryNeon(`
             SELECT 
-                ps.scene_id,
-                COUNT(DISTINCT ps.performer_id) as performer_count
-            FROM performer_scenes ps
-            WHERE ps.performer_id IN (${perfIds})
-            GROUP BY ps.scene_id
+                s.id as scene_id,
+                COUNT(DISTINCT unnest(string_to_array(s.performer_ids, ';'))) as performer_count
+            FROM scenes s
+            WHERE s.performer_ids IS NOT NULL
+            AND s.performer_ids != ''
+            AND s.performer_ids LIKE ANY(ARRAY[${perfIds.map(id => `'%${id}%'`).join(',')}])
+            GROUP BY s.id
         `);
         
-        const orphanedScenes = sceneData.filter(row => row.performer_count === 1);
+        const orphanedScenes = sceneData.filter(row => parseInt(row.performer_count) === 1);
         const estimatedFreedMB = (performers.length * 0.001) + (orphanedScenes.length * 0.005);
         
         let results = {
@@ -960,15 +962,7 @@ app.post('/api/admin/cleanup-performers', async (req, res) => {
             
             const deleteIds = performers.map(p => `'${p.id}'`).join(',');
             
-            // Delete from performer_scenes
-            const psResult = await queryNeon(`
-                DELETE FROM performer_scenes 
-                WHERE performer_id IN (${deleteIds})
-                RETURNING scene_id
-            `);
-            results.performerScenesRemoved = psResult.length;
-            
-            // Delete orphaned scenes
+            // Delete orphaned scenes (since we don't have performer_scenes anymore)
             const orphanedSceneIds = orphanedScenes.map(row => `'${row.scene_id}'`).join(',');
             if (orphanedSceneIds.length > 0) {
                 const sceneResult = await queryNeon(`
@@ -999,7 +993,6 @@ app.post('/api/admin/cleanup-performers', async (req, res) => {
             
             // VACUUM
             await queryNeon('VACUUM ANALYZE performers');
-            await queryNeon('VACUUM ANALYZE performer_scenes');
             await queryNeon('VACUUM ANALYZE scenes');
             
             results.message = `✅ Removed ${results.performersRemoved} performers (archived), ${results.scenesRemoved} orphaned scenes`;
@@ -1041,12 +1034,13 @@ app.get('/admin/cleanup', (req, res) => {
 
 
 // =========================
-// PERFORMER PROFILE
+// PERFORMER PROFILE - WITH SEARCH SUPPORT
 // =========================
 app.get('/performer/:id', async (req, res) => {
     const performerId = req.params.id;
     const page = parseInt(req.query.page) || 1;
     const perPage = 24;
+    const searchTerm = req.query.q || '';  // ✅ Get search term from query
     const userData = await getUserData();
     
     try {
@@ -1055,8 +1049,40 @@ app.get('/performer/:id', async (req, res) => {
             return res.status(404).send('Performer not found');
         }
         
-        const { scenes, total, totalPages } = await getPerformerScenes(performerId, page, perPage);
+        // Build the query with optional search
+        let params = [`%${performerId}%`];
+        let paramIndex = 2;
+        let whereClause = `performer_ids IS NOT NULL AND performer_ids != '' AND performer_ids LIKE $1`;
         
+        // Add search filter if there's a search term
+        if (searchTerm && searchTerm.trim()) {
+            whereClause += ` AND (title ILIKE $${paramIndex} OR studio_name ILIKE $${paramIndex})`;
+            params.push(`%${searchTerm.trim()}%`);
+            paramIndex++;
+        }
+        
+        // Count total scenes
+        const countQuery = `
+            SELECT COUNT(*) FROM scenes 
+            WHERE ${whereClause}
+        `;
+        const countResult = await queryNeon(countQuery, params.slice(0, paramIndex - 1));
+        const total = parseInt(countResult[0]?.count || 0);
+        
+        // Get paginated scenes
+        const offset = (page - 1) * perPage;
+        const query = `
+            SELECT * FROM scenes 
+            WHERE ${whereClause}
+            ORDER BY date DESC NULLS LAST
+            LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+        params.push(perPage, offset);
+        
+        const scenes = await queryNeon(query, params);
+        const totalPages = Math.ceil(total / perPage);
+        
+        // Format performer
         const performerObj = {
             id: performer.id,
             name: performer.name,
@@ -1071,22 +1097,33 @@ app.get('/performer/:id', async (req, res) => {
             images: performer.images ? JSON.parse(performer.images) : []
         };
         
+        // Format scenes with user data
         const scenesWithUserData = scenes.map(scene => ({
             ...scene,
-            isFavorited: userData.favoriteScenes.includes(scene.id)
+            images: scene.images ? JSON.parse(scene.images) : [],
+            isFavorited: userData.favoriteScenes.includes(scene.id),
+            studio: scene.studio_id ? { name: scene.studio_name } : null
         }));
         
+        // Determine page title
+        let pageTitle = performer.name;
+        if (searchTerm && searchTerm.trim()) {
+            pageTitle = `${performer.name} - Search: "${searchTerm}"`;
+        }
+        
         res.render('performer', {
-            title: performer.name,
+            title: pageTitle,
             performer: performerObj,
+            performerId: performerId,
             scenes: scenesWithUserData,
+            totalScenes: total,
             currentPage: page,
             totalPages: totalPages,
-            totalScenes: total,
-            performerId: performerId,
+            searchTerm: searchTerm,  // ✅ Pass searchTerm to template
             performerRating: userData.performerRatings[performerId] || null,
             isPerformerFavorited: userData.favoritePerformers.includes(performerId)
         });
+        
     } catch (error) {
         console.error('❌ Performer error:', error.message);
         res.status(404).send(`Performer not found: ${error.message}`);
@@ -1405,11 +1442,15 @@ app.get('/scene/:id', async (req, res) => {
         }
         
         const scene = sceneResult[0];
+        // Get performers using performer_ids column
         const performers = await queryNeon(`
             SELECT p.* 
             FROM performers p
-            JOIN performer_scenes ps ON p.id = ps.performer_id
-            WHERE ps.scene_id = $1
+            WHERE EXISTS (
+                SELECT 1 FROM scenes s
+                WHERE s.id = $1
+                AND s.performer_ids LIKE '%' || p.id || '%'
+            )
         `, [sceneId]);
         
         const formattedScene = {
@@ -1455,11 +1496,13 @@ app.get('/studio/:id', async (req, res) => {
         }
         
         const { scenes, total, totalPages } = await getStudioScenes(studioId, page, perPage);
+        // Get performers count using performer_ids column
         const performersResult = await queryNeon(`
-            SELECT COUNT(DISTINCT ps.performer_id) 
-            FROM performer_scenes ps
-            JOIN scenes s ON ps.scene_id = s.id
+            SELECT COUNT(DISTINCT unnest(string_to_array(s.performer_ids, ';'))) as count
+            FROM scenes s
             WHERE s.studio_id = $1
+            AND s.performer_ids IS NOT NULL
+            AND s.performer_ids != ''
         `, [studioId]);
         const performersCount = parseInt(performersResult[0]?.count || 0);
         
@@ -1947,8 +1990,6 @@ app.get('/video-search', async (req, res) => {
         });
     }
 });
-
-
 
 
 
