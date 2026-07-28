@@ -301,10 +301,6 @@
             color: #666;
             font-style: italic;
         }
-        .rating-summary .rating-label {
-            color: #888;
-            font-size: 10px;
-        }
         .rating-summary .clip-badge {
             background: #1a1a1a;
             padding: 1px 6px;
@@ -704,8 +700,7 @@
             .mode-btn { font-size: 12px; padding: 6px 14px; }
             .controls-bar { flex-direction: column; align-items: stretch; }
             .controls-bar .search-input { min-width: auto; }
-            .rating-categories { grid-template-columns: 1fr; }
-            .rating-modal .modal-content { padding: 16px; margin: 10px; }
+            .rating-categories { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -795,7 +790,7 @@
                         }
                     }
                     
-                    // Rating data
+                    // Rating data - 8 categories
                     const isX = parseInt(scene.is_x) || 0;
                     const totalClips = parseInt(scene.total_clips) || 0;
                     const score = parseFloat(scene.score) || 0;
@@ -805,6 +800,7 @@
                     const cowgirlClips = parseInt(scene.cowgirl_clips) || 0;
                     const reverseCowgirlClips = parseInt(scene.reverse_cowgirl_clips) || 0;
                     const lyingClips = parseInt(scene.lying_clips) || 0;
+                    const lyingDoggystyleClips = parseInt(scene.lying_doggystyle_clips) || 0;
                     const outroClips = parseInt(scene.outro_clips) || 0;
                     const durationMinutes = parseInt(scene.duration_minutes) || 0;
                     const hasRating = isX === 1 || totalClips > 0 || score > 0;
@@ -827,6 +823,7 @@
                     <%= cowgirlClips %>,
                     <%= reverseCowgirlClips %>,
                     <%= lyingClips %>,
+                    <%= lyingDoggystyleClips %>,
                     <%= outroClips %>,
                     <%= isX %>,
                     <%= totalClips %>,
@@ -869,6 +866,7 @@
                             <% if (cowgirlClips > 0) { %><span class="clip-badge">🤠<%= cowgirlClips %></span><% } %>
                             <% if (reverseCowgirlClips > 0) { %><span class="clip-badge">🔄<%= reverseCowgirlClips %></span><% } %>
                             <% if (lyingClips > 0) { %><span class="clip-badge">😴<%= lyingClips %></span><% } %>
+                            <% if (lyingDoggystyleClips > 0) { %><span class="clip-badge">🐕😴<%= lyingDoggystyleClips %></span><% } %>
                             <% if (outroClips > 0) { %><span class="clip-badge">👋<%= outroClips %></span><% } %>
                         <% } else { %>
                             <span class="unrated">📝 Click to rate</span>
@@ -965,6 +963,11 @@
                         <input type="number" name="lying_clips" id="lying_clips" min="0" max="99" value="0" class="clip-input">
                     </div>
                     <div class="category-row">
+                        <span class="category-icon">🐕😴</span>
+                        <span class="category-label">Lying Doggystyle</span>
+                        <input type="number" name="lying_doggystyle_clips" id="lying_doggystyle_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                    <div class="category-row">
                         <span class="category-icon">👋</span>
                         <span class="category-label">Outro</span>
                         <input type="number" name="outro_clips" id="outro_clips" min="0" max="99" value="0" class="clip-input">
@@ -972,7 +975,7 @@
                 </div>
                 
                 <div class="rating-actions">
-                    <button type="submit" class="btn-rating" onclick="document.getElementById('ratingIsX').value='0'">⭐ Save Rating</button>
+                    <button type="submit" class="btn-rating">⭐ Save Rating</button>
                     <button type="button" class="btn-x" id="btnX" onclick="toggleX()">✕ Mark as X</button>
                     <button type="button" class="btn-close-modal" onclick="closeRatingModal()">Cancel</button>
                 </div>
@@ -1026,6 +1029,7 @@
             cowgirlClips: 0,
             reverseCowgirlClips: 0,
             lyingClips: 0,
+            lyingDoggystyleClips: 0,
             outroClips: 0,
             isX: 0,
             totalClips: 0,
@@ -1035,13 +1039,13 @@
 
         function openRatingModal(sceneUrl, title, duration, durationMinutes, 
                                  introClips, headClips, doggystyleClips, cowgirlClips,
-                                 reverseCowgirlClips, lyingClips, outroClips,
+                                 reverseCowgirlClips, lyingClips, lyingDoggystyleClips, outroClips,
                                  isX, totalClips, score, performerName) {
             
             currentRatingData = {
                 sceneUrl, title, duration, durationMinutes,
                 introClips, headClips, doggystyleClips, cowgirlClips,
-                reverseCowgirlClips, lyingClips, outroClips,
+                reverseCowgirlClips, lyingClips, lyingDoggystyleClips, outroClips,
                 isX, totalClips, score, performerName
             };
             
@@ -1057,6 +1061,7 @@
             document.getElementById('cowgirl_clips').value = cowgirlClips || 0;
             document.getElementById('reverse_cowgirl_clips').value = reverseCowgirlClips || 0;
             document.getElementById('lying_clips').value = lyingClips || 0;
+            document.getElementById('lying_doggystyle_clips').value = lyingDoggystyleClips || 0;
             document.getElementById('outro_clips').value = outroClips || 0;
             
             // Update status display
@@ -1104,16 +1109,49 @@
             const currentIsX = parseInt(isXInput.value) || 0;
             
             if (currentIsX === 1) {
+                // Unmark X - restore previous values
                 isXInput.value = '0';
                 btnX.classList.remove('active');
                 btnX.textContent = '✕ Mark as X';
-                // Show current rating if exists
+                
+                // Restore the clip values from currentRatingData
+                document.getElementById('intro_clips').value = currentRatingData.introClips || 0;
+                document.getElementById('head_clips').value = currentRatingData.headClips || 0;
+                document.getElementById('doggystyle_clips').value = currentRatingData.doggystyleClips || 0;
+                document.getElementById('cowgirl_clips').value = currentRatingData.cowgirlClips || 0;
+                document.getElementById('reverse_cowgirl_clips').value = currentRatingData.reverseCowgirlClips || 0;
+                document.getElementById('lying_clips').value = currentRatingData.lyingClips || 0;
+                document.getElementById('lying_doggystyle_clips').value = currentRatingData.lyingDoggystyleClips || 0;
+                document.getElementById('outro_clips').value = currentRatingData.outroClips || 0;
+                
+                // Update display
                 updateRatingDisplay(0, currentRatingData.totalClips, currentRatingData.score);
             } else {
+                // Mark as X - save current values to restore later
+                currentRatingData.introClips = parseInt(document.getElementById('intro_clips').value) || 0;
+                currentRatingData.headClips = parseInt(document.getElementById('head_clips').value) || 0;
+                currentRatingData.doggystyleClips = parseInt(document.getElementById('doggystyle_clips').value) || 0;
+                currentRatingData.cowgirlClips = parseInt(document.getElementById('cowgirl_clips').value) || 0;
+                currentRatingData.reverseCowgirlClips = parseInt(document.getElementById('reverse_cowgirl_clips').value) || 0;
+                currentRatingData.lyingClips = parseInt(document.getElementById('lying_clips').value) || 0;
+                currentRatingData.lyingDoggystyleClips = parseInt(document.getElementById('lying_doggystyle_clips').value) || 0;
+                currentRatingData.outroClips = parseInt(document.getElementById('outro_clips').value) || 0;
+                
                 isXInput.value = '1';
                 btnX.classList.add('active');
                 btnX.textContent = '✕ X (Active)';
-                // Show X status
+                
+                // Clear all clip values
+                document.getElementById('intro_clips').value = 0;
+                document.getElementById('head_clips').value = 0;
+                document.getElementById('doggystyle_clips').value = 0;
+                document.getElementById('cowgirl_clips').value = 0;
+                document.getElementById('reverse_cowgirl_clips').value = 0;
+                document.getElementById('lying_clips').value = 0;
+                document.getElementById('lying_doggystyle_clips').value = 0;
+                document.getElementById('outro_clips').value = 0;
+                
+                // Update display
                 updateRatingDisplay(1, 0, 0);
             }
         }
@@ -1432,3 +1470,148 @@
     </script>
 </body>
 </html>
+And here's the updated server route that works with this EJS:
+
+javascript
+app.post('/video-rating/save', async (req, res) => {
+    console.log('🔍 ===== VIDEO RATING FORM SUBMITTED =====');
+    console.log('📝 Body:', req.body);
+    
+    const { 
+        scene_url,
+        intro_clips = 0,
+        head_clips = 0,
+        doggystyle_clips = 0,
+        cowgirl_clips = 0,
+        reverse_cowgirl_clips = 0,
+        lying_clips = 0,
+        lying_doggystyle_clips = 0,
+        outro_clips = 0,
+        is_x = 0
+    } = req.body;
+    
+    const referer = req.headers.referer || '/video-search';
+    
+    if (!scene_url) {
+        console.log('❌ No scene_url provided');
+        return res.redirect(referer);
+    }
+    
+    try {
+        const isX = parseInt(is_x) || 0;
+        
+        // Get duration
+        const videoData = await queryNeon(
+            'SELECT duration FROM wow_videos WHERE url = $1',
+            [scene_url]
+        );
+        
+        if (videoData.length === 0) {
+            console.log(`⚠️ No video found with URL: ${scene_url}`);
+            return res.redirect(referer);
+        }
+        
+        // Calculate duration_minutes
+        let duration_minutes = 0;
+        const duration = videoData[0].duration || '';
+        
+        if (duration) {
+            if (duration.includes(':')) {
+                const parts = duration.split(':');
+                if (parts.length === 2) {
+                    duration_minutes = parseInt(parts[0]) + Math.round(parseInt(parts[1]) / 60);
+                } else if (parts.length === 3) {
+                    duration_minutes = parseInt(parts[0]) * 60 + parseInt(parts[1]) + Math.round(parseInt(parts[2]) / 60);
+                }
+            } else if (/^\d+$/.test(duration)) {
+                duration_minutes = parseInt(duration);
+            }
+        }
+        
+        console.log(`⏱️ Duration: "${duration}" -> ${duration_minutes} minutes`);
+        
+        let total_clips = 0;
+        let score = 0;
+        
+        if (isX === 1) {
+            // Simple: Just set is_x = 1, everything else NULL
+            await queryNeon(`
+                UPDATE wow_videos 
+                SET 
+                    intro_clips = NULL,
+                    head_clips = NULL,
+                    doggystyle_clips = NULL,
+                    cowgirl_clips = NULL,
+                    reverse_cowgirl_clips = NULL,
+                    lying_clips = NULL,
+                    lying_doggystyle_clips = NULL,
+                    outro_clips = NULL,
+                    is_x = 1,
+                    total_clips = 0,
+                    score = 0,
+                    rating_updated_at = CURRENT_TIMESTAMP
+                WHERE url = $1
+            `, [scene_url]);
+            
+            console.log(`✅ Marked as X: ${scene_url}`);
+            
+        } else {
+            // Calculate clips
+            const intro = parseInt(intro_clips) || 0;
+            const head = parseInt(head_clips) || 0;
+            const doggy = parseInt(doggystyle_clips) || 0;
+            const cow = parseInt(cowgirl_clips) || 0;
+            const reverse = parseInt(reverse_cowgirl_clips) || 0;
+            const lying = parseInt(lying_clips) || 0;
+            const lyingDoggy = parseInt(lying_doggystyle_clips) || 0;
+            const outro = parseInt(outro_clips) || 0;
+            
+            total_clips = intro + head + doggy + cow + reverse + lying + lyingDoggy + outro;
+            
+            if (duration_minutes > 0 && total_clips > 0) {
+                score = total_clips / duration_minutes;
+            }
+            
+            await queryNeon(`
+                UPDATE wow_videos 
+                SET 
+                    intro_clips = $1,
+                    head_clips = $2,
+                    doggystyle_clips = $3,
+                    cowgirl_clips = $4,
+                    reverse_cowgirl_clips = $5,
+                    lying_clips = $6,
+                    lying_doggystyle_clips = $7,
+                    outro_clips = $8,
+                    is_x = 0,
+                    duration_minutes = $9,
+                    total_clips = $10,
+                    score = $11,
+                    rating_updated_at = CURRENT_TIMESTAMP
+                WHERE url = $12
+            `, [
+                intro > 0 ? intro : null,
+                head > 0 ? head : null,
+                doggy > 0 ? doggy : null,
+                cow > 0 ? cow : null,
+                reverse > 0 ? reverse : null,
+                lying > 0 ? lying : null,
+                lyingDoggy > 0 ? lyingDoggy : null,
+                outro > 0 ? outro : null,
+                duration_minutes,
+                total_clips,
+                score,
+                scene_url
+            ]);
+            
+            console.log(`✅ Saved rating for: ${scene_url} (${total_clips} clips, score: ${score})`);
+        }
+        
+        res.redirect(referer);
+        
+    } catch (error) {
+        console.error('❌ Video rating error:', error.message);
+        console.error('   Stack:', error.stack);
+        res.redirect(referer);
+    }
+});

@@ -923,9 +923,6 @@ async function getPerformerRatingFromWow(performerName) {
     }
 }
 
-// =========================
-// VIDEO RATING - FORM SUBMISSION (FIXED)
-// =========================
 app.post('/video-rating/save', async (req, res) => {
     console.log('🔍 ===== VIDEO RATING FORM SUBMITTED =====');
     console.log('📝 Body:', req.body);
@@ -938,6 +935,7 @@ app.post('/video-rating/save', async (req, res) => {
         cowgirl_clips = 0,
         reverse_cowgirl_clips = 0,
         lying_clips = 0,
+        lying_doggystyle_clips = 0,
         outro_clips = 0,
         is_x = 0
     } = req.body;
@@ -950,7 +948,9 @@ app.post('/video-rating/save', async (req, res) => {
     }
     
     try {
-        // ⭐ FIRST: Get the video's duration from the database
+        const isX = parseInt(is_x) || 0;
+        
+        // Get duration
         const videoData = await queryNeon(
             'SELECT duration FROM wow_videos WHERE url = $1',
             [scene_url]
@@ -961,7 +961,7 @@ app.post('/video-rating/save', async (req, res) => {
             return res.redirect(referer);
         }
         
-        // ⭐ Calculate duration_minutes from the duration text
+        // Calculate duration_minutes
         let duration_minutes = 0;
         const duration = videoData[0].duration || '';
         
@@ -969,72 +969,94 @@ app.post('/video-rating/save', async (req, res) => {
             if (duration.includes(':')) {
                 const parts = duration.split(':');
                 if (parts.length === 2) {
-                    // MM:SS format
                     duration_minutes = parseInt(parts[0]) + Math.round(parseInt(parts[1]) / 60);
                 } else if (parts.length === 3) {
-                    // H:MM:SS format
                     duration_minutes = parseInt(parts[0]) * 60 + parseInt(parts[1]) + Math.round(parseInt(parts[2]) / 60);
                 }
             } else if (/^\d+$/.test(duration)) {
-                // Plain minutes
                 duration_minutes = parseInt(duration);
             }
         }
         
         console.log(`⏱️ Duration: "${duration}" -> ${duration_minutes} minutes`);
         
-        // Calculate totals
-        const total_clips = parseInt(intro_clips) + parseInt(head_clips) + 
-                           parseInt(doggystyle_clips) + parseInt(cowgirl_clips) + 
-                           parseInt(reverse_cowgirl_clips) + parseInt(lying_clips) + 
-                           parseInt(outro_clips);
-        
-        // Score = total_clips / duration_minutes (in minutes)
+        let total_clips = 0;
         let score = 0;
-        const isX = parseInt(is_x) || 0;
         
-        if (duration_minutes > 0 && isX === 0) {
-            score = total_clips / duration_minutes;
+        if (isX === 1) {
+            // Simple: Just set is_x = 1, everything else NULL/0
+            await queryNeon(`
+                UPDATE wow_videos 
+                SET 
+                    intro_clips = NULL,
+                    head_clips = NULL,
+                    doggystyle_clips = NULL,
+                    cowgirl_clips = NULL,
+                    reverse_cowgirl_clips = NULL,
+                    lying_clips = NULL,
+                    lying_doggystyle_clips = NULL,
+                    outro_clips = NULL,
+                    is_x = 1,
+                    total_clips = 0,
+                    score = 0,
+                    rating_updated_at = CURRENT_TIMESTAMP
+                WHERE url = $1
+            `, [scene_url]);
+            
+            console.log(`✅ Marked as X: ${scene_url}`);
+            
+        } else {
+            // Calculate clips
+            const intro = parseInt(intro_clips) || 0;
+            const head = parseInt(head_clips) || 0;
+            const doggy = parseInt(doggystyle_clips) || 0;
+            const cow = parseInt(cowgirl_clips) || 0;
+            const reverse = parseInt(reverse_cowgirl_clips) || 0;
+            const lying = parseInt(lying_clips) || 0;
+            const lyingDoggy = parseInt(lying_doggystyle_clips) || 0;
+            const outro = parseInt(outro_clips) || 0;
+            
+            total_clips = intro + head + doggy + cow + reverse + lying + lyingDoggy + outro;
+            
+            if (duration_minutes > 0 && total_clips > 0) {
+                score = total_clips / duration_minutes;
+            }
+            
+            await queryNeon(`
+                UPDATE wow_videos 
+                SET 
+                    intro_clips = $1,
+                    head_clips = $2,
+                    doggystyle_clips = $3,
+                    cowgirl_clips = $4,
+                    reverse_cowgirl_clips = $5,
+                    lying_clips = $6,
+                    lying_doggystyle_clips = $7,
+                    outro_clips = $8,
+                    is_x = 0,
+                    duration_minutes = $9,
+                    total_clips = $10,
+                    score = $11,
+                    rating_updated_at = CURRENT_TIMESTAMP
+                WHERE url = $12
+            `, [
+                intro > 0 ? intro : null,
+                head > 0 ? head : null,
+                doggy > 0 ? doggy : null,
+                cow > 0 ? cow : null,
+                reverse > 0 ? reverse : null,
+                lying > 0 ? lying : null,
+                lyingDoggy > 0 ? lyingDoggy : null,
+                outro > 0 ? outro : null,
+                duration_minutes,
+                total_clips,
+                score,
+                scene_url
+            ]);
+            
+            console.log(`✅ Saved rating for: ${scene_url} (${total_clips} clips, score: ${score})`);
         }
         
-        console.log(`📊 Total clips: ${total_clips}, Score: ${score.toFixed(4)}, is_x: ${isX}`);
-        
-        // Update wow_videos table
-        const result = await queryNeon(`
-            UPDATE wow_videos 
-            SET 
-                intro_clips = $1,
-                head_clips = $2,
-                doggystyle_clips = $3,
-                cowgirl_clips = $4,
-                reverse_cowgirl_clips = $5,
-                lying_clips = $6,
-                outro_clips = $7,
-                is_x = $8,
-                duration_minutes = $9,
-                total_clips = $10,
-                score = $11,
-                rating_updated_at = CURRENT_TIMESTAMP
-            WHERE url = $12
-            RETURNING performer, duration, duration_minutes, total_clips, score
-        `, [
-            parseInt(intro_clips) || 0,
-            parseInt(head_clips) || 0,
-            parseInt(doggystyle_clips) || 0,
-            parseInt(cowgirl_clips) || 0,
-            parseInt(reverse_cowgirl_clips) || 0,
-            parseInt(lying_clips) || 0,
-            parseInt(outro_clips) || 0,
-            isX,
-            duration_minutes,
-            total_clips,
-            score,
-            scene_url
-        ]);
-        
-        console.log('✅ Update result:', result[0]);
-        
-        // Redirect back
         res.redirect(referer);
         
     } catch (error) {
