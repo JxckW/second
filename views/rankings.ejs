@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title><%= title %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #0a0a0a; 
+            color: #e0e0e0; 
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+        header { 
+            margin-bottom: 20px; 
+            padding: 16px 0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        header h1 { 
+            font-size: 24px; 
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff9f43 100%); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent;
+        }
+        .back-link { 
+            display: inline-block; 
+            color: #667eea; 
+            text-decoration: none; 
+            font-size: 14px;
+            padding: 8px 16px;
+            border: 1px solid #667eea;
+            border-radius: 8px;
+        }
+        .back-link:hover { background: #667eea; color: #fff; }
+
+        .controls-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            align-items: center;
+        }
+        .controls-bar select, .controls-bar input {
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 14px;
+            cursor: pointer;
+            min-width: 120px;
+        }
+        .controls-bar select:focus, .controls-bar input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .controls-bar .search-btn {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            text-decoration: none;
+        }
+        .controls-bar .search-btn:hover { opacity: 0.85; }
+
+        .stats-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            border: 1px solid #2a2a2a;
+        }
+        .stats-row .stat {
+            color: #888;
+            font-size: 14px;
+        }
+        .stats-row .stat strong { color: #fff; }
+
+        .rankings-grid { display: grid; gap: 12px; }
+
+        .ranking-card {
+            display: grid;
+            grid-template-columns: 60px 1fr auto;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            transition: transform 0.2s, border-color 0.2s;
+            align-items: center;
+            cursor: pointer;
+        }
+        .ranking-card:hover {
+            transform: translateX(4px);
+            border-color: #667eea;
+        }
+        .ranking-card .rank {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+        }
+        .ranking-card .rank.gold { color: #ffd700; }
+        .ranking-card .rank.silver { color: #c0c0c0; }
+        .ranking-card .rank.bronze { color: #cd7f32; }
+
+        .ranking-card .info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            overflow: hidden;
+        }
+        .ranking-card .info .name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .ranking-card .info .sub {
+            font-size: 12px;
+            color: #888;
+        }
+        .ranking-card .info .sub span { margin-right: 12px; }
+
+        .ranking-card .score {
+            text-align: right;
+            font-size: 18px;
+            font-weight: bold;
+            color: #4caf50;
+        }
+        .ranking-card .score .label {
+            font-size: 11px;
+            font-weight: normal;
+            color: #888;
+        }
+        .ranking-card .clips {
+            text-align: right;
+            font-size: 14px;
+            color: #ff9f43;
+        }
+        .ranking-card .clips .label {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .category-badges {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 2px;
+        }
+        .category-badge {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: #2a2a2a;
+            color: #888;
+        }
+        .category-badge.active {
+            background: #667eea;
+            color: #fff;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #888;
+        }
+        .empty-state h3 { color: #fff; margin-bottom: 8px; }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+        .page-link {
+            display: inline-block;
+            padding: 8px 14px;
+            border-radius: 8px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            text-decoration: none;
+            border: 1px solid #2a2a2a;
+            font-size: 14px;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .page-link:hover {
+            background: #2a2a2a;
+            border-color: #667eea;
+        }
+        .page-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .ranking-card {
+                grid-template-columns: 40px 1fr;
+                gap: 8px;
+            }
+            .ranking-card .rank { font-size: 16px; }
+            .ranking-card .score { grid-column: 1 / -1; text-align: left; }
+            .ranking-card .clips { grid-column: 1 / -1; text-align: left; }
+            .controls-bar { flex-direction: column; align-items: stretch; }
+            .controls-bar select, .controls-bar input { min-width: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <a href="/" class="back-link">← Back to Home</a>
+                <h1>🏆 Video Rankings</h1>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <form method="get" action="/rankings" class="controls-bar">
+            <select name="type" onchange="this.form.submit()">
+                <option value="performers" <%= type === 'performers' ? 'selected' : '' %>>🏆 Performers</option>
+                <option value="scenes" <%= type === 'scenes' ? 'selected' : '' %>>🎬 Scenes</option>
+            </select>
+            
+            <select name="sort" onchange="this.form.submit()">
+                <option value="score" <%= sort === 'score' ? 'selected' : '' %>>⭐ Score (Clips/Min)</option>
+                <option value="total_clips" <%= sort === 'total_clips' ? 'selected' : '' %>>📊 Total Clips</option>
+                <option value="scenes_rated" <%= sort === 'scenes_rated' ? 'selected' : '' %>>🎬 Scenes Rated</option>
+                <option value="intro" <%= sort === 'intro' ? 'selected' : '' %>>💋 Intro</option>
+                <option value="head" <%= sort === 'head' ? 'selected' : '' %>>👄 Head</option>
+                <option value="doggystyle" <%= sort === 'doggystyle' ? 'selected' : '' %>>🐕 Doggystyle</option>
+                <option value="cowgirl" <%= sort === 'cowgirl' ? 'selected' : '' %>>🤠 Cowgirl</option>
+                <option value="reverse_cowgirl" <%= sort === 'reverse_cowgirl' ? 'selected' : '' %>>🔄 Reverse Cowgirl</option>
+                <option value="lying" <%= sort === 'lying' ? 'selected' : '' %>>😴 Lying</option>
+                <option value="outro" <%= sort === 'outro' ? 'selected' : '' %>>👋 Outro</option>
+                <option value="date" <%= sort === 'date' ? 'selected' : '' %>>📅 Date</option>
+            </select>
+            
+            <select name="order" onchange="this.form.submit()">
+                <option value="desc" <%= order === 'desc' ? 'selected' : '' %>>⬇ Highest First</option>
+                <option value="asc" <%= order === 'asc' ? 'selected' : '' %>>⬆ Lowest First</option>
+            </select>
+            
+            <select name="gender" onchange="this.form.submit()">
+                <option value="">All Genders</option>
+                <option value="FEMALE" <%= gender === 'FEMALE' ? 'selected' : '' %>>Female</option>
+                <option value="MALE" <%= gender === 'MALE' ? 'selected' : '' %>>Male</option>
+                <option value="TRANS" <%= gender === 'TRANS' ? 'selected' : '' %>>Trans</option>
+            </select>
+            
+            <input type="number" name="min_scenes" value="<%= min_scenes %>" min="1" max="100" 
+                   style="width:100px;" placeholder="Min scenes" onchange="this.form.submit()">
+            
+            <button type="submit" class="search-btn">🔄 Refresh</button>
+        </form>
+
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat">Total: <strong><%= total %></strong></div>
+            <div class="stat">Showing: <strong><%= data.length %></strong></div>
+            <% if (type === 'performers') { %>
+                <div class="stat">Min Scenes: <strong><%= min_scenes %></strong></div>
+            <% } %>
+        </div>
+
+        <!-- Results -->
+        <% if (data && data.length > 0) { %>
+            <div class="rankings-grid">
+                <% data.forEach((item, index) => { 
+                    const rankNum = (currentPage - 1) * 50 + index + 1;
+                    let rankClass = '';
+                    if (rankNum === 1) rankClass = 'gold';
+                    else if (rankNum === 2) rankClass = 'silver';
+                    else if (rankNum === 3) rankClass = 'bronze';
+                %>
+                    <div class="ranking-card" onclick="window.location.href='<%= type === 'performers' ? '/performer/' + item.id : item.url %>'">
+                        <div class="rank <%= rankClass %>">#<%= rankNum %></div>
+                        <div class="info">
+                            <div class="name"><%= item.name || item.title %></div>
+                            <div class="sub">
+                                <% if (type === 'performers') { %>
+                                    <span>🎬 <%= item.total_scenes_rated %> scenes rated</span>
+                                    <span>📊 <%= item.total_clips %> clips total</span>
+                                    <% if (item.gender) { %><span>⚤ <%= item.gender %></span><% } %>
+                                    <% if (item.cupsize) { %><span>📏 <%= item.cupsize %></span><% } %>
+                                    <% if (item.country) { %><span>🌍 <%= item.country %></span><% } %>
+                                <% } else { %>
+                                    <span>🎬 <%= item.performer || 'Unknown' %></span>
+                                    <% if (item.studio) { %><span>🏢 <%= item.studio %></span><% } %>
+                                    <% if (item.date) { %><span>📅 <%= item.date %></span><% } %>
+                                    <span>⏱ <%= item.duration || 'N/A' %></span>
+                                <% } %>
+                            </div>
+                            <div class="category-badges">
+                                <% if (item.avg_intro > 0 || item.intro_clips > 0) { %>
+                                    <span class="category-badge active">💋 <%= (item.avg_intro || item.intro_clips).toFixed(1) %></span>
+                                <% } %>
+                                <% if (item.avg_head > 0 || item.head_clips > 0) { %>
+                                    <span class="category-badge active">👄 <%= (item.avg_head || item.head_clips).toFixed(1) %></span>
+                                <% } %>
+                                <% if (item.avg_doggystyle > 0 || item.doggystyle_clips > 0) { %>
+                                    <span class="category-badge active">🐕 <%= (item.avg_doggystyle || item.doggystyle_clips).toFixed(1) %></span>
+                                <% } %>
+                                <% if (item.avg_cowgirl > 0 || item.cowgirl_clips > 0) { %>
+                                    <span class="category-badge active">🤠 <%= (item.avg_cowgirl || item.cowgirl_clips).toFixed(1) %></span>
+                                <% } %>
+                                <% if (item.avg_reverse_cowgirl > 0 || item.reverse_cowgirl_clips > 0) { %>
+                                    <span class="category-badge active">🔄 <%= (item.avg_reverse_cowgirl || item.reverse_cowgirl_clips).toFixed(1) %></span>
+                                <% } %>
+                                <% if (item.avg_lying > 0 || item.lying_clips > 0) { %>
+                                    <span class="category-badge active">😴 <%= (item.avg_lying || item.lying_clips).toFixed(1) %></span>
+                                <% } %>
+                                <% if (item.avg_outro > 0 || item.outro_clips > 0) { %>
+                                    <span class="category-badge active">👋 <%= (item.avg_outro || item.outro_clips).toFixed(1) %></span>
+                                <% } %>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="score"><%= (item.average_score || item.score || 0).toFixed(2) %> <span class="label">clips/min</span></div>
+                            <div class="clips"><%= item.total_clips || 0 %> <span class="label">clips</span></div>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+            
+            <!-- Pagination -->
+            <% if (totalPages > 1) { %>
+                <div class="pagination">
+                    <% if (currentPage > 1) { %>
+                        <a href="/rankings?type=<%= type %>&sort=<%= sort %>&order=<%= order %>&gender=<%= gender %>&min_scenes=<%= min_scenes %>&page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
+                    <% } %>
+                    <% for (let i = 1; i <= totalPages; i++) { %>
+                        <% if (i === currentPage) { %>
+                            <span class="page-link active"><%= i %></span>
+                        <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
+                            <a href="/rankings?type=<%= type %>&sort=<%= sort %>&order=<%= order %>&gender=<%= gender %>&min_scenes=<%= min_scenes %>&page=<%= i %>" class="page-link"><%= i %></a>
+                        <% } else if (i === 4 && currentPage > 5) { %>
+                            <span class="page-link">…</span>
+                        <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
+                            <span class="page-link">…</span>
+                        <% } %>
+                    <% } %>
+                    <% if (currentPage < totalPages) { %>
+                        <a href="/rankings?type=<%= type %>&sort=<%= sort %>&order=<%= order %>&gender=<%= gender %>&min_scenes=<%= min_scenes %>&page=<%= currentPage + 1 %>" class="page-link">Next →</a>
+                    <% } %>
+                </div>
+            <% } %>
+        <% } else { %>
+            <div class="empty-state">
+                <h3>📭 No data available</h3>
+                <p>Start rating videos to see rankings here!</p>
+                <p style="margin-top: 8px; font-size: 12px; color: #666;">
+                    Go to a performer's <a href="/" style="color: #667eea;">Video Mode</a> and rate their scenes.
+                </p>
+            </div>
+        <% } %>
+    </div>
+</body>
+</html>
