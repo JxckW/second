@@ -859,6 +859,539 @@ app.post('/video-favorites/toggle', async (req, res) => {
 });
 
 
+// =========================
+// VIDEO RATING - CALCULATE FROM wow_videos (NO EXTRA TABLE NEEDED)
+// =========================
+
+// Helper function to get performer rating from wow_videos
+async function getPerformerRatingFromWow(performerName) {
+    if (!performerName) return null;
+    
+    try {
+        // Get all rated scenes for this performer (not X)
+        const scenes = await queryNeon(`
+            SELECT 
+                intro_clips, head_clips, doggystyle_clips, cowgirl_clips,
+                reverse_cowgirl_clips, lying_clips, outro_clips,
+                total_clips, score, duration_minutes
+            FROM wow_videos 
+            WHERE performer ILIKE $1
+            AND is_x = 0
+            AND duration_minutes > 0
+            AND score > 0
+        `, [performerName]);
+        
+        if (scenes.length === 0) {
+            return null;
+        }
+        
+        // Calculate averages
+        const totalScenes = scenes.length;
+        let totalScore = 0;
+        let totalClips = 0;
+        let sumIntro = 0, sumHead = 0, sumDoggystyle = 0, sumCowgirl = 0;
+        let sumReverseCowgirl = 0, sumLying = 0, sumOutro = 0;
+        
+        for (const scene of scenes) {
+            totalScore += parseFloat(scene.score) || 0;
+            totalClips += parseInt(scene.total_clips) || 0;
+            sumIntro += parseInt(scene.intro_clips) || 0;
+            sumHead += parseInt(scene.head_clips) || 0;
+            sumDoggystyle += parseInt(scene.doggystyle_clips) || 0;
+            sumCowgirl += parseInt(scene.cowgirl_clips) || 0;
+            sumReverseCowgirl += parseInt(scene.reverse_cowgirl_clips) || 0;
+            sumLying += parseInt(scene.lying_clips) || 0;
+            sumOutro += parseInt(scene.outro_clips) || 0;
+        }
+        
+        return {
+            average_score: totalScore / totalScenes,
+            total_scenes_rated: totalScenes,
+            total_clips: totalClips,
+            avg_intro: sumIntro / totalScenes,
+            avg_head: sumHead / totalScenes,
+            avg_doggystyle: sumDoggystyle / totalScenes,
+            avg_cowgirl: sumCowgirl / totalScenes,
+            avg_reverse_cowgirl: sumReverseCowgirl / totalScenes,
+            avg_lying: sumLying / totalScenes,
+            avg_outro: sumOutro / totalScenes
+        };
+        
+    } catch (error) {
+        console.error('❌ Get performer rating error:', error.message);
+        return null;
+    }
+}
+
+// =========================
+// VIDEO RATING - FORM SUBMISSION (FIXED)
+// =========================
+app.post('/video-rating/save', async (req, res) => {
+    console.log('🔍 ===== VIDEO RATING FORM SUBMITTED =====');
+    console.log('📝 Body:', req.body);
+    
+    const { 
+        scene_url,
+        intro_clips = 0,
+        head_clips = 0,
+        doggystyle_clips = 0,
+        cowgirl_clips = 0,
+        reverse_cowgirl_clips = 0,
+        lying_clips = 0,
+        outro_clips = 0,
+        is_x = 0
+    } = req.body;
+    
+    const referer = req.headers.referer || '/video-search';
+    
+    if (!scene_url) {
+        console.log('❌ No scene_url provided');
+        return res.redirect(referer);
+    }
+    
+    try {
+        // ⭐ FIRST: Get the video's duration from the database
+        const videoData = await queryNeon(
+            'SELECT duration FROM wow_videos WHERE url = $1',
+            [scene_url]
+        );
+        
+        if (videoData.length === 0) {
+            console.log(`⚠️ No video found with URL: ${scene_url}`);
+            return res.redirect(referer);
+        }
+        
+        // ⭐ Calculate duration_minutes from the duration text
+        let duration_minutes = 0;
+        const duration = videoData[0].duration || '';
+        
+        if (duration) {
+            if (duration.includes(':')) {
+                const parts = duration.split(':');
+                if (parts.length === 2) {
+                    // MM:SS format
+                    duration_minutes = parseInt(parts[0]) + Math.round(parseInt(parts[1]) / 60);
+                } else if (parts.length === 3) {
+                    // H:MM:SS format
+                    duration_minutes = parseInt(parts[0]) * 60 + parseInt(parts[1]) + Math.round(parseInt(parts[2]) / 60);
+                }
+            } else if (/^\d+$/.test(duration)) {
+                // Plain minutes
+                duration_minutes = parseInt(duration);
+            }
+        }
+        
+        console.log(`⏱️ Duration: "${duration}" -> ${duration_minutes} minutes`);
+        
+        // Calculate totals
+        const total_clips = parseInt(intro_clips) + parseInt(head_clips) + 
+                           parseInt(doggystyle_clips) + parseInt(cowgirl_clips) + 
+                           parseInt(reverse_cowgirl_clips) + parseInt(lying_clips) + 
+                           parseInt(outro_clips);
+        
+        // Score = total_clips / duration_minutes (in minutes)
+        let score = 0;
+        const isX = parseInt(is_x) || 0;
+        
+        if (duration_minutes > 0 && isX === 0) {
+            score = total_clips / duration_minutes;
+        }
+        
+        console.log(`📊 Total clips: ${total_clips}, Score: ${score.toFixed(4)}, is_x: ${isX}`);
+        
+        // Update wow_videos table
+        const result = await queryNeon(`
+            UPDATE wow_videos 
+            SET 
+                intro_clips = $1,
+                head_clips = $2,
+                doggystyle_clips = $3,
+                cowgirl_clips = $4,
+                reverse_cowgirl_clips = $5,
+                lying_clips = $6,
+                outro_clips = $7,
+                is_x = $8,
+                duration_minutes = $9,
+                total_clips = $10,
+                score = $11,
+                rating_updated_at = CURRENT_TIMESTAMP
+            WHERE url = $12
+            RETURNING performer, duration, duration_minutes, total_clips, score
+        `, [
+            parseInt(intro_clips) || 0,
+            parseInt(head_clips) || 0,
+            parseInt(doggystyle_clips) || 0,
+            parseInt(cowgirl_clips) || 0,
+            parseInt(reverse_cowgirl_clips) || 0,
+            parseInt(lying_clips) || 0,
+            parseInt(outro_clips) || 0,
+            isX,
+            duration_minutes,
+            total_clips,
+            score,
+            scene_url
+        ]);
+        
+        console.log('✅ Update result:', result[0]);
+        
+        // Redirect back
+        res.redirect(referer);
+        
+    } catch (error) {
+        console.error('❌ Video rating error:', error.message);
+        console.error('   Stack:', error.stack);
+        res.redirect(referer);
+    }
+});
+
+// =========================
+// GET PERFORMER RATING (from wow_videos on the fly)
+// =========================
+app.get('/api/performer-rating/:performerId', async (req, res) => {
+    const { performerId } = req.params;
+    try {
+        // Get performer name
+        const performer = await queryNeon(
+            'SELECT name FROM performers WHERE id = $1',
+            [performerId]
+        );
+        
+        if (performer.length === 0) {
+            return res.json({ 
+                success: true, 
+                has_rating: false,
+                average_score: 0,
+                total_scenes_rated: 0,
+                total_clips: 0
+            });
+        }
+        
+        const rating = await getPerformerRatingFromWow(performer[0].name);
+        
+        if (!rating) {
+            return res.json({ 
+                success: true, 
+                has_rating: false,
+                average_score: 0,
+                total_scenes_rated: 0,
+                total_clips: 0
+            });
+        }
+        
+        res.json({ 
+            success: true, 
+            has_rating: true,
+            ...rating
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// =========================
+// RANKINGS PAGE (Server Render) - EXACT MATCH FIXED
+// =========================
+app.get('/rankings', async (req, res) => {
+    const { type = 'performers', sort = 'score', order = 'desc', page = 1, gender = '', min_scenes = 1 } = req.query;
+    const perPage = 50;
+    const offset = (parseInt(page) - 1) * perPage;
+    
+    try {
+        if (type === 'performers') {
+            // Get all performers with ratings calculated from wow_videos (EXACT MATCH)
+            const performers = await queryNeon(`
+                SELECT 
+                    p.id,
+                    p.name,
+                    p.images,
+                    p.scene_count,
+                    p.gender,
+                    p.cupsize,
+                    p.country,
+                    p.ethnicity,
+                    p.aliases,
+                    (
+                        SELECT COUNT(*) 
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                        AND score > 0
+                    ) as total_scenes_rated,
+                    (
+                        SELECT COALESCE(AVG(score), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                        AND score > 0
+                    ) as average_score,
+                    (
+                        SELECT COALESCE(SUM(total_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as total_clips,
+                    (
+                        SELECT COALESCE(AVG(intro_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as avg_intro,
+                    (
+                        SELECT COALESCE(AVG(head_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as avg_head,
+                    (
+                        SELECT COALESCE(AVG(doggystyle_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as avg_doggystyle,
+                    (
+                        SELECT COALESCE(AVG(cowgirl_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as avg_cowgirl,
+                    (
+                        SELECT COALESCE(AVG(reverse_cowgirl_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as avg_reverse_cowgirl,
+                    (
+                        SELECT COALESCE(AVG(lying_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as avg_lying,
+                    (
+                        SELECT COALESCE(AVG(outro_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as avg_outro,
+                    (
+                        SELECT COUNT(*) 
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                    ) as wow_scene_count
+                FROM performers p
+                WHERE (
+                    SELECT COUNT(*) 
+                    FROM wow_videos 
+                    WHERE performer = p.name
+                    AND is_x = 0
+                    AND score > 0
+                ) >= $1
+            `, [parseInt(min_scenes) || 1]);
+            
+            // Filter by gender if provided
+            let filteredPerformers = performers;
+            if (gender && gender !== '') {
+                filteredPerformers = filteredPerformers.filter(p => p.gender === gender);
+            }
+            
+            // Sort
+            const sortMap = {
+                'score': 'average_score',
+                'total_clips': 'total_clips',
+                'scenes_rated': 'total_scenes_rated',
+                'intro': 'avg_intro',
+                'head': 'avg_head',
+                'doggystyle': 'avg_doggystyle',
+                'cowgirl': 'avg_cowgirl',
+                'reverse_cowgirl': 'avg_reverse_cowgirl',
+                'lying': 'avg_lying',
+                'outro': 'avg_outro'
+            };
+            const sortKey = sortMap[sort] || 'average_score';
+            
+            filteredPerformers.sort((a, b) => {
+                const valA = parseFloat(a[sortKey]) || 0;
+                const valB = parseFloat(b[sortKey]) || 0;
+                return order === 'desc' ? valB - valA : valA - valB;
+            });
+            
+            const total = filteredPerformers.length;
+            const paginated = filteredPerformers.slice(offset, offset + perPage);
+            const totalPages = Math.ceil(total / perPage);
+            
+            const formatted = paginated.map(p => ({
+                id: p.id,
+                name: p.name,
+                images: p.images ? JSON.parse(p.images) : [],
+                scene_count: parseInt(p.scene_count) || 0,
+                wow_scene_count: parseInt(p.wow_scene_count) || 0,
+                gender: p.gender || '',
+                cupsize: p.cupsize || '',
+                country: p.country || '',
+                ethnicity: p.ethnicity || '',
+                aliases: p.aliases ? JSON.parse(p.aliases) : [],
+                average_score: parseFloat(p.average_score) || 0,
+                total_scenes_rated: parseInt(p.total_scenes_rated) || 0,
+                total_clips: parseInt(p.total_clips) || 0,
+                avg_intro: parseFloat(p.avg_intro) || 0,
+                avg_head: parseFloat(p.avg_head) || 0,
+                avg_doggystyle: parseFloat(p.avg_doggystyle) || 0,
+                avg_cowgirl: parseFloat(p.avg_cowgirl) || 0,
+                avg_reverse_cowgirl: parseFloat(p.avg_reverse_cowgirl) || 0,
+                avg_lying: parseFloat(p.avg_lying) || 0,
+                avg_outro: parseFloat(p.avg_outro) || 0
+            }));
+            
+            return res.render('rankings', {
+                title: 'Performer Rankings',
+                type: 'performers',
+                data: formatted,
+                total: total,
+                currentPage: parseInt(page),
+                totalPages: totalPages,
+                sort: sort,
+                order: order,
+                gender: gender,
+                min_scenes: min_scenes,
+                isPerformers: true
+            });
+            
+        } else {
+            // Scene rankings from wow_videos (EXACT MATCH for performer)
+            let query = `
+                SELECT 
+                    url,
+                    title,
+                    date,
+                    duration,
+                    studio,
+                    performer,
+                    performers,
+                    thumbnail,
+                    video720p,
+                    video480p,
+                    intro_clips,
+                    head_clips,
+                    doggystyle_clips,
+                    cowgirl_clips,
+                    reverse_cowgirl_clips,
+                    lying_clips,
+                    outro_clips,
+                    total_clips,
+                    score,
+                    duration_minutes,
+                    is_x
+                FROM wow_videos
+                WHERE is_x = 0
+                AND score > 0
+            `;
+            
+            let params = [];
+            let paramIndex = 1;
+            
+            if (req.query.performer_name) {
+                query += ` AND performer = $${paramIndex}`;
+                params.push(req.query.performer_name);
+                paramIndex++;
+            }
+            
+            // Sort
+            const sortMap = {
+                'score': 'score',
+                'total_clips': 'total_clips',
+                'intro': 'intro_clips',
+                'head': 'head_clips',
+                'doggystyle': 'doggystyle_clips',
+                'cowgirl': 'cowgirl_clips',
+                'reverse_cowgirl': 'reverse_cowgirl_clips',
+                'lying': 'lying_clips',
+                'outro': 'outro_clips',
+                'date': 'date'
+            };
+            const sortColumn = sortMap[sort] || 'score';
+            const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+            
+            query += ` ORDER BY ${sortColumn} ${sortOrder} NULLS LAST`;
+            query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+            params.push(perPage, offset);
+            
+            const scenes = await queryNeon(query, params);
+            
+            // Get total count
+            let countQuery = `
+                SELECT COUNT(*) as total
+                FROM wow_videos
+                WHERE is_x = 0
+                AND score > 0
+            `;
+            const countParams = [];
+            if (req.query.performer_name) {
+                countQuery += ` AND performer = $1`;
+                countParams.push(req.query.performer_name);
+            }
+            const countResult = await queryNeon(countQuery, countParams);
+            const total = parseInt(countResult[0]?.total || 0);
+            
+            const formatted = scenes.map(s => ({
+                url: s.url,
+                title: s.title || 'Untitled',
+                date: s.date || '',
+                duration: s.duration || '',
+                studio: s.studio || '',
+                performer: s.performer || '',
+                performers: s.performers || '',
+                thumbnail: s.thumbnail || '',
+                video720p: s.video720p || '',
+                video480p: s.video480p || '',
+                intro_clips: parseInt(s.intro_clips) || 0,
+                head_clips: parseInt(s.head_clips) || 0,
+                doggystyle_clips: parseInt(s.doggystyle_clips) || 0,
+                cowgirl_clips: parseInt(s.cowgirl_clips) || 0,
+                reverse_cowgirl_clips: parseInt(s.reverse_cowgirl_clips) || 0,
+                lying_clips: parseInt(s.lying_clips) || 0,
+                outro_clips: parseInt(s.outro_clips) || 0,
+                total_clips: parseInt(s.total_clips) || 0,
+                score: parseFloat(s.score) || 0,
+                duration_minutes: parseInt(s.duration_minutes) || 0,
+                is_x: parseInt(s.is_x) || 0
+            }));
+            
+            return res.render('rankings', {
+                title: 'Scene Rankings',
+                type: 'scenes',
+                data: formatted,
+                total: total,
+                currentPage: parseInt(page),
+                totalPages: Math.ceil(total / perPage),
+                sort: sort,
+                order: order,
+                gender: gender,
+                min_scenes: min_scenes,
+                isPerformers: false
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Rankings error:', error.message);
+        res.render('rankings', {
+            title: 'Rankings',
+            type: 'performers',
+            data: [],
+            total: 0,
+            currentPage: 1,
+            totalPages: 0,
+            sort: 'score',
+            order: 'desc',
+            gender: '',
+            min_scenes: 1,
+            isPerformers: true,
+            error: error.message
+        });
+    }
+});
+
+
+
+
 // Get deleted performers list
 app.get('/api/admin/deleted-performers', async (req, res) => {
     try {
@@ -1179,7 +1712,7 @@ app.get('/api/direct-video', async (req, res) => {
 
 
 // =========================
-// VIDEO MODE PAGE - WITH SORTING AND SEARCH (FIXED)
+// VIDEO MODE PAGE - WITH SORTING AND SEARCH (FIXED - EXACT MATCH)
 // =========================
 app.get('/performer/:id/videos', async (req, res) => {
     const performerId = req.params.id;
@@ -1196,6 +1729,7 @@ app.get('/performer/:id/videos', async (req, res) => {
         
         const performerName = performer.name;
         
+        // ⭐ FIXED: Use exact match instead of ILIKE with wildcards
         let query = `
             SELECT DISTINCT ON (video720p) 
                 performer as performer_name,
@@ -1206,18 +1740,33 @@ app.get('/performer/:id/videos', async (req, res) => {
                 video720p,
                 video480p,
                 date,
-                performers
+                performers,
+                thumbnail,
+                intro_clips,
+                head_clips,
+                doggystyle_clips,
+                cowgirl_clips,
+                reverse_cowgirl_clips,
+                lying_clips,
+                outro_clips,
+                is_x,
+                total_clips,
+                score,
+                duration_minutes,
+                rating_updated_at
             FROM wow_videos
-            WHERE performer ILIKE $1
+            WHERE performer = $1
               AND video720p IS NOT NULL 
               AND video720p != ''
         `;
         
-        const params = [`%${performerName}%`];
+        const params = [performerName];
+        let paramIndex = 2;
         
         if (searchTerm && searchTerm.trim()) {
-            query += ` AND (title ILIKE $2 OR studio ILIKE $2 OR performers ILIKE $2)`;
+            query += ` AND (title ILIKE $${paramIndex} OR studio ILIKE $${paramIndex} OR performers ILIKE $${paramIndex})`;
             params.push(`%${searchTerm.trim()}%`);
+            paramIndex++;
         }
         
         query += ` ORDER BY video720p`;
@@ -1229,13 +1778,12 @@ app.get('/performer/:id/videos', async (req, res) => {
         
         console.log(`📊 Found ${allWowVideos.length} unique wow_videos for ${performerName}`);
         
-        // Fix thumbnails and dates
+        // Fix thumbnails and dates - keep existing rating data
         for (const video of allWowVideos) {
             // Fix thumbnail
             if (!video.thumbnail || video.thumbnail.startsWith('data:image')) {
                 let videoId = null;
                 
-                // Try multiple methods
                 if (video.video720p) {
                     const match1 = video.video720p.match(/\/(\d+)_\d+p\.mp4/);
                     if (match1) videoId = match1[1];
@@ -1252,11 +1800,10 @@ app.get('/performer/:id/videos', async (req, res) => {
                 if (videoId) {
                     const prefix = String(videoId).substring(0, 5);
                     video.thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
-                    console.log(`✅ Generated thumbnail for video ${videoId}`);
                 }
             }
             
-            // Fix date format for sorting (YYYY-MM-DD)
+            // Fix date format for sorting
             if (video.date) {
                 const parts = video.date.split('.');
                 if (parts.length === 3) {
@@ -1330,7 +1877,6 @@ app.get('/performer/:id/videos', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Video mode error:', error.message);
-        console.error('   Query params:', JSON.stringify(params));
         res.status(500).send('Error loading videos');
     }
 });
