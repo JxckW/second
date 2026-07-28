@@ -251,6 +251,7 @@
                 <option value="cowgirl" <%= sort === 'cowgirl' ? 'selected' : '' %>>🤠 Cowgirl</option>
                 <option value="reverse_cowgirl" <%= sort === 'reverse_cowgirl' ? 'selected' : '' %>>🔄 Reverse Cowgirl</option>
                 <option value="lying" <%= sort === 'lying' ? 'selected' : '' %>>😴 Lying</option>
+                <option value="lying_doggystyle" <%= sort === 'lying_doggystyle' ? 'selected' : '' %>>🐕😴 Lying Doggystyle</option>
                 <option value="outro" <%= sort === 'outro' ? 'selected' : '' %>>👋 Outro</option>
                 <option value="date" <%= sort === 'date' ? 'selected' : '' %>>📅 Date</option>
             </select>
@@ -328,6 +329,9 @@
                                 <% } %>
                                 <% if (item.avg_lying > 0 || item.lying_clips > 0) { %>
                                     <span class="category-badge active">😴 <%= (item.avg_lying || item.lying_clips).toFixed(1) %></span>
+                                <% } %>
+                                <% if (item.avg_lying_doggystyle > 0 || item.lying_doggystyle_clips > 0) { %>
+                                    <span class="category-badge active">🐕😴 <%= (item.avg_lying_doggystyle || item.lying_doggystyle_clips).toFixed(1) %></span>
                                 <% } %>
                                 <% if (item.avg_outro > 0 || item.outro_clips > 0) { %>
                                     <span class="category-badge active">👋 <%= (item.avg_outro || item.outro_clips).toFixed(1) %></span>

@@ -1189,6 +1189,12 @@ app.get('/rankings', async (req, res) => {
                         AND is_x = 0
                     ) as avg_lying,
                     (
+                        SELECT COALESCE(AVG(lying_doggystyle_clips), 0)
+                        FROM wow_videos 
+                        WHERE performer = p.name
+                        AND is_x = 0
+                    ) as avg_lying_doggystyle,
+                    (
                         SELECT COALESCE(AVG(outro_clips), 0)
                         FROM wow_videos 
                         WHERE performer = p.name
@@ -1226,6 +1232,7 @@ app.get('/rankings', async (req, res) => {
                 'cowgirl': 'avg_cowgirl',
                 'reverse_cowgirl': 'avg_reverse_cowgirl',
                 'lying': 'avg_lying',
+                'lying_doggystyle': 'avg_lying_doggystyle',
                 'outro': 'avg_outro'
             };
             const sortKey = sortMap[sort] || 'average_score';
@@ -1260,6 +1267,7 @@ app.get('/rankings', async (req, res) => {
                 avg_cowgirl: parseFloat(p.avg_cowgirl) || 0,
                 avg_reverse_cowgirl: parseFloat(p.avg_reverse_cowgirl) || 0,
                 avg_lying: parseFloat(p.avg_lying) || 0,
+                avg_lying_doggystyle: parseFloat(p.avg_lying_doggystyle) || 0,
                 avg_outro: parseFloat(p.avg_outro) || 0
             }));
             
@@ -1297,6 +1305,7 @@ app.get('/rankings', async (req, res) => {
                     cowgirl_clips,
                     reverse_cowgirl_clips,
                     lying_clips,
+                    lying_doggystyle_clips,
                     outro_clips,
                     total_clips,
                     score,
@@ -1326,6 +1335,7 @@ app.get('/rankings', async (req, res) => {
                 'cowgirl': 'cowgirl_clips',
                 'reverse_cowgirl': 'reverse_cowgirl_clips',
                 'lying': 'lying_clips',
+                'lying_doggystyle': 'lying_doggystyle_clips',
                 'outro': 'outro_clips',
                 'date': 'date'
             };
@@ -1370,6 +1380,7 @@ app.get('/rankings', async (req, res) => {
                 cowgirl_clips: parseInt(s.cowgirl_clips) || 0,
                 reverse_cowgirl_clips: parseInt(s.reverse_cowgirl_clips) || 0,
                 lying_clips: parseInt(s.lying_clips) || 0,
+                lying_doggystyle_clips: parseInt(s.lying_doggystyle_clips) || 0,
                 outro_clips: parseInt(s.outro_clips) || 0,
                 total_clips: parseInt(s.total_clips) || 0,
                 score: parseFloat(s.score) || 0,
