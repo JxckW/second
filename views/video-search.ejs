@@ -13,7 +13,7 @@
             color: #e0e0e0; 
             min-height: 100vh;
         }
-        .app { max-width: 1400px; margin: 0 auto; padding: 16px; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
         
         header { 
             margin-bottom: 20px; 
@@ -44,10 +44,61 @@
             color: #fff;
         }
 
-        .controls-bar {
+        .search-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #2a2a2a;
+        }
+        .search-row {
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .search-row label {
+            color: #888;
+            font-size: 14px;
+            min-width: 80px;
+        }
+        .search-row input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        .search-row input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .search-row .hint {
+            color: #666;
+            font-size: 12px;
+            width: 100%;
+        }
+        .search-btn {
+            padding: 10px 28px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .search-btn:hover { opacity: 0.85; }
+
+        .filters-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
             margin-bottom: 20px;
             padding: 16px;
             background: #1a1a1a;
@@ -55,82 +106,86 @@
             border: 1px solid #2a2a2a;
             align-items: center;
         }
-        .controls-bar .search-input {
-            flex: 1;
-            min-width: 200px;
-            padding: 8px 14px;
-            border-radius: 8px;
+        .filters-bar select, .filters-bar input {
+            padding: 6px 10px;
+            border-radius: 6px;
             border: 1px solid #333;
             background: #111;
             color: #e0e0e0;
-            font-size: 14px;
-        }
-        .controls-bar .search-input:focus {
+            font-size: 13px;
+            cursor: pointer;
             outline: none;
+        }
+        .filters-bar select:focus, .filters-bar input:focus {
             border-color: #667eea;
         }
-        .controls-bar .search-btn {
-            padding: 8px 20px;
-            border-radius: 8px;
+        .filters-bar input[type="number"] {
+            width: 70px;
+        }
+        .filters-bar .filter-label {
+            color: #888;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .filters-bar .apply-btn {
+            padding: 6px 16px;
+            border-radius: 6px;
             border: none;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #fff;
+            font-size: 13px;
+            font-weight: 600;
             cursor: pointer;
             transition: opacity 0.2s;
         }
-        .controls-bar .search-btn:hover {
-            opacity: 0.85;
-        }
-        .controls-bar .sort-select {
-            padding: 8px 14px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            background: #111;
-            color: #e0e0e0;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .controls-bar .sort-select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .controls-bar .clear-btn {
-            padding: 8px 16px;
-            border-radius: 8px;
-            border: 1px solid #ff6b6b;
-            background: transparent;
-            color: #ff6b6b;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .controls-bar .clear-btn:hover {
-            background: #ff6b6b;
-            color: #fff;
-        }
-        .controls-bar .favorites-btn {
-            padding: 8px 16px;
-            border-radius: 8px;
-            border: 1px solid #ff9f43;
+        .filters-bar .apply-btn:hover { opacity: 0.85; }
+        .filters-bar .random-btn {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: 2px solid #ff9f43;
             background: transparent;
             color: #ff9f43;
+            font-size: 13px;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 14px;
             transition: all 0.2s;
-            text-decoration: none;
         }
-        .controls-bar .favorites-btn:hover {
+        .filters-bar .random-btn:hover {
             background: #ff9f43;
             color: #fff;
         }
-        .controls-bar .favorites-btn.active {
-            background: #ff9f43;
-            color: #fff;
+        .filters-bar .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #888;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .filters-bar .filter-checkbox input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+        .filters-bar .results-count {
+            color: #888;
+            font-size: 13px;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+
+        /* First videos indicator */
+        .first-videos-indicator {
+            color: #ff9f43;
+            font-size: 13px;
+            margin-left: 8px;
         }
 
         .video-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 16px;
             margin-top: 16px;
         }
@@ -142,19 +197,19 @@
             border: 1px solid #2a2a2a;
             transition: transform 0.2s, border-color 0.2s;
             position: relative;
-            cursor: pointer;
         }
         .video-card:hover {
             transform: translateY(-4px);
             border-color: #667eea;
         }
-
+        
         .video-thumbnail {
             position: relative;
             width: 100%;
             padding-top: 56.25%;
             background: #111;
             overflow: hidden;
+            cursor: pointer;
         }
         .video-thumbnail img {
             position: absolute;
@@ -199,13 +254,9 @@
             opacity: 0;
             transition: opacity 0.3s;
         }
-        .video-card:hover .play-btn {
-            opacity: 1;
-        }
+        .video-card:hover .play-btn { opacity: 1; }
 
-        .video-info {
-            padding: 12px;
-        }
+        .video-info { padding: 12px; }
         .video-info .title {
             font-size: 14px;
             color: #fff;
@@ -224,13 +275,8 @@
             gap: 8px;
             align-items: center;
         }
-        .video-info .studio {
-            color: #667eea;
-        }
-        .video-info .date {
-            color: #888;
-            font-size: 11px;
-        }
+        .video-info .studio { color: #667eea; }
+        .video-info .date { color: #888; font-size: 11px; }
         .video-info .performers {
             color: #888;
             font-size: 11px;
@@ -242,15 +288,50 @@
             margin-top: 2px;
         }
 
-        .video-actions {
+        /* Rating Summary on card */
+        .rating-summary {
             display: flex;
-            gap: 8px;
-            padding: 6px 12px 10px 12px;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 4px 12px 8px 12px;
+            font-size: 11px;
+            color: #888;
             border-top: 1px solid #1a1a1a;
             background: #111;
         }
+        .rating-summary .score {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .rating-summary .clips {
+            color: #ff9f43;
+            font-weight: bold;
+        }
+        .rating-summary .x-badge {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+        .rating-summary .unrated {
+            color: #666;
+            font-style: italic;
+        }
+        .rating-summary .clip-badge {
+            background: #1a1a1a;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+
+        .video-actions {
+            display: flex;
+            gap: 6px;
+            padding: 6px 12px 10px 12px;
+            border-top: 1px solid #1a1a1a;
+            background: #111;
+            flex-wrap: wrap;
+        }
         .video-actions .fav-btn {
-            padding: 4px 12px;
+            padding: 4px 10px;
             border-radius: 4px;
             border: 1px solid #ff9f43;
             background: transparent;
@@ -268,19 +349,28 @@
             background: #ff9f43;
             color: #fff;
         }
+        .video-actions .rate-btn {
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid #667eea;
+            background: transparent;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .video-actions .rate-btn:hover {
+            background: #667eea;
+            color: #fff;
+        }
 
-        .no-videos {
+        .no-results {
             text-align: center;
             padding: 60px;
             color: #888;
         }
-        .no-videos h3 { color: #fff; margin-bottom: 8px; }
-        
-        .video-stats {
-            color: #888;
-            font-size: 14px;
-            margin-bottom: 16px;
-        }
+        .no-results h3 { color: #fff; margin-bottom: 8px; }
 
         .pagination {
             display: flex;
@@ -311,243 +401,354 @@
             color: #fff;
         }
 
-        .search-hint {
-            color: #666;
+        /* ===== RATING MODAL ===== */
+        .rating-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .rating-modal.active {
+            display: flex;
+        }
+        .rating-modal .modal-content {
+            background: #1a1a1a;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 24px;
+            border: 1px solid #2a2a2a;
+            position: relative;
+        }
+        .rating-modal .close-modal {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            font-size: 28px;
+            color: #888;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 4px 8px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        .rating-modal .close-modal:hover {
+            color: #fff;
+        }
+        .rating-modal .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 4px;
+            padding-right: 30px;
+        }
+        .rating-modal .modal-subtitle {
             font-size: 13px;
+            color: #888;
+            margin-bottom: 16px;
+        }
+        .rating-modal .modal-subtitle .performer-name {
+            color: #667eea;
+        }
+        .rating-modal .modal-subtitle .duration-text {
+            color: #ff9f43;
+        }
+
+        /* Performer selector in modal */
+        .performer-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
             margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .performer-selector label {
+            color: #888;
+            font-size: 13px;
+        }
+        .performer-selector select {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 13px;
+            flex: 1;
+            min-width: 150px;
+            cursor: pointer;
+        }
+        .performer-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .rating-categories {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin: 12px 0 14px 0;
+        }
+        .category-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #111;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #2a2a2a;
+        }
+        .category-row .category-icon {
+            font-size: 16px;
+            min-width: 28px;
+            text-align: center;
+        }
+        .category-row .category-label {
+            font-size: 11px;
+            color: #888;
+            flex: 1;
+        }
+        .category-row .clip-input {
+            width: 36px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-size: 12px;
+            text-align: center;
+        }
+        .category-row .clip-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .category-row .clip-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+        }
+        .category-row .clip-input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .rating-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .rating-actions .btn-rating {
+            flex: 1;
+            min-width: 100px;
             padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+        .rating-actions .btn-rating:hover {
+            opacity: 0.85;
+        }
+        .rating-actions .btn-x {
+            flex: 1;
+            min-width: 80px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 2px solid #ff6b6b;
+            background: transparent;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .rating-actions .btn-x:hover {
+            background: #ff6b6b;
+            color: #fff;
+        }
+        .rating-actions .btn-x.active {
+            background: #ff6b6b;
+            color: #fff;
+        }
+        .rating-actions .btn-close-modal {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: transparent;
+            color: #888;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .rating-actions .btn-close-modal:hover {
+            border-color: #667eea;
+            color: #fff;
+        }
+
+        .current-rating-info {
             background: #111;
             border-radius: 8px;
-            border: 1px solid #1a1a1a;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            border: 1px solid #2a2a2a;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 12px;
         }
-        .search-hint strong {
+        .current-rating-info .info-item {
             color: #888;
         }
-
-        @media (max-width: 768px) {
-            .video-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
-            .video-modal .video-container { width: 98%; }
-            .video-modal .close-modal { top: 10px; right: 20px; font-size: 30px; }
-            .controls-bar { flex-direction: column; align-items: stretch; }
-            .controls-bar .search-input { min-width: auto; }
+        .current-rating-info .info-item strong {
+            color: #fff;
         }
-    </style>
-</head>
-<body>
-    <div class="app">
-        <header>
-            <div>
-                <a href="/" class="back-link">← Back to Home</a>
-                <h1>🎬 Global Video Search</h1>
-            </div>
-            <div>
-                <span style="color: #888; font-size: 14px;">
-                    <%= totalVideos %> videos found
-                </span>
-            </div>
-        </header>
+        .current-rating-info .info-item .score-value {
+            color: #4caf50;
+        }
+        .current-rating-info .info-item .x-value {
+            color: #ff6b6b;
+        }
 
-        <!-- Search Controls -->
-        <div class="controls-bar">
-            <form method="get" action="/video-search" style="display: flex; flex-wrap: wrap; gap: 12px; flex: 1; width: 100%;">
-                <input type="text" name="q" class="search-input" placeholder="Search videos by title, studio, performer..." value="<%= searchTerm %>">
-                <select name="sort" class="sort-select">
-                    <option value="date" <%= sortBy === 'date' ? 'selected' : '' %>>Sort by Date</option>
-                    <option value="title" <%= sortBy === 'title' ? 'selected' : '' %>>Sort by Title</option>
-                    <option value="duration" <%= sortBy === 'duration' ? 'selected' : '' %>>Sort by Duration</option>
-                </select>
-                <button type="submit" class="search-btn">🔍 Search</button>
-                <% if (searchTerm) { %>
-                    <a href="/video-search?favorites=false" class="clear-btn">✕ Clear</a>
-                <% } %>
-                <a href="/video-search?favorites=true<%= searchTerm ? '&q=' + encodeURIComponent(searchTerm) : '' %>" class="favorites-btn <%= showFavoritesOnly ? 'active' : '' %>">⭐ Favorites</a>
-            </form>
-        </div>
+        /* ===== RANDOM MODAL ===== */
+        .random-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 3000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .random-modal.active {
+            display: flex;
+        }
+        .random-modal .modal-content {
+            background: #1a1a1a;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 24px;
+            border: 1px solid #2a2a2a;
+            position: relative;
+        }
+        .random-modal .modal-content .close-modal {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            font-size: 28px;
+            color: #888;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 4px 8px;
+            line-height: 1;
+        }
+        .random-modal .modal-content .close-modal:hover {
+            color: #fff;
+        }
+        .random-modal .modal-content h2 {
+            color: #ff9f43;
+            margin-bottom: 12px;
+        }
+        .random-modal .modal-content .video-thumbnail-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            background: #111;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .random-modal .modal-content .video-thumbnail-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .random-modal .modal-content .video-thumbnail-container .no-image {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 40px;
+            opacity: 0.3;
+        }
+        .random-modal .modal-content .video-thumbnail-container .duration-badge {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.8);
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #fff;
+        }
+        .random-modal .modal-content .video-title {
+            color: #fff;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .random-modal .modal-content .video-meta {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+        .random-modal .modal-content .watch-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        .random-modal .modal-content .watch-btn {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .random-modal .modal-content .watch-btn.play-btn {
+            background: #4caf50;
+            color: #fff;
+        }
+        .random-modal .modal-content .watch-btn.play-btn:hover {
+            background: #43a047;
+        }
+        .random-modal .modal-content .watch-btn.original-btn {
+            background: #ff9f43;
+            color: #fff;
+        }
+        .random-modal .modal-content .watch-btn.original-btn:hover {
+            background: #e88a2a;
+        }
 
-        <% if (searchTerm) { %>
-            <div class="search-hint">
-                💡 Separate terms with commas: <strong>Studio X, Performer A, Performer B</strong>
-                <br>
-                Examples: <strong>Brazzers, Mia Malkova</strong> | <strong>Riley Reid, Abella Danger</strong> | <strong>BLACKED, Chloe Temple</strong>
-            </div>
-        <% } %>
+        .random-loading {
+            color: #888;
+            padding: 20px;
+            text-align: center;
+        }
 
-        <% if (videos && videos.length > 0) { %>
-            <div class="video-stats">
-                Showing <%= (currentPage - 1) * perPage + 1 %> - <%= Math.min(currentPage * perPage, totalVideos) %> of <%= totalVideos %> videos
-                <% if (searchTerm) { %>
-                    <span style="color: #667eea;">— Search: "<%= searchTerm %>"</span>
-                <% } %>
-                <% if (showFavoritesOnly) { %>
-                    <span style="color: #ff9f43;">— ⭐ Favorites Only</span>
-                <% } %>
-            </div>
-
-            <div class="video-grid">
-                <% videos.forEach(scene => { 
-                    // Generate thumbnail
-                    let thumbnail = scene.thumbnail || '';
-                    let videoId = null;
-                    
-                    if (scene.video720p) {
-                        const match = scene.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
-                        if (match) videoId = match[1];
-                    }
-                    
-                    if (!videoId && scene.video480p) {
-                        const match = scene.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
-                        if (match) videoId = match[1];
-                    }
-                    
-                    if (!videoId && scene.url) {
-                        const match = scene.url.match(/\/videos\/(\d+)/);
-                        if (match) videoId = match[1];
-                    }
-                    
-                    if (videoId && !thumbnail) {
-                        const prefix = String(videoId).substring(0, 5);
-                        thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
-                    }
-                    
-                    let displayDate = '';
-                    if (scene.date) {
-                        const parts = scene.date.split('.');
-                        if (parts.length === 3) {
-                            displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
-                        } else {
-                            displayDate = scene.date;
-                        }
-                    }
-                    
-                    // ESCAPE FOR JAVASCRIPT
-                    const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
-                    const safeSceneUrl = JSON.stringify(scene.url || '');
-                    const safeThumbnail = JSON.stringify(thumbnail || '');
-                    const safeVideo720p = JSON.stringify(scene.video720p || '');
-                    const safeVideo480p = JSON.stringify(scene.video480p || '');
-                    
-                    const isFavorited = scene.isFavorited || false;
-                %>
-                <div class="video-card">
-                    <div class="video-thumbnail" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= safeVideo720p %>, <%= safeVideo480p %>)">
-                        <% if (thumbnail && thumbnail.startsWith('http')) { %>
-                            <img src="<%= thumbnail %>" alt="<%= scene.title %>" loading="lazy">
-                        <% } else { %>
-                            <div class="no-image">🎬</div>
-                        <% } %>
-                        <div class="duration"><%= scene.duration || 'N/A' %></div>
-                        <div class="play-btn">▶</div>
-                    </div>
-                    <div class="video-info">
-                        <div class="title"><%= scene.title %></div>
-                        <div class="meta">
-                            <% if (scene.studio) { %>
-                                <span class="studio">🏢 <%= scene.studio %></span>
-                            <% } %>
-                            <% if (displayDate) { %>
-                                <span class="date">📅 <%= displayDate %></span>
-                            <% } %>
-                            <% if (scene.performers && scene.performers.length > 0) { %>
-                                <span class="performers">👥 <%= scene.performers %></span>
-                            <% } %>
-                        </div>
-                    </div>
-                    <div class="video-actions">
-                        <form method="POST" action="/video-favorites/toggle" style="display: inline;">
-                            <input type="hidden" name="scene_url" value="<%= scene.url %>">
-                            <input type="hidden" name="title" value="<%= scene.title %>">
-                            <input type="hidden" name="thumbnail" value="<%= thumbnail %>">
-                            <input type="hidden" name="video720p" value="<%= scene.video720p %>">
-                            <input type="hidden" name="video480p" value="<%= scene.video480p %>">
-                            <input type="hidden" name="studio" value="<%= scene.studio %>">
-                            <input type="hidden" name="performers" value="<%= scene.performers %>">
-                            <input type="hidden" name="duration" value="<%= scene.duration %>">
-                            <input type="hidden" name="date" value="<%= scene.date %>">
-                            <button type="submit" class="fav-btn <%= isFavorited ? 'active' : '' %>">
-                                <%= isFavorited ? '⭐ Favorited' : '☆ Add Favorite' %>
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                <% }) %>
-            </div>
-
-            <!-- Pagination - FIXED -->
-            <% if (totalPages > 1) { %>
-                <div class="pagination">
-                    <% if (currentPage > 1) { %>
-                        <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= currentPage - 1 %><% if (showFavoritesOnly) { %>&favorites=true<% } %>" class="page-link">← Previous</a>
-                    <% } %>
-                    <% for (let i = 1; i <= totalPages; i++) { %>
-                        <% if (i === currentPage) { %>
-                            <span class="page-link active"><%= i %></span>
-                        <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
-                            <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= i %><% if (showFavoritesOnly) { %>&favorites=true<% } %>" class="page-link"><%= i %></a>
-                        <% } else if (i === 4 && currentPage > 5) { %>
-                            <span class="page-link">…</span>
-                        <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
-                            <span class="page-link">…</span>
-                        <% } %>
-                    <% } %>
-                    <% if (currentPage < totalPages) { %>
-                        <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= currentPage + 1 %><% if (showFavoritesOnly) { %>&favorites=true<% } %>" class="page-link">Next →</a>
-                    <% } %>
-                </div>
-            <% } %>
-        <% } else { %>
-            <div class="no-videos">
-                <% if (searchTerm) { %>
-                    <h3>🔍 No Results Found</h3>
-                    <p>No videos found for "<%= searchTerm %>"</p>
-                    <% if (showFavoritesOnly) { %>
-                        <p style="margin-top: 8px;">No favorites found matching your search.</p>
-                    <% } %>
-                    <p style="margin-top: 8px; font-size: 12px; color: #666;">
-                        Try using fewer terms or different keywords.
-                    </p>
-                <% } else { %>
-                    <h3>🔍 Search for Videos</h3>
-                    <p>Enter a search term above to find videos</p>
-                    <p style="margin-top: 8px; font-size: 12px; color: #666;">
-                        Examples: Studio, Performer, Title
-                    </p>
-                <% } %>
-            </div>
-        <% } %>
-    </div>
-
-    <!-- ===== VIDEO MODAL ===== -->
-    <div class="video-modal" id="videoModal">
-        <button class="close-modal" onclick="closeVideoModal()">✕</button>
-        <div class="video-container">
-            <div id="videoLoading" class="video-loading" style="display: none;">⏳ Loading video...</div>
-            <div id="videoError" class="video-error" style="display:none;"></div>
-            
-            <video id="videoPlayer" width="100%" controls preload="metadata" playsinline>
-                <source id="videoSource" src="" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-            
-            <div id="videoTitle" class="video-title">Video</div>
-            
-            <div class="video-controls">
-                <button onclick="closeVideoModal()">✕ Close</button>
-                <button onclick="document.getElementById('videoPlayer').requestFullscreen()">⛶ Fullscreen</button>
-                <button onclick="document.getElementById('videoPlayer').play()">▶ Play</button>
-                <button onclick="document.getElementById('videoPlayer').pause()">⏸ Pause</button>
-                <select id="qualitySelector" class="quality-selector" onchange="changeQuality(this.value)">
-                    <option value="720p">720p (HD)</option>
-                    <option value="480p">480p (SD)</option>
-                </select>
-                <button onclick="downloadVideo()" class="download-btn" id="downloadBtn">⬇️ Download</button>
-                <a href="#" id="originalSceneLink" target="_blank" class="original-link-btn" rel="noopener noreferrer" style="display: none;">
-                    🌐 Original Scene
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <style>
+        /* ===== VIDEO MODAL ===== */
         .video-modal {
             display: none;
             position: fixed;
@@ -601,6 +802,7 @@
             text-align: center;
             max-width: 90%;
         }
+
         .video-modal .video-controls {
             display: flex;
             justify-content: center;
@@ -689,14 +891,399 @@
             transform: translate(-50%, -50%);
             z-index: 10;
         }
-        .video-modal .video-error a {
-            color: #667eea;
+
+        @media (max-width: 768px) {
+            .video-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+            .search-row { flex-direction: column; align-items: stretch; }
+            .search-row label { min-width: auto; }
+            .search-row input[type="text"] { min-width: auto; }
+            .video-modal .video-container { width: 98%; }
+            .video-modal .close-modal { top: 10px; right: 20px; font-size: 30px; }
+            .filters-bar { flex-direction: column; align-items: stretch; }
+            .filters-bar .results-count { margin-left: 0; }
+            .filters-bar input[type="number"] { width: 100%; }
+            .filters-bar .filter-label { white-space: normal; }
+            .rating-categories { grid-template-columns: 1fr; }
+            .performer-selector { flex-direction: column; align-items: stretch; }
         }
     </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <a href="/" class="back-link">← Back to Home</a>
+                <h1>🎬 Global Video Search</h1>
+            </div>
+        </header>
+
+        <!-- Main Search Form -->
+        <div class="search-section">
+            <form method="get" action="/video-search" style="width: 100%;" id="searchForm">
+                <div class="search-row">
+                    <label>🔍 Search</label>
+                    <input type="text" name="q" id="searchInput" placeholder="Search by studio, performer, or title..." value="<%= searchTerm %>">
+                </div>
+                <div class="search-row">
+                    <div class="hint">
+                        💡 Separate terms with commas: <strong>Studio X, Performer A, Performer B</strong>
+                        <br>Examples: 
+                        <span style="color: #667eea; cursor: pointer;" onclick="document.getElementById('searchInput').value='Brazzers, Mia Malkova'; document.getElementById('searchForm').submit();">Brazzers, Mia Malkova</span> | 
+                        <span style="color: #667eea; cursor: pointer;" onclick="document.getElementById('searchInput').value='Riley Reid, Abella Danger'; document.getElementById('searchForm').submit();">Riley Reid, Abella Danger</span> | 
+                        <span style="color: #667eea; cursor: pointer;" onclick="document.getElementById('searchInput').value='BLACKED, Chloe Temple'; document.getElementById('searchForm').submit();">BLACKED, Chloe Temple</span>
+                    </div>
+                </div>
+                <button type="submit" class="search-btn">🔍 Search Videos</button>
+            </form>
+        </div>
+
+        <!-- Filters Bar -->
+        <div class="filters-bar">
+            <form method="get" action="/video-search" style="display: flex; flex-wrap: wrap; gap: 10px; flex: 1; width: 100%; align-items: center;" id="filterForm">
+                <input type="hidden" name="q" value="<%= searchTerm %>">
+                
+                <span class="filter-label">📏 Cup:</span>
+                <select name="cupsize" id="cupsizeFilter">
+                    <option value="">Any</option>
+                    <option value="A" <%= cupsize === 'A' ? 'selected' : '' %>>A</option>
+                    <option value="B" <%= cupsize === 'B' ? 'selected' : '' %>>B</option>
+                    <option value="C" <%= cupsize === 'C' ? 'selected' : '' %>>C</option>
+                    <option value="D" <%= cupsize === 'D' ? 'selected' : '' %>>D</option>
+                    <option value="DD" <%= cupsize === 'DD' ? 'selected' : '' %>>DD</option>
+                    <option value="DDD" <%= cupsize === 'DDD' ? 'selected' : '' %>>DDD</option>
+                    <option value="E" <%= cupsize === 'E' ? 'selected' : '' %>>E</option>
+                    <option value="F" <%= cupsize === 'F' ? 'selected' : '' %>>F</option>
+                </select>
+
+                <span class="filter-label">⭐ Rating:</span>
+                <select name="rating" id="ratingFilter">
+                    <option value="">Any</option>
+                    <option value="S" <%= ratingFilter === 'S' ? 'selected' : '' %>>S</option>
+                    <option value="A" <%= ratingFilter === 'A' ? 'selected' : '' %>>A</option>
+                    <option value="B" <%= ratingFilter === 'B' ? 'selected' : '' %>>B</option>
+                    <option value="C" <%= ratingFilter === 'C' ? 'selected' : '' %>>C</option>
+                    <option value="D" <%= ratingFilter === 'D' ? 'selected' : '' %>>D</option>
+                    <option value="F" <%= ratingFilter === 'F' ? 'selected' : '' %>>F</option>
+                    <option value="L" <%= ratingFilter === 'L' ? 'selected' : '' %>>L</option>
+                    <option value="U" <%= ratingFilter === 'U' ? 'selected' : '' %>>U</option>
+                </select>
+
+                <span class="filter-label">🎬 Min Scenes:</span>
+                <input type="number" name="min_scenes" id="minScenesFilter" value="<%= minScenes %>" min="0" max="1000">
+
+                <span class="filter-label">📊 Min Score:</span>
+                <input type="number" name="min_score" id="minScoreFilter" value="<%= minScore %>" min="0" max="100" step="0.01">
+
+                <span class="filter-label">📝 Status:</span>
+                <select name="rating_status" id="ratingStatusFilter">
+                    <option value="all" <%= ratingStatus === 'all' ? 'selected' : '' %>>All Videos</option>
+                    <option value="rated" <%= ratingStatus === 'rated' ? 'selected' : '' %>>Rated Only</option>
+                    <option value="unrated" <%= ratingStatus === 'unrated' ? 'selected' : '' %>>Unrated Only</option>
+                </select>
+
+                <label class="filter-checkbox">
+                    <input type="checkbox" name="auto_sort_rated" value="true" <%= autoSortRated ? 'checked' : '' %> onchange="document.getElementById('filterForm').submit();">
+                    🔄 Auto-sort by highest rated
+                </label>
+
+                <!-- NEW: First X Videos Filter -->
+                <span class="filter-label">📋 First:</span>
+                <input type="number" name="first" class="first-videos-input" placeholder="All" min="1" max="1000" value="<%= firstVideos > 0 ? firstVideos : '' %>">
+
+                <button type="submit" class="apply-btn">Apply</button>
+                <button type="button" class="random-btn" onclick="getRandomVideo()">🎲 Random</button>
+                
+                <span class="results-count" id="resultsCount"><%= totalVideos %> videos</span>
+            </form>
+        </div>
+
+        <!-- First videos indicator -->
+        <% if (firstVideos > 0) { %>
+            <div style="margin-bottom: 12px; padding: 8px 16px; background: #1a1a1a; border-radius: 8px; border: 1px solid #2a2a2a; color: #ff9f43; font-size: 13px;">
+                📋 Showing first <%= Math.min(firstVideos, totalVideos) %> videos
+            </div>
+        <% } %>
+
+        <% if (videos && videos.length > 0) { %>
+            <div class="video-grid" id="videoGrid">
+                <% videos.forEach((video, index) => { 
+                    const safeTitle = JSON.stringify(video.title || 'Untitled Scene');
+                    const safeSceneUrl = JSON.stringify(video.url || '');
+                    const safeThumbnail = JSON.stringify(video.thumbnail || '');
+                    const safeVideo720p = JSON.stringify(video.video720p || '');
+                    const safeVideo480p = JSON.stringify(video.video480p || '');
+                    const isFavorited = video.isFavorited || false;
+                    const globalIndex = (currentPage - 1) * perPage + index + 1;
+                    
+                    // Rating data - 8 categories
+                    const isX = parseInt(video.is_x) || 0;
+                    const totalClips = parseInt(video.total_clips) || 0;
+                    const score = parseFloat(video.score) || 0;
+                    const introClips = parseInt(video.intro_clips) || 0;
+                    const headClips = parseInt(video.head_clips) || 0;
+                    const doggystyleClips = parseInt(video.doggystyle_clips) || 0;
+                    const cowgirlClips = parseInt(video.cowgirl_clips) || 0;
+                    const reverseCowgirlClips = parseInt(video.reverse_cowgirl_clips) || 0;
+                    const lyingClips = parseInt(video.lying_clips) || 0;
+                    const lyingDoggystyleClips = parseInt(video.lying_doggystyle_clips) || 0;
+                    const outroClips = parseInt(video.outro_clips) || 0;
+                    const durationMinutes = parseInt(video.duration_minutes) || 0;
+                    const hasRating = isX === 1 || totalClips > 0 || score > 0;
+                %>
+                <div class="video-card">
+                    <div class="video-thumbnail" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= safeVideo720p %>, <%= safeVideo480p %>)">
+                        <% if (video.thumbnail && video.thumbnail.startsWith('http')) { %>
+                            <img src="<%= video.thumbnail %>" alt="<%= video.title %>" loading="lazy">
+                        <% } else { %>
+                            <div class="no-image">🎬</div>
+                        <% } %>
+                        <div class="duration"><%= video.duration || 'N/A' %></div>
+                        <div class="play-btn">▶</div>
+                        <!-- Show video number if first videos filter is active -->
+                        <% if (firstVideos > 0) { %>
+                            <div style="position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.8); padding: 2px 10px; border-radius: 4px; font-size: 11px; color: #ff9f43; font-weight: bold;">
+                                #<%= globalIndex %>
+                            </div>
+                        <% } %>
+                    </div>
+                    <div class="video-info">
+                        <div class="title"><%= video.title %></div>
+                        <div class="meta">
+                            <% if (video.studio) { %>
+                                <span class="studio">🏢 <%= video.studio %></span>
+                            <% } %>
+                            <% if (video.displayDate) { %>
+                                <span class="date">📅 <%= video.displayDate %></span>
+                            <% } %>
+                            <% if (video.performers && video.performers.length > 0) { %>
+                                <span class="performers">👥 <%= video.performers %></span>
+                            <% } %>
+                        </div>
+                    </div>
+                    <!-- Rating Summary -->
+                    <div class="rating-summary">
+                        <% if (isX === 1) { %>
+                            <span class="x-badge">✕ Marked as X</span>
+                        <% } else if (hasRating) { %>
+                            <span class="score">⭐ <%= score.toFixed(2) %></span>
+                            <span class="clips">📊 <%= totalClips %> clips</span>
+                            <% if (introClips > 0) { %><span class="clip-badge">💋<%= introClips %></span><% } %>
+                            <% if (headClips > 0) { %><span class="clip-badge">👄<%= headClips %></span><% } %>
+                            <% if (doggystyleClips > 0) { %><span class="clip-badge">🐕<%= doggystyleClips %></span><% } %>
+                            <% if (cowgirlClips > 0) { %><span class="clip-badge">🤠<%= cowgirlClips %></span><% } %>
+                            <% if (reverseCowgirlClips > 0) { %><span class="clip-badge">🔄<%= reverseCowgirlClips %></span><% } %>
+                            <% if (lyingClips > 0) { %><span class="clip-badge">😴<%= lyingClips %></span><% } %>
+                            <% if (lyingDoggystyleClips > 0) { %><span class="clip-badge">🐕😴<%= lyingDoggystyleClips %></span><% } %>
+                            <% if (outroClips > 0) { %><span class="clip-badge">👋<%= outroClips %></span><% } %>
+                        <% } else { %>
+                            <span class="unrated">📝 Not rated</span>
+                        <% } %>
+                    </div>
+                    <!-- Video Actions -->
+                    <div class="video-actions">
+                        <form method="POST" action="/video-favorites/toggle" style="display: inline;">
+                            <input type="hidden" name="scene_url" value="<%= video.url %>">
+                            <input type="hidden" name="title" value="<%= video.title %>">
+                            <input type="hidden" name="thumbnail" value="<%= video.thumbnail %>">
+                            <input type="hidden" name="video720p" value="<%= video.video720p %>">
+                            <input type="hidden" name="video480p" value="<%= video.video480p %>">
+                            <input type="hidden" name="studio" value="<%= video.studio %>">
+                            <input type="hidden" name="performers" value="<%= video.performers %>">
+                            <input type="hidden" name="duration" value="<%= video.duration %>">
+                            <input type="hidden" name="date" value="<%= video.date %>">
+                            <button type="submit" class="fav-btn <%= isFavorited ? 'active' : '' %>">
+                                <%= isFavorited ? '⭐' : '☆' %>
+                            </button>
+                        </form>
+                        <button class="rate-btn" onclick="openRatingModal(
+                            <%= safeSceneUrl %>,
+                            <%= safeTitle %>,
+                            '<%= video.duration || '' %>',
+                            <%= durationMinutes %>,
+                            <%= introClips %>,
+                            <%= headClips %>,
+                            <%= doggystyleClips %>,
+                            <%= cowgirlClips %>,
+                            <%= reverseCowgirlClips %>,
+                            <%= lyingClips %>,
+                            <%= lyingDoggystyleClips %>,
+                            <%= outroClips %>,
+                            <%= isX %>,
+                            <%= totalClips %>,
+                            <%= score %>,
+                            '<%= video.performer || '' %>',
+                            '<%= video.performers || '' %>'
+                        )">⭐ Rate</button>
+                    </div>
+                </div>
+                <% }) %>
+            </div>
+
+            <!-- Pagination -->
+            <% if (totalPages > 1) { %>
+                <div class="pagination">
+                    <% if (currentPage > 1) { %>
+                        <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %><% if (cupsize) { %>&cupsize=<%= cupsize %><% } %><% if (ratingFilter) { %>&rating=<%= ratingFilter %><% } %><% if (minScenes > 0) { %>&min_scenes=<%= minScenes %><% } %><% if (minScore > 0) { %>&min_score=<%= minScore %><% } %><% if (ratingStatus) { %>&rating_status=<%= ratingStatus %><% } %><% if (autoSortRated) { %>&auto_sort_rated=true<% } %><% if (firstVideos > 0) { %>&first=<%= firstVideos %><% } %>&page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
+                    <% } %>
+                    <% for (let i = 1; i <= totalPages; i++) { %>
+                        <% if (i === currentPage) { %>
+                            <span class="page-link active"><%= i %></span>
+                        <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
+                            <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %><% if (cupsize) { %>&cupsize=<%= cupsize %><% } %><% if (ratingFilter) { %>&rating=<%= ratingFilter %><% } %><% if (minScenes > 0) { %>&min_scenes=<%= minScenes %><% } %><% if (minScore > 0) { %>&min_score=<%= minScore %><% } %><% if (ratingStatus) { %>&rating_status=<%= ratingStatus %><% } %><% if (autoSortRated) { %>&auto_sort_rated=true<% } %><% if (firstVideos > 0) { %>&first=<%= firstVideos %><% } %>&page=<%= i %>" class="page-link"><%= i %></a>
+                        <% } else if (i === 4 && currentPage > 5) { %>
+                            <span class="page-link">…</span>
+                        <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
+                            <span class="page-link">…</span>
+                        <% } %>
+                    <% } %>
+                    <% if (currentPage < totalPages) { %>
+                        <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %><% if (cupsize) { %>&cupsize=<%= cupsize %><% } %><% if (ratingFilter) { %>&rating=<%= ratingFilter %><% } %><% if (minScenes > 0) { %>&min_scenes=<%= minScenes %><% } %><% if (minScore > 0) { %>&min_score=<%= minScore %><% } %><% if (ratingStatus) { %>&rating_status=<%= ratingStatus %><% } %><% if (autoSortRated) { %>&auto_sort_rated=true<% } %><% if (firstVideos > 0) { %>&first=<%= firstVideos %><% } %>&page=<%= currentPage + 1 %>" class="page-link">Next →</a>
+                    <% } %>
+                </div>
+            <% } %>
+
+        <% } else if (searchTerm) { %>
+            <div class="no-results">
+                <h3>🔍 No Results Found</h3>
+                <p>No videos found for "<%= searchTerm %>"</p>
+            </div>
+        <% } else { %>
+            <div class="no-results">
+                <h3>🎬 Browse All Videos</h3>
+                <p>Showing all videos in the database</p>
+                <p style="margin-top: 8px; font-size: 13px; color: #666;">💡 Use the search bar above to filter by studio or performer</p>
+            </div>
+        <% } %>
+    </div>
+
+    <!-- ===== RATING MODAL ===== -->
+    <div class="rating-modal" id="ratingModal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeRatingModal()">✕</button>
+            
+            <form method="POST" action="/video-rating/save" id="ratingForm">
+                <input type="hidden" name="scene_url" id="ratingSceneUrl">
+                <input type="hidden" name="is_x" id="ratingIsX" value="0">
+                
+                <div class="modal-title" id="ratingModalTitle">Rating Video</div>
+                <div class="modal-subtitle">
+                    <span class="performer-name" id="ratingPerformerName"></span>
+                    <span> • </span>
+                    <span class="duration-text" id="ratingDurationText"></span>
+                </div>
+                
+                <!-- Performer Selector -->
+                <div class="performer-selector">
+                    <label>👤 Performer:</label>
+                    <select name="performer_name" id="ratingPerformerSelect">
+                        <option value="">Select performer...</option>
+                    </select>
+                </div>
+                
+                <!-- Current rating info -->
+                <div class="current-rating-info" id="currentRatingInfo">
+                    <span class="info-item">Status: <strong id="ratingStatusDisplay">Not rated</strong></span>
+                    <span class="info-item">Score: <strong class="score-value" id="ratingScoreDisplay">0.00</strong></span>
+                    <span class="info-item">Total Clips: <strong id="ratingTotalClipsDisplay">0</strong></span>
+                </div>
+                
+                <div class="rating-categories">
+                    <div class="category-row">
+                        <span class="category-icon">💋</span>
+                        <span class="category-label">Intro</span>
+                        <input type="number" name="intro_clips" id="intro_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                    <div class="category-row">
+                        <span class="category-icon">👄</span>
+                        <span class="category-label">Head</span>
+                        <input type="number" name="head_clips" id="head_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                    <div class="category-row">
+                        <span class="category-icon">🐕</span>
+                        <span class="category-label">Doggystyle</span>
+                        <input type="number" name="doggystyle_clips" id="doggystyle_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                    <div class="category-row">
+                        <span class="category-icon">🤠</span>
+                        <span class="category-label">Cowgirl</span>
+                        <input type="number" name="cowgirl_clips" id="cowgirl_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                    <div class="category-row">
+                        <span class="category-icon">🔄</span>
+                        <span class="category-label">Reverse Cowgirl</span>
+                        <input type="number" name="reverse_cowgirl_clips" id="reverse_cowgirl_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                    <div class="category-row">
+                        <span class="category-icon">😴</span>
+                        <span class="category-label">Lying</span>
+                        <input type="number" name="lying_clips" id="lying_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                    <div class="category-row">
+                        <span class="category-icon">🐕😴</span>
+                        <span class="category-label">Lying Doggystyle</span>
+                        <input type="number" name="lying_doggystyle_clips" id="lying_doggystyle_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                    <div class="category-row">
+                        <span class="category-icon">👋</span>
+                        <span class="category-label">Outro</span>
+                        <input type="number" name="outro_clips" id="outro_clips" min="0" max="99" value="0" class="clip-input">
+                    </div>
+                </div>
+                
+                <div class="rating-actions">
+                    <button type="submit" class="btn-rating">⭐ Save Rating</button>
+                    <button type="button" class="btn-x" id="btnX" onclick="toggleX()">✕ Mark as X</button>
+                    <button type="button" class="btn-close-modal" onclick="closeRatingModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===== VIDEO MODAL ===== -->
+    <div class="video-modal" id="videoModal">
+        <button class="close-modal" onclick="closeVideoModal()">✕</button>
+        <div class="video-container">
+            <div id="videoLoading" class="video-loading" style="display: none;">⏳ Loading video...</div>
+            <div id="videoError" class="video-error" style="display:none;"></div>
+            
+            <video id="videoPlayer" width="100%" controls preload="metadata" playsinline>
+                <source id="videoSource" src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            
+            <div id="videoTitle" class="video-title">Video</div>
+            
+            <div class="video-controls">
+                <button onclick="closeVideoModal()">✕ Close</button>
+                <button onclick="document.getElementById('videoPlayer').requestFullscreen()">⛶ Fullscreen</button>
+                <button onclick="document.getElementById('videoPlayer').play()">▶ Play</button>
+                <button onclick="document.getElementById('videoPlayer').pause()">⏸ Pause</button>
+                <select id="qualitySelector" class="quality-selector" onchange="changeQuality(this.value)">
+                    <option value="720p">720p (HD)</option>
+                    <option value="480p">480p (SD)</option>
+                </select>
+                <button onclick="downloadVideo()" class="download-btn" id="downloadBtn">⬇️ Download</button>
+                <a href="#" id="originalSceneLink" target="_blank" class="original-link-btn" rel="noopener noreferrer" style="display: none;">
+                    🌐 Original Scene
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== RANDOM MODAL ===== -->
+    <div class="random-modal" id="randomModal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeRandomModal()">✕</button>
+            <h2>🎲 Random Video</h2>
+            <div id="randomContent">
+                <div class="random-loading">⏳ Finding a random video...</div>
+            </div>
+        </div>
+    </div>
 
     <script>
         // =========================
-        // VIDEO PLAYER
+        // GLOBAL VARIABLES
         // =========================
         let currentVideoUrl = null;
         let currentSceneUrl = null;
@@ -708,6 +1295,367 @@
         let isLoadingQuality = false;
         let videoLoaded = false;
 
+        // =========================
+        // RATING MODAL
+        // =========================
+        let currentRatingData = {
+            sceneUrl: '',
+            title: '',
+            duration: '',
+            durationMinutes: 0,
+            introClips: 0,
+            headClips: 0,
+            doggystyleClips: 0,
+            cowgirlClips: 0,
+            reverseCowgirlClips: 0,
+            lyingClips: 0,
+            lyingDoggystyleClips: 0,
+            outroClips: 0,
+            isX: 0,
+            totalClips: 0,
+            score: 0,
+            performerName: '',
+            performers: ''
+        };
+
+        function openRatingModal(sceneUrl, title, duration, durationMinutes, 
+                                 introClips, headClips, doggystyleClips, cowgirlClips,
+                                 reverseCowgirlClips, lyingClips, lyingDoggystyleClips, outroClips,
+                                 isX, totalClips, score, performerName, performers) {
+            
+            currentRatingData = {
+                sceneUrl, title, duration, durationMinutes,
+                introClips, headClips, doggystyleClips, cowgirlClips,
+                reverseCowgirlClips, lyingClips, lyingDoggystyleClips, outroClips,
+                isX, totalClips, score, performerName, performers
+            };
+            
+            // Set form values
+            document.getElementById('ratingSceneUrl').value = sceneUrl;
+            document.getElementById('ratingModalTitle').textContent = 'Rating: ' + title;
+            document.getElementById('ratingPerformerName').textContent = performerName || 'Unknown';
+            document.getElementById('ratingDurationText').textContent = duration || 'N/A';
+            
+            // Populate performer selector
+            const select = document.getElementById('ratingPerformerSelect');
+            select.innerHTML = '<option value="">Select performer...</option>';
+            
+            if (performers) {
+                const performerList = performers.split(';').map(p => p.trim()).filter(p => p);
+                performerList.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p;
+                    option.textContent = p;
+                    if (p === performerName) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+            if (performerName && !performers) {
+                const option = document.createElement('option');
+                option.value = performerName;
+                option.textContent = performerName;
+                option.selected = true;
+                select.appendChild(option);
+            }
+            
+            document.getElementById('intro_clips').value = introClips || 0;
+            document.getElementById('head_clips').value = headClips || 0;
+            document.getElementById('doggystyle_clips').value = doggystyleClips || 0;
+            document.getElementById('cowgirl_clips').value = cowgirlClips || 0;
+            document.getElementById('reverse_cowgirl_clips').value = reverseCowgirlClips || 0;
+            document.getElementById('lying_clips').value = lyingClips || 0;
+            document.getElementById('lying_doggystyle_clips').value = lyingDoggystyleClips || 0;
+            document.getElementById('outro_clips').value = outroClips || 0;
+            
+            // Update status display
+            updateRatingDisplay(isX, totalClips, score);
+            
+            // Update X button
+            const btnX = document.getElementById('btnX');
+            if (isX === 1) {
+                btnX.classList.add('active');
+                btnX.textContent = '✕ X (Active)';
+            } else {
+                btnX.classList.remove('active');
+                btnX.textContent = '✕ Mark as X';
+            }
+            document.getElementById('ratingIsX').value = isX || 0;
+            
+            // Show modal
+            document.getElementById('ratingModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function updateRatingDisplay(isX, totalClips, score) {
+            const statusEl = document.getElementById('ratingStatusDisplay');
+            const scoreEl = document.getElementById('ratingScoreDisplay');
+            const clipsEl = document.getElementById('ratingTotalClipsDisplay');
+            
+            if (isX === 1) {
+                statusEl.textContent = '✕ X (Skipped)';
+                statusEl.style.color = '#ff6b6b';
+            } else if (totalClips > 0 || score > 0) {
+                statusEl.textContent = '✅ Rated';
+                statusEl.style.color = '#4caf50';
+            } else {
+                statusEl.textContent = '📝 Not rated';
+                statusEl.style.color = '#888';
+            }
+            
+            scoreEl.textContent = (score || 0).toFixed(2);
+            clipsEl.textContent = totalClips || 0;
+        }
+
+        function toggleX() {
+            const btnX = document.getElementById('btnX');
+            const isXInput = document.getElementById('ratingIsX');
+            const currentIsX = parseInt(isXInput.value) || 0;
+            
+            if (currentIsX === 1) {
+                isXInput.value = '0';
+                btnX.classList.remove('active');
+                btnX.textContent = '✕ Mark as X';
+                document.getElementById('intro_clips').value = currentRatingData.introClips || 0;
+                document.getElementById('head_clips').value = currentRatingData.headClips || 0;
+                document.getElementById('doggystyle_clips').value = currentRatingData.doggystyleClips || 0;
+                document.getElementById('cowgirl_clips').value = currentRatingData.cowgirlClips || 0;
+                document.getElementById('reverse_cowgirl_clips').value = currentRatingData.reverseCowgirlClips || 0;
+                document.getElementById('lying_clips').value = currentRatingData.lyingClips || 0;
+                document.getElementById('lying_doggystyle_clips').value = currentRatingData.lyingDoggystyleClips || 0;
+                document.getElementById('outro_clips').value = currentRatingData.outroClips || 0;
+                updateRatingDisplay(0, currentRatingData.totalClips, currentRatingData.score);
+            } else {
+                currentRatingData.introClips = parseInt(document.getElementById('intro_clips').value) || 0;
+                currentRatingData.headClips = parseInt(document.getElementById('head_clips').value) || 0;
+                currentRatingData.doggystyleClips = parseInt(document.getElementById('doggystyle_clips').value) || 0;
+                currentRatingData.cowgirlClips = parseInt(document.getElementById('cowgirl_clips').value) || 0;
+                currentRatingData.reverseCowgirlClips = parseInt(document.getElementById('reverse_cowgirl_clips').value) || 0;
+                currentRatingData.lyingClips = parseInt(document.getElementById('lying_clips').value) || 0;
+                currentRatingData.lyingDoggystyleClips = parseInt(document.getElementById('lying_doggystyle_clips').value) || 0;
+                currentRatingData.outroClips = parseInt(document.getElementById('outro_clips').value) || 0;
+                
+                isXInput.value = '1';
+                btnX.classList.add('active');
+                btnX.textContent = '✕ X (Active)';
+                document.getElementById('intro_clips').value = 0;
+                document.getElementById('head_clips').value = 0;
+                document.getElementById('doggystyle_clips').value = 0;
+                document.getElementById('cowgirl_clips').value = 0;
+                document.getElementById('reverse_cowgirl_clips').value = 0;
+                document.getElementById('lying_clips').value = 0;
+                document.getElementById('lying_doggystyle_clips').value = 0;
+                document.getElementById('outro_clips').value = 0;
+                updateRatingDisplay(1, 0, 0);
+            }
+        }
+
+        function closeRatingModal() {
+            document.getElementById('ratingModal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // =========================
+        // RANDOM VIDEO
+        // =========================
+        async function getRandomVideo() {
+            const modal = document.getElementById('randomModal');
+            const content = document.getElementById('randomContent');
+            
+            modal.classList.add('active');
+            content.innerHTML = '<div class="random-loading">⏳ Finding a random video...</div>';
+            
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const q = urlParams.get('q') || '';
+                const cupsize = urlParams.get('cupsize') || '';
+                const rating = urlParams.get('rating') || '';
+                const minScenes = urlParams.get('min_scenes') || 0;
+                const minScore = urlParams.get('min_score') || 0;
+                const ratingStatus = urlParams.get('rating_status') || 'all';
+                const firstVideos = parseInt(urlParams.get('first')) || 0;
+                
+                let randomUrl = '/api/random-video?';
+                if (q) randomUrl += `q=${encodeURIComponent(q)}&`;
+                if (cupsize) randomUrl += `cupsize=${encodeURIComponent(cupsize)}&`;
+                if (rating) randomUrl += `rating=${encodeURIComponent(rating)}&`;
+                if (minScenes) randomUrl += `min_scenes=${encodeURIComponent(minScenes)}&`;
+                if (minScore) randomUrl += `min_score=${encodeURIComponent(minScore)}&`;
+                if (ratingStatus) randomUrl += `rating_status=${encodeURIComponent(ratingStatus)}&`;
+                if (firstVideos > 0) randomUrl += `first=${encodeURIComponent(firstVideos)}&`;
+                
+                const response = await fetch(randomUrl);
+                const data = await response.json();
+                
+                if (!data.success || !data.video) {
+                    content.innerHTML = `
+                        <p style="color: #ff6b6b;">❌ No videos found matching your filters</p>
+                        <div style="margin-top: 12px; text-align: center;">
+                            <button onclick="closeRandomModal()" style="padding: 8px 20px; border-radius: 6px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer;">Close</button>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const video = data.video;
+                
+                // Build performer options
+                let performerOptions = '';
+                if (video.performers) {
+                    const performers = video.performers.split(';').map(p => p.trim()).filter(p => p);
+                    performers.forEach(p => {
+                        performerOptions += `<option value="${p}">${p}</option>`;
+                    });
+                }
+                if (!performerOptions && video.performer) {
+                    performerOptions = `<option value="${video.performer}">${video.performer}</option>`;
+                }
+                
+                content.innerHTML = `
+                    <!-- Thumbnail -->
+                    <div class="video-thumbnail-container">
+                        ${video.thumbnail && video.thumbnail.startsWith('http') ? 
+                            `<img src="${video.thumbnail}" alt="${video.title}">` : 
+                            `<div class="no-image">🎬</div>`
+                        }
+                        <div class="duration-badge">${video.duration || 'N/A'}</div>
+                    </div>
+                    
+                    <div class="video-title">${video.title || 'Untitled Scene'}</div>
+                    <div class="video-meta">
+                        ${video.studio ? `🏢 ${video.studio}` : ''}
+                        ${video.displayDate ? `📅 ${video.displayDate}` : ''}
+                        ${video.performers ? `<br>👥 ${video.performers}` : ''}
+                    </div>
+                    
+                    <form method="POST" action="/video-rating/save" id="randomRatingForm" style="border-top: 1px solid #2a2a2a; padding-top: 12px;">
+                        <input type="hidden" name="scene_url" value="${video.url}">
+                        <input type="hidden" name="is_x" id="randomRatingIsX" value="0">
+                        
+                        <div class="performer-selector">
+                            <label>👤 Performer:</label>
+                            <select name="performer_name" id="randomPerformerSelect">
+                                ${performerOptions}
+                            </select>
+                        </div>
+                        
+                        <div class="rating-categories">
+                            <div class="category-row">
+                                <span class="category-icon">💋</span>
+                                <span class="category-label">Intro</span>
+                                <input type="number" name="intro_clips" min="0" max="99" value="0" class="clip-input">
+                            </div>
+                            <div class="category-row">
+                                <span class="category-icon">👄</span>
+                                <span class="category-label">Head</span>
+                                <input type="number" name="head_clips" min="0" max="99" value="0" class="clip-input">
+                            </div>
+                            <div class="category-row">
+                                <span class="category-icon">🐕</span>
+                                <span class="category-label">Doggystyle</span>
+                                <input type="number" name="doggystyle_clips" min="0" max="99" value="0" class="clip-input">
+                            </div>
+                            <div class="category-row">
+                                <span class="category-icon">🤠</span>
+                                <span class="category-label">Cowgirl</span>
+                                <input type="number" name="cowgirl_clips" min="0" max="99" value="0" class="clip-input">
+                            </div>
+                            <div class="category-row">
+                                <span class="category-icon">🔄</span>
+                                <span class="category-label">Reverse Cowgirl</span>
+                                <input type="number" name="reverse_cowgirl_clips" min="0" max="99" value="0" class="clip-input">
+                            </div>
+                            <div class="category-row">
+                                <span class="category-icon">😴</span>
+                                <span class="category-label">Lying</span>
+                                <input type="number" name="lying_clips" min="0" max="99" value="0" class="clip-input">
+                            </div>
+                            <div class="category-row">
+                                <span class="category-icon">🐕😴</span>
+                                <span class="category-label">Lying Doggystyle</span>
+                                <input type="number" name="lying_doggystyle_clips" min="0" max="99" value="0" class="clip-input">
+                            </div>
+                            <div class="category-row">
+                                <span class="category-icon">👋</span>
+                                <span class="category-label">Outro</span>
+                                <input type="number" name="outro_clips" min="0" max="99" value="0" class="clip-input>
+                            </div>
+                        </div>
+                        
+                        <div class="rating-actions">
+                            <button type="submit" class="btn-rating">⭐ Save Rating</button>
+                            <button type="button" class="btn-x" id="randomBtnX" onclick="toggleRandomX()">✕ Mark as X</button>
+                            <button type="button" class="btn-close-modal" onclick="closeRandomModal()">Close</button>
+                        </div>
+                    </form>
+                    
+                    <div class="watch-buttons">
+                        <button class="watch-btn play-btn" onclick="closeRandomModal(); playVideo('${video.url}', '${video.title.replace(/'/g, "\\'")}', '${video.thumbnail || ''}', '${video.video720p || ''}', '${video.video480p || ''}')">▶ Watch Video</button>
+                        <button class="watch-btn original-btn" onclick="window.open('${video.url}', '_blank')">🌐 Original Scene</button>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('❌ Random video error:', error);
+                content.innerHTML = `
+                    <p style="color: #ff6b6b;">❌ Error: ${error.message}</p>
+                    <div style="margin-top: 12px; text-align: center;">
+                        <button onclick="closeRandomModal()" style="padding: 8px 20px; border-radius: 6px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer;">Close</button>
+                    </div>
+                `;
+            }
+        }
+
+        function toggleRandomX() {
+            const btnX = document.getElementById('randomBtnX');
+            const isXInput = document.getElementById('randomRatingIsX');
+            const currentIsX = parseInt(isXInput.value) || 0;
+            
+            if (currentIsX === 1) {
+                isXInput.value = '0';
+                btnX.classList.remove('active');
+                btnX.textContent = '✕ Mark as X';
+                btnX.style.background = 'transparent';
+                btnX.style.color = '#ff6b6b';
+            } else {
+                isXInput.value = '1';
+                btnX.classList.add('active');
+                btnX.textContent = '✕ X (Active)';
+                btnX.style.background = '#ff6b6b';
+                btnX.style.color = '#fff';
+                document.querySelectorAll('#randomRatingForm .clip-input').forEach(input => {
+                    input.value = 0;
+                });
+            }
+        }
+
+        function closeRandomModal() {
+            document.getElementById('randomModal').classList.remove('active');
+        }
+
+        // =========================
+        // BASE URL DETECTION
+        // =========================
+        function getApiBase() {
+            const hostname = window.location.hostname;
+            const href = window.location.href;
+            
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return '';
+            }
+            if (hostname.includes('onrender.com')) {
+                return '';
+            }
+            if (hostname.includes('proxysite') || hostname.includes('proxy') || href.includes('proxysite')) {
+                return 'https://second-hmg0.onrender.com';
+            }
+            return '';
+        }
+
+        // =========================
+        // VIDEO PLAYER FUNCTIONS
+        // =========================
         async function playVideo(sceneUrl, title, thumbnail, video720p, video480p) {
             console.log('🎬 Playing video:', title);
             
@@ -760,12 +1708,16 @@
                 }
                 
                 if (!videoUrl || !videoUrl.includes('get_file')) {
-                    const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-                    const data = await response.json();
-                    if (data.success && data.videoUrl) {
-                        videoUrl = data.videoUrl;
+                    if (sceneUrl) {
+                        const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                        const data = await response.json();
+                        if (data.success && data.videoUrl) {
+                            videoUrl = data.videoUrl;
+                        } else {
+                            throw new Error(data.error || 'Video URL not found');
+                        }
                     } else {
-                        throw new Error(data.error || 'Video URL not found');
+                        throw new Error('No video URL or scene URL provided');
                     }
                 }
                 
@@ -977,20 +1929,64 @@
             document.getElementById('videoError').style.display = 'none';
         }
 
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeVideoModal();
-            }
-        });
-
         document.getElementById('videoModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeVideoModal();
             }
         });
 
-        window.addEventListener('beforeunload', function() {
-            closeVideoModal();
+        // Close modals on escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeVideoModal();
+                closeRatingModal();
+                closeRandomModal();
+            }
+        });
+
+        // =========================
+        // INIT
+        // =========================
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Set filter values from URL params
+            const cupsizeSelect = document.getElementById('cupsizeFilter');
+            if (cupsizeSelect && urlParams.get('cupsize')) {
+                cupsizeSelect.value = urlParams.get('cupsize');
+            }
+            
+            const ratingSelect = document.getElementById('ratingFilter');
+            if (ratingSelect && urlParams.get('rating')) {
+                ratingSelect.value = urlParams.get('rating');
+            }
+            
+            const minScenesInput = document.getElementById('minScenesFilter');
+            if (minScenesInput && urlParams.get('min_scenes')) {
+                minScenesInput.value = urlParams.get('min_scenes');
+            }
+            
+            const minScoreInput = document.getElementById('minScoreFilter');
+            if (minScoreInput && urlParams.get('min_score')) {
+                minScoreInput.value = urlParams.get('min_score');
+            }
+            
+            const ratingStatusSelect = document.getElementById('ratingStatusFilter');
+            if (ratingStatusSelect && urlParams.get('rating_status')) {
+                ratingStatusSelect.value = urlParams.get('rating_status');
+            }
+            
+            // Auto-sort checkbox
+            const autoSortCheckbox = document.getElementById('autoSortRated');
+            if (autoSortCheckbox && urlParams.get('auto_sort_rated') === 'true') {
+                autoSortCheckbox.checked = true;
+            }
+            
+            // First videos filter
+            const firstVideosInput = document.querySelector('input[name="first"]');
+            if (firstVideosInput && urlParams.get('first')) {
+                firstVideosInput.value = urlParams.get('first');
+            }
         });
     </script>
 </body>
