@@ -1344,20 +1344,6 @@ app.post('/api/random-video', async (req, res) => {
     }
 });
 
-// Keep the GET version for backward compatibility
-app.get('/api/random-video', async (req, res) => {
-    // Forward to POST handler with query params as body
-    req.body = req.query;
-    // Call the POST handler
-    const handler = app._router.stack.find(layer => {
-        return layer.route && layer.route.path === '/api/random-video' && layer.route.methods.post;
-    });
-    if (handler) {
-        handler.handle(req, res);
-    } else {
-        res.status(404).json({ success: false, error: 'POST endpoint not found' });
-    }
-});
 
 // Helper function to format video response
 function formatVideoResponse(video, res) {
