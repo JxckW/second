@@ -176,13 +176,6 @@
             white-space: nowrap;
         }
 
-        /* First videos indicator */
-        .first-videos-indicator {
-            color: #ff9f43;
-            font-size: 13px;
-            margin-left: 8px;
-        }
-
         .video-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -288,7 +281,6 @@
             margin-top: 2px;
         }
 
-        /* Rating Summary on card */
         .rating-summary {
             display: flex;
             flex-wrap: wrap;
@@ -464,7 +456,6 @@
             color: #ff9f43;
         }
 
-        /* Performer selector in modal */
         .performer-selector {
             display: flex;
             gap: 10px;
@@ -986,7 +977,6 @@
                     🔄 Auto-sort by highest rated
                 </label>
 
-                <!-- NEW: First X Videos Filter -->
                 <span class="filter-label">📋 First:</span>
                 <input type="number" name="first" class="first-videos-input" placeholder="All" min="1" max="1000" value="<%= firstVideos > 0 ? firstVideos : '' %>">
 
@@ -1015,7 +1005,6 @@
                     const isFavorited = video.isFavorited || false;
                     const globalIndex = (currentPage - 1) * perPage + index + 1;
                     
-                    // Rating data - 8 categories
                     const isX = parseInt(video.is_x) || 0;
                     const totalClips = parseInt(video.total_clips) || 0;
                     const score = parseFloat(video.score) || 0;
@@ -1039,7 +1028,6 @@
                         <% } %>
                         <div class="duration"><%= video.duration || 'N/A' %></div>
                         <div class="play-btn">▶</div>
-                        <!-- Show video number if first videos filter is active -->
                         <% if (firstVideos > 0) { %>
                             <div style="position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.8); padding: 2px 10px; border-radius: 4px; font-size: 11px; color: #ff9f43; font-weight: bold;">
                                 #<%= globalIndex %>
@@ -1060,7 +1048,6 @@
                             <% } %>
                         </div>
                     </div>
-                    <!-- Rating Summary -->
                     <div class="rating-summary">
                         <% if (isX === 1) { %>
                             <span class="x-badge">✕ Marked as X</span>
@@ -1079,7 +1066,6 @@
                             <span class="unrated">📝 Not rated</span>
                         <% } %>
                     </div>
-                    <!-- Video Actions -->
                     <div class="video-actions">
                         <form method="POST" action="/video-favorites/toggle" style="display: inline;">
                             <input type="hidden" name="scene_url" value="<%= video.url %>">
@@ -1119,7 +1105,6 @@
                 <% }) %>
             </div>
 
-            <!-- Pagination -->
             <% if (totalPages > 1) { %>
                 <div class="pagination">
                     <% if (currentPage > 1) { %>
@@ -1172,7 +1157,6 @@
                     <span class="duration-text" id="ratingDurationText"></span>
                 </div>
                 
-                <!-- Performer Selector -->
                 <div class="performer-selector">
                     <label>👤 Performer:</label>
                     <select name="performer_name" id="ratingPerformerSelect">
@@ -1180,7 +1164,6 @@
                     </select>
                 </div>
                 
-                <!-- Current rating info -->
                 <div class="current-rating-info" id="currentRatingInfo">
                     <span class="info-item">Status: <strong id="ratingStatusDisplay">Not rated</strong></span>
                     <span class="info-item">Score: <strong class="score-value" id="ratingScoreDisplay">0.00</strong></span>
@@ -1330,13 +1313,11 @@
                 isX, totalClips, score, performerName, performers
             };
             
-            // Set form values
             document.getElementById('ratingSceneUrl').value = sceneUrl;
             document.getElementById('ratingModalTitle').textContent = 'Rating: ' + title;
             document.getElementById('ratingPerformerName').textContent = performerName || 'Unknown';
             document.getElementById('ratingDurationText').textContent = duration || 'N/A';
             
-            // Populate performer selector
             const select = document.getElementById('ratingPerformerSelect');
             select.innerHTML = '<option value="">Select performer...</option>';
             
@@ -1369,10 +1350,8 @@
             document.getElementById('lying_doggystyle_clips').value = lyingDoggystyleClips || 0;
             document.getElementById('outro_clips').value = outroClips || 0;
             
-            // Update status display
             updateRatingDisplay(isX, totalClips, score);
             
-            // Update X button
             const btnX = document.getElementById('btnX');
             if (isX === 1) {
                 btnX.classList.add('active');
@@ -1383,7 +1362,6 @@
             }
             document.getElementById('ratingIsX').value = isX || 0;
             
-            // Show modal
             document.getElementById('ratingModal').classList.add('active');
             document.body.style.overflow = 'hidden';
         }
@@ -1457,7 +1435,7 @@
         }
 
         // =========================
-        // RANDOM VIDEO
+        // RANDOM VIDEO - POST version (for proxy compatibility)
         // =========================
         async function getRandomVideo() {
             const modal = document.getElementById('randomModal');
@@ -1476,21 +1454,37 @@
                 const ratingStatus = urlParams.get('rating_status') || 'all';
                 const firstVideos = parseInt(urlParams.get('first')) || 0;
                 
-                let randomUrl = '/api/random-video?';
-                if (q) randomUrl += `q=${encodeURIComponent(q)}&`;
-                if (cupsize) randomUrl += `cupsize=${encodeURIComponent(cupsize)}&`;
-                if (rating) randomUrl += `rating=${encodeURIComponent(rating)}&`;
-                if (minScenes) randomUrl += `min_scenes=${encodeURIComponent(minScenes)}&`;
-                if (minScore) randomUrl += `min_score=${encodeURIComponent(minScore)}&`;
-                if (ratingStatus) randomUrl += `rating_status=${encodeURIComponent(ratingStatus)}&`;
-                if (firstVideos > 0) randomUrl += `first=${encodeURIComponent(firstVideos)}&`;
+                const response = await fetch('/api/random-video', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        q: q,
+                        cupsize: cupsize,
+                        rating: rating,
+                        min_scenes: minScenes,
+                        min_score: minScore,
+                        rating_status: ratingStatus,
+                        first: firstVideos
+                    })
+                });
                 
-                const response = await fetch(randomUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server returned HTML instead of JSON. Proxy may be blocking the request.');
+                }
+                
                 const data = await response.json();
                 
                 if (!data.success || !data.video) {
                     content.innerHTML = `
-                        <p style="color: #ff6b6b;">❌ No videos found matching your filters</p>
+                        <p style="color: #ff6b6b;">❌ ${data.error || 'No videos found matching your filters'}</p>
                         <div style="margin-top: 12px; text-align: center;">
                             <button onclick="closeRandomModal()" style="padding: 8px 20px; border-radius: 6px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer;">Close</button>
                         </div>
@@ -1500,20 +1494,12 @@
                 
                 const video = data.video;
                 
-                // Build performer options
                 let performerOptions = '';
-                if (video.performers) {
-                    const performers = video.performers.split(';').map(p => p.trim()).filter(p => p);
-                    performers.forEach(p => {
-                        performerOptions += `<option value="${p}">${p}</option>`;
-                    });
-                }
-                if (!performerOptions && video.performer) {
-                    performerOptions = `<option value="${video.performer}">${video.performer}</option>`;
+                if (video.performer_name) {
+                    performerOptions = `<option value="${video.performer_name}">${video.performer_name}</option>`;
                 }
                 
                 content.innerHTML = `
-                    <!-- Thumbnail -->
                     <div class="video-thumbnail-container">
                         ${video.thumbnail && video.thumbnail.startsWith('http') ? 
                             `<img src="${video.thumbnail}" alt="${video.title}">` : 
@@ -1525,8 +1511,7 @@
                     <div class="video-title">${video.title || 'Untitled Scene'}</div>
                     <div class="video-meta">
                         ${video.studio ? `🏢 ${video.studio}` : ''}
-                        ${video.displayDate ? `📅 ${video.displayDate}` : ''}
-                        ${video.performers ? `<br>👥 ${video.performers}` : ''}
+                        ${video.performer_name ? `<br>👤 ${video.performer_name}` : ''}
                     </div>
                     
                     <form method="POST" action="/video-rating/save" id="randomRatingForm" style="border-top: 1px solid #2a2a2a; padding-top: 12px;">
@@ -1579,7 +1564,7 @@
                             <div class="category-row">
                                 <span class="category-icon">👋</span>
                                 <span class="category-label">Outro</span>
-                                <input type="number" name="outro_clips" min="0" max="99" value="0" class="clip-input>
+                                <input type="number" name="outro_clips" min="0" max="99" value="0" class="clip-input">
                             </div>
                         </div>
                         
@@ -1591,7 +1576,7 @@
                     </form>
                     
                     <div class="watch-buttons">
-                        <button class="watch-btn play-btn" onclick="closeRandomModal(); playVideo('${video.url}', '${video.title.replace(/'/g, "\\'")}', '${video.thumbnail || ''}', '${video.video720p || ''}', '${video.video480p || ''}')">▶ Watch Video</button>
+                        <button class="watch-btn play-btn" onclick="closeRandomModal(); playVideo('${video.url}', '${video.title.replace(/'/g, "\\'")}', '${video.thumbnail || ''}', '${video.video720p || ''}', '')">▶ Watch Video</button>
                         <button class="watch-btn original-btn" onclick="window.open('${video.url}', '_blank')">🌐 Original Scene</button>
                     </div>
                 `;
@@ -1600,6 +1585,11 @@
                 console.error('❌ Random video error:', error);
                 content.innerHTML = `
                     <p style="color: #ff6b6b;">❌ Error: ${error.message}</p>
+                    <p style="color: #888; font-size: 13px; margin-top: 8px;">
+                        ${error.message.includes('proxy') || error.message.includes('HTML') ? 
+                            'The proxy service may be blocking API requests. Try accessing the site directly.' : 
+                            'Please try again or refresh the page.'}
+                    </p>
                     <div style="margin-top: 12px; text-align: center;">
                         <button onclick="closeRandomModal()" style="padding: 8px 20px; border-radius: 6px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer;">Close</button>
                     </div>
@@ -1635,7 +1625,7 @@
         }
 
         // =========================
-        // BASE URL DETECTION
+        // VIDEO PLAYER FUNCTIONS
         // =========================
         function getApiBase() {
             const hostname = window.location.hostname;
@@ -1653,9 +1643,6 @@
             return '';
         }
 
-        // =========================
-        // VIDEO PLAYER FUNCTIONS
-        // =========================
         async function playVideo(sceneUrl, title, thumbnail, video720p, video480p) {
             console.log('🎬 Playing video:', title);
             
@@ -1935,7 +1922,6 @@
             }
         });
 
-        // Close modals on escape
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeVideoModal();
@@ -1944,13 +1930,9 @@
             }
         });
 
-        // =========================
-        // INIT
-        // =========================
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             
-            // Set filter values from URL params
             const cupsizeSelect = document.getElementById('cupsizeFilter');
             if (cupsizeSelect && urlParams.get('cupsize')) {
                 cupsizeSelect.value = urlParams.get('cupsize');
@@ -1976,13 +1958,11 @@
                 ratingStatusSelect.value = urlParams.get('rating_status');
             }
             
-            // Auto-sort checkbox
             const autoSortCheckbox = document.getElementById('autoSortRated');
             if (autoSortCheckbox && urlParams.get('auto_sort_rated') === 'true') {
                 autoSortCheckbox.checked = true;
             }
             
-            // First videos filter
             const firstVideosInput = document.querySelector('input[name="first"]');
             if (firstVideosInput && urlParams.get('first')) {
                 firstVideosInput.value = urlParams.get('first');
