@@ -1435,7 +1435,7 @@
         }
 
         // =========================
-        // RANDOM VIDEO - POST version (for proxy compatibility)
+        // RANDOM VIDEO - GET version (for proxy compatibility)
         // =========================
         async function getRandomVideo() {
             const modal = document.getElementById('randomModal');
@@ -1454,22 +1454,21 @@
                 const ratingStatus = urlParams.get('rating_status') || 'all';
                 const firstVideos = parseInt(urlParams.get('first')) || 0;
                 
-                const response = await fetch('/api/random-video', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        q: q,
-                        cupsize: cupsize,
-                        rating: rating,
-                        min_scenes: minScenes,
-                        min_score: minScore,
-                        rating_status: ratingStatus,
-                        first: firstVideos
-                    })
-                });
+                // ⭐ Build URL with query parameters (GET request)
+                let randomUrl = '/api/random-video?';
+                const params = [];
+                if (q) params.push(`q=${encodeURIComponent(q)}`);
+                if (cupsize) params.push(`cupsize=${encodeURIComponent(cupsize)}`);
+                if (rating) params.push(`rating=${encodeURIComponent(rating)}`);
+                if (minScenes) params.push(`min_scenes=${encodeURIComponent(minScenes)}`);
+                if (minScore) params.push(`min_score=${encodeURIComponent(minScore)}`);
+                if (ratingStatus) params.push(`rating_status=${encodeURIComponent(ratingStatus)}`);
+                if (firstVideos > 0) params.push(`first=${encodeURIComponent(firstVideos)}`);
+                randomUrl += params.join('&');
+                
+                console.log('🎲 Fetching random video from:', randomUrl);
+                
+                const response = await fetch(randomUrl);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -1500,6 +1499,7 @@
                 }
                 
                 content.innerHTML = `
+                    <!-- Thumbnail -->
                     <div class="video-thumbnail-container">
                         ${video.thumbnail && video.thumbnail.startsWith('http') ? 
                             `<img src="${video.thumbnail}" alt="${video.title}">` : 

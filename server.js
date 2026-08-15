@@ -1125,12 +1125,12 @@ app.get('/api/performer-rating/:performerId', async (req, res) => {
 
 
 // =========================
-// RANDOM VIDEO API - POST version (for proxy compatibility)
+// RANDOM VIDEO API - GET version (for proxy compatibility)
 // =========================
-app.post('/api/random-video', async (req, res) => {
-    const { q = '', cupsize = '', rating = '', min_scenes = 0, min_score = 0, rating_status = 'all', first = 0 } = req.body;
+app.get('/api/random-video', async (req, res) => {
+    const { q = '', cupsize = '', rating = '', min_scenes = 0, min_score = 0, rating_status = 'all', first = 0 } = req.query;
     
-    console.log(`🎲 Random video POST request with filters:`, { q, cupsize, rating, min_scenes, min_score, rating_status, first });
+    console.log(`🎲 Random video GET request with filters:`, { q, cupsize, rating, min_scenes, min_score, rating_status, first });
     
     // ⭐ Limit to prevent network overages
     const MAX_QUERY_LIMIT = 1000;
