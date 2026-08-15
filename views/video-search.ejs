@@ -13,7 +13,7 @@
             color: #e0e0e0; 
             min-height: 100vh;
         }
-        .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+        .app { max-width: 1400px; margin: 0 auto; padding: 16px; }
         
         header { 
             margin-bottom: 20px; 
@@ -44,57 +44,6 @@
             color: #fff;
         }
 
-        .search-section {
-            background: #1a1a1a;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid #2a2a2a;
-        }
-        .search-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        .search-row label {
-            color: #888;
-            font-size: 14px;
-            min-width: 80px;
-        }
-        .search-row input[type="text"] {
-            flex: 1;
-            min-width: 200px;
-            padding: 10px 14px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            background: #111;
-            color: #e0e0e0;
-            font-size: 14px;
-        }
-        .search-row input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .search-row .hint {
-            color: #666;
-            font-size: 12px;
-            width: 100%;
-        }
-        .search-btn {
-            padding: 10px 28px;
-            border-radius: 8px;
-            border: none;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        .search-btn:hover { opacity: 0.85; }
-
         .controls-bar {
             display: flex;
             flex-wrap: wrap;
@@ -106,6 +55,32 @@
             border: 1px solid #2a2a2a;
             align-items: center;
         }
+        .controls-bar .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #111;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        .controls-bar .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .controls-bar .search-btn {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .controls-bar .search-btn:hover {
+            opacity: 0.85;
+        }
         .controls-bar .sort-select {
             padding: 8px 14px;
             border-radius: 8px;
@@ -114,42 +89,44 @@
             color: #e0e0e0;
             font-size: 14px;
             cursor: pointer;
-            outline: none;
         }
         .controls-bar .sort-select:focus {
+            outline: none;
             border-color: #667eea;
         }
-        .controls-bar .filter-checkbox {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: #888;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .controls-bar .filter-checkbox input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            accent-color: #667eea;
-        }
-        .controls-bar .results-count {
-            color: #888;
-            font-size: 14px;
-            margin-left: auto;
-        }
-        .controls-bar .apply-btn {
-            padding: 6px 16px;
+        .controls-bar .clear-btn {
+            padding: 8px 16px;
             border-radius: 8px;
-            border: none;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #fff;
-            font-size: 13px;
-            font-weight: 600;
+            border: 1px solid #ff6b6b;
+            background: transparent;
+            color: #ff6b6b;
             cursor: pointer;
-            transition: opacity 0.2s;
+            font-size: 14px;
+            transition: all 0.2s;
         }
-        .controls-bar .apply-btn:hover { opacity: 0.85; }
+        .controls-bar .clear-btn:hover {
+            background: #ff6b6b;
+            color: #fff;
+        }
+        .controls-bar .favorites-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid #ff9f43;
+            background: transparent;
+            color: #ff9f43;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .controls-bar .favorites-btn:hover {
+            background: #ff9f43;
+            color: #fff;
+        }
+        .controls-bar .favorites-btn.active {
+            background: #ff9f43;
+            color: #fff;
+        }
 
         .video-grid {
             display: grid;
@@ -164,14 +141,14 @@
             overflow: hidden;
             border: 1px solid #2a2a2a;
             transition: transform 0.2s, border-color 0.2s;
-            cursor: pointer;
             position: relative;
+            cursor: pointer;
         }
         .video-card:hover {
             transform: translateY(-4px);
             border-color: #667eea;
         }
-        
+
         .video-thumbnail {
             position: relative;
             width: 100%;
@@ -222,8 +199,13 @@
             opacity: 0;
             transition: opacity 0.3s;
         }
-        .video-card:hover .play-btn { opacity: 1; }
-        .video-info { padding: 12px; }
+        .video-card:hover .play-btn {
+            opacity: 1;
+        }
+
+        .video-info {
+            padding: 12px;
+        }
         .video-info .title {
             font-size: 14px;
             color: #fff;
@@ -242,8 +224,13 @@
             gap: 8px;
             align-items: center;
         }
-        .video-info .studio { color: #667eea; }
-        .video-info .date { color: #888; font-size: 11px; }
+        .video-info .studio {
+            color: #667eea;
+        }
+        .video-info .date {
+            color: #888;
+            font-size: 11px;
+        }
         .video-info .performers {
             color: #888;
             font-size: 11px;
@@ -255,12 +242,45 @@
             margin-top: 2px;
         }
 
-        .no-results {
+        .video-actions {
+            display: flex;
+            gap: 8px;
+            padding: 6px 12px 10px 12px;
+            border-top: 1px solid #1a1a1a;
+            background: #111;
+        }
+        .video-actions .fav-btn {
+            padding: 4px 12px;
+            border-radius: 4px;
+            border: 1px solid #ff9f43;
+            background: transparent;
+            color: #ff9f43;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .video-actions .fav-btn:hover {
+            background: #ff9f43;
+            color: #fff;
+        }
+        .video-actions .fav-btn.active {
+            background: #ff9f43;
+            color: #fff;
+        }
+
+        .no-videos {
             text-align: center;
             padding: 60px;
             color: #888;
         }
-        .no-results h3 { color: #fff; margin-bottom: 8px; }
+        .no-videos h3 { color: #fff; margin-bottom: 8px; }
+        
+        .video-stats {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
 
         .pagination {
             display: flex;
@@ -291,284 +311,178 @@
             color: #fff;
         }
 
-        .original-link-btn {
-            display: inline-block;
-            padding: 8px 20px;
-            border-radius: 20px;
-            border: 1px solid #ff9f43;
-            background: transparent;
-            color: #ff9f43;
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 14px;
-            font-family: inherit;
-        }
-        .original-link-btn:hover {
-            background: #ff9f43;
-            color: #fff;
-        }
-
-        .video-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.95);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-        }
-        .video-modal.active { display: flex; }
-        .video-modal .close-modal {
-            position: absolute;
-            top: 20px;
-            right: 30px;
-            font-size: 40px;
-            color: #fff;
-            cursor: pointer;
-            z-index: 1001;
-            background: none;
-            border: none;
-            padding: 10px;
-            line-height: 1;
-        }
-        .video-modal .close-modal:hover { color: #667eea; transform: scale(1.2); }
-        .video-modal .video-container {
-            width: 90%;
-            max-width: 1000px;
-            max-height: 90vh;
-            position: relative;
-        }
-        .video-modal video {
-            width: 100%;
-            max-height: 80vh;
-            background: #000;
-            border-radius: 8px;
-        }
-        .video-modal .video-title {
-            color: #fff;
-            font-size: 18px;
-            margin-top: 12px;
-            text-align: center;
-            max-width: 90%;
-        }
-        .video-modal .video-controls {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-top: 12px;
-            flex-wrap: wrap;
-        }
-        .video-modal .video-controls button {
-            padding: 8px 20px;
-            border-radius: 20px;
-            border: 1px solid #667eea;
-            background: transparent;
-            color: #667eea;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 14px;
-        }
-        .video-modal .video-controls button:hover {
-            background: #667eea;
-            color: #fff;
-        }
-        .video-modal .video-controls .download-btn {
-            background: #4caf50;
-            color: white;
-            border-color: #4caf50;
-        }
-        .video-modal .video-controls .download-btn:hover {
-            background: #45a049;
-            border-color: #45a049;
-        }
-        .video-modal .video-controls .quality-selector {
-            padding: 8px 14px;
-            border-radius: 20px;
-            border: 1px solid #333;
-            background: #1a1a1a;
-            color: #e0e0e0;
+        .search-hint {
+            color: #666;
             font-size: 13px;
-            cursor: pointer;
-            outline: none;
+            margin-bottom: 12px;
+            padding: 8px 16px;
+            background: #111;
+            border-radius: 8px;
+            border: 1px solid #1a1a1a;
         }
-        .video-modal .video-controls .quality-selector:focus {
-            border-color: #667eea;
-        }
-        .video-modal .video-loading {
+        .search-hint strong {
             color: #888;
-            text-align: center;
-            padding: 40px;
-            font-size: 18px;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10;
-        }
-        .video-modal .video-error {
-            color: #ff6b6b;
-            text-align: center;
-            padding: 40px;
-            font-size: 18px;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10;
         }
 
         @media (max-width: 768px) {
             .video-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
-            .search-row { flex-direction: column; align-items: stretch; }
-            .search-row label { min-width: auto; }
-            .search-row input[type="text"] { min-width: auto; }
             .video-modal .video-container { width: 98%; }
             .video-modal .close-modal { top: 10px; right: 20px; font-size: 30px; }
             .controls-bar { flex-direction: column; align-items: stretch; }
-            .controls-bar .results-count { margin-left: 0; }
+            .controls-bar .search-input { min-width: auto; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="app">
         <header>
             <div>
                 <a href="/" class="back-link">← Back to Home</a>
                 <h1>🎬 Global Video Search</h1>
             </div>
+            <div>
+                <span style="color: #888; font-size: 14px;">
+                    <%= totalVideos %> videos found
+                </span>
+            </div>
         </header>
 
-        <!-- Main Search Form -->
-        <div class="search-section">
-            <form method="get" action="/video-search" style="width: 100%;">
-                <div class="search-row">
-                    <label>🔍 Search</label>
-                    <input type="text" name="q" placeholder="Search by studio or performer..." value="<%= searchTerm %>">
-                </div>
-                <div class="search-row">
-                    <div class="hint">
-                        💡 Separate terms with commas: <strong>Studio X, Performer A, Performer B</strong>
-                        <br>Examples: 
-                        <span style="color: #667eea; cursor: pointer;" onclick="document.querySelector('input[name=q]').value='Brazzers, Mia Malkova'; this.closest('form').submit();">Brazzers, Mia Malkova</span> | 
-                        <span style="color: #667eea; cursor: pointer;" onclick="document.querySelector('input[name=q]').value='Riley Reid, Abella Danger'; this.closest('form').submit();">Riley Reid, Abella Danger</span> | 
-                        <span style="color: #667eea; cursor: pointer;" onclick="document.querySelector('input[name=q]').value='BLACKED, Chloe Temple'; this.closest('form').submit();">BLACKED, Chloe Temple</span>
-                    </div>
-                </div>
-                <button type="submit" class="search-btn">🔍 Search Videos</button>
+        <!-- Search Controls -->
+        <div class="controls-bar">
+            <form method="get" action="/video-search" style="display: flex; flex-wrap: wrap; gap: 12px; flex: 1; width: 100%;">
+                <input type="text" name="q" class="search-input" placeholder="Search videos by title, studio, performer..." value="<%= searchTerm %>">
+                <select name="sort" class="sort-select">
+                    <option value="date" <%= sortBy === 'date' ? 'selected' : '' %>>Sort by Date</option>
+                    <option value="title" <%= sortBy === 'title' ? 'selected' : '' %>>Sort by Title</option>
+                    <option value="duration" <%= sortBy === 'duration' ? 'selected' : '' %>>Sort by Duration</option>
+                </select>
+                <button type="submit" class="search-btn">🔍 Search</button>
+                <% if (searchTerm) { %>
+                    <a href="/video-search?favorites=false" class="clear-btn">✕ Clear</a>
+                <% } %>
+                <a href="/video-search?favorites=true<%= searchTerm ? '&q=' + encodeURIComponent(searchTerm) : '' %>" class="favorites-btn <%= showFavoritesOnly ? 'active' : '' %>">⭐ Favorites</a>
             </form>
         </div>
 
+        <% if (searchTerm) { %>
+            <div class="search-hint">
+                💡 Separate terms with commas: <strong>Studio X, Performer A, Performer B</strong>
+                <br>
+                Examples: <strong>Brazzers, Mia Malkova</strong> | <strong>Riley Reid, Abella Danger</strong> | <strong>BLACKED, Chloe Temple</strong>
+            </div>
+        <% } %>
+
         <% if (videos && videos.length > 0) { %>
-            <!-- Sort Form with Favorites Filter -->
-            <div class="controls-bar">
-                <form method="get" action="/video-search" style="display: flex; flex-wrap: wrap; gap: 12px; flex: 1; width: 100%; align-items: center;">
-                    <input type="hidden" name="q" value="<%= searchTerm %>">
-                    <input type="hidden" name="favorites" id="favoritesHidden" value="<%= showFavoritesOnly ? 'true' : 'false' %>">
-                    <select name="sort" id="sortSelect" class="sort-select" onchange="this.closest('form').submit()">
-                        <option value="date" <%= sortBy === 'date' ? 'selected' : '' %>>Sort by Date</option>
-                        <option value="title" <%= sortBy === 'title' ? 'selected' : '' %>>Sort by Title</option>
-                        <option value="duration" <%= sortBy === 'duration' ? 'selected' : '' %>>Sort by Duration</option>
-                    </select>
-                    <button type="submit" class="apply-btn">Apply</button>
-                    
-                    <label class="filter-checkbox">
-                        <input type="checkbox" id="favoritesFilter" onchange="toggleFavoritesFilter()" <%= showFavoritesOnly ? 'checked' : '' %>>
-                        ⭐ Favorites Only
-                    </label>
-                    
-                    <span class="results-count" id="resultsCount"><%= totalVideos %> videos found</span>
-                </form>
+            <div class="video-stats">
+                Showing <%= (currentPage - 1) * perPage + 1 %> - <%= Math.min(currentPage * perPage, totalVideos) %> of <%= totalVideos %> videos
+                <% if (searchTerm) { %>
+                    <span style="color: #667eea;">— Search: "<%= searchTerm %>"</span>
+                <% } %>
+                <% if (showFavoritesOnly) { %>
+                    <span style="color: #ff9f43;">— ⭐ Favorites Only</span>
+                <% } %>
             </div>
 
-            <div class="video-grid" id="videoGrid">
-                <% videos.forEach(video => { 
-                    const safeTitle = JSON.stringify(video.title || 'Untitled Scene');
-                    const safeSceneUrl = JSON.stringify(video.url || '');
-                    const safeThumbnail = JSON.stringify(video.thumbnail || '');
-                    const safeVideo720p = JSON.stringify(video.video720p || '');
-                    const safeVideo480p = JSON.stringify(video.video480p || '');
-                    const isFavorited = video.isFavorited || false;
+            <div class="video-grid">
+                <% videos.forEach(scene => { 
+                    // Generate thumbnail
+                    let thumbnail = scene.thumbnail || '';
+                    let videoId = null;
+                    
+                    if (scene.video720p) {
+                        const match = scene.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                        if (match) videoId = match[1];
+                    }
+                    
+                    if (!videoId && scene.video480p) {
+                        const match = scene.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                        if (match) videoId = match[1];
+                    }
+                    
+                    if (!videoId && scene.url) {
+                        const match = scene.url.match(/\/videos\/(\d+)/);
+                        if (match) videoId = match[1];
+                    }
+                    
+                    if (videoId && !thumbnail) {
+                        const prefix = String(videoId).substring(0, 5);
+                        thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
+                    }
+                    
+                    let displayDate = '';
+                    if (scene.date) {
+                        const parts = scene.date.split('.');
+                        if (parts.length === 3) {
+                            displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
+                        } else {
+                            displayDate = scene.date;
+                        }
+                    }
+                    
+                    // ESCAPE FOR JAVASCRIPT
+                    const safeTitle = JSON.stringify(scene.title || 'Untitled Scene');
+                    const safeSceneUrl = JSON.stringify(scene.url || '');
+                    const safeThumbnail = JSON.stringify(thumbnail || '');
+                    const safeVideo720p = JSON.stringify(scene.video720p || '');
+                    const safeVideo480p = JSON.stringify(scene.video480p || '');
+                    
+                    const isFavorited = scene.isFavorited || false;
                 %>
-                <div class="video-card" 
-                     data-scene-url="<%= video.url %>"
-                     data-favorited="<%= isFavorited ? 'true' : 'false' %>"
-                     data-video720p="<%= video.video720p || '' %>"
-                     data-video480p="<%= video.video480p || '' %>"
-                     onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= safeVideo720p %>, <%= safeVideo480p %>)">
-                    
-                    <!-- ⭐ FAVORITE BUTTON - Form submission (works through proxy) -->
-                    <form method="post" action="/video-favorites/toggle" style="position: absolute; top: 10px; right: 10px; z-index: 10; margin: 0; padding: 0;">
-                        <input type="hidden" name="scene_url" value="<%= video.url %>">
-                        <input type="hidden" name="title" value="<%= video.title %>">
-                        <input type="hidden" name="thumbnail" value="<%= video.thumbnail || '' %>">
-                        <input type="hidden" name="video720p" value="<%= video.video720p || '' %>">
-                        <input type="hidden" name="video480p" value="<%= video.video480p || '' %>">
-                        <input type="hidden" name="studio" value="<%= video.studio || '' %>">
-                        <input type="hidden" name="performers" value="<%= video.performers || '' %>">
-                        <input type="hidden" name="duration" value="<%= video.duration || '' %>">
-                        <input type="hidden" name="date" value="<%= video.date || '' %>">
-                        <button type="submit" class="favorite-btn" style="
-                            background: rgba(0,0,0,0.7);
-                            border: none;
-                            border-radius: 50%;
-                            width: 36px;
-                            height: 36px;
-                            font-size: 18px;
-                            cursor: pointer;
-                            transition: all 0.2s;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            color: <%= isFavorited ? '#ff6b6b' : '#666' %>;
-                            pointer-events: auto;
-                        " onclick="event.stopPropagation();">
-                            <%= isFavorited ? '❤️' : '🤍' %>
-                        </button>
-                    </form>
-                    
-                    <div class="video-thumbnail">
-                        <% if (video.thumbnail && video.thumbnail.startsWith('http')) { %>
-                            <img src="<%= video.thumbnail %>" alt="<%= video.title %>" loading="lazy">
+                <div class="video-card">
+                    <div class="video-thumbnail" onclick="playVideo(<%= safeSceneUrl %>, <%= safeTitle %>, <%= safeThumbnail %>, <%= safeVideo720p %>, <%= safeVideo480p %>)">
+                        <% if (thumbnail && thumbnail.startsWith('http')) { %>
+                            <img src="<%= thumbnail %>" alt="<%= scene.title %>" loading="lazy">
                         <% } else { %>
                             <div class="no-image">🎬</div>
                         <% } %>
-                        <div class="duration"><%= video.duration || 'N/A' %></div>
+                        <div class="duration"><%= scene.duration || 'N/A' %></div>
                         <div class="play-btn">▶</div>
                     </div>
                     <div class="video-info">
-                        <div class="title"><%= video.title %></div>
+                        <div class="title"><%= scene.title %></div>
                         <div class="meta">
-                            <% if (video.studio) { %>
-                                <span class="studio">🏢 <%= video.studio %></span>
+                            <% if (scene.studio) { %>
+                                <span class="studio">🏢 <%= scene.studio %></span>
                             <% } %>
-                            <% if (video.displayDate) { %>
-                                <span class="date">📅 <%= video.displayDate %></span>
+                            <% if (displayDate) { %>
+                                <span class="date">📅 <%= displayDate %></span>
                             <% } %>
-                            <% if (video.performers && video.performers.length > 0) { %>
-                                <span class="performers">👥 <%= video.performers %></span>
+                            <% if (scene.performers && scene.performers.length > 0) { %>
+                                <span class="performers">👥 <%= scene.performers %></span>
                             <% } %>
                         </div>
+                    </div>
+                    <div class="video-actions">
+                        <form method="POST" action="/video-favorites/toggle" style="display: inline;">
+                            <input type="hidden" name="scene_url" value="<%= scene.url %>">
+                            <input type="hidden" name="title" value="<%= scene.title %>">
+                            <input type="hidden" name="thumbnail" value="<%= thumbnail %>">
+                            <input type="hidden" name="video720p" value="<%= scene.video720p %>">
+                            <input type="hidden" name="video480p" value="<%= scene.video480p %>">
+                            <input type="hidden" name="studio" value="<%= scene.studio %>">
+                            <input type="hidden" name="performers" value="<%= scene.performers %>">
+                            <input type="hidden" name="duration" value="<%= scene.duration %>">
+                            <input type="hidden" name="date" value="<%= scene.date %>">
+                            <button type="submit" class="fav-btn <%= isFavorited ? 'active' : '' %>">
+                                <%= isFavorited ? '⭐ Favorited' : '☆ Add Favorite' %>
+                            </button>
+                        </form>
                     </div>
                 </div>
                 <% }) %>
             </div>
 
-            <!-- Pagination - preserves sort and favorites parameters -->
+            <!-- Pagination - FIXED -->
             <% if (totalPages > 1) { %>
                 <div class="pagination">
                     <% if (currentPage > 1) { %>
-                        <a href="?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&favorites=<%= showFavoritesOnly ? 'true' : 'false' %>&page=<%= currentPage - 1 %>" class="page-link">← Previous</a>
+                        <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= currentPage - 1 %><% if (showFavoritesOnly) { %>&favorites=true<% } %>" class="page-link">← Previous</a>
                     <% } %>
                     <% for (let i = 1; i <= totalPages; i++) { %>
                         <% if (i === currentPage) { %>
                             <span class="page-link active"><%= i %></span>
                         <% } else if (i <= 3 || i > totalPages - 3 || Math.abs(i - currentPage) <= 1) { %>
-                            <a href="?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&favorites=<%= showFavoritesOnly ? 'true' : 'false' %>&page=<%= i %>" class="page-link"><%= i %></a>
+                            <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= i %><% if (showFavoritesOnly) { %>&favorites=true<% } %>" class="page-link"><%= i %></a>
                         <% } else if (i === 4 && currentPage > 5) { %>
                             <span class="page-link">…</span>
                         <% } else if (i === totalPages - 3 && currentPage < totalPages - 4) { %>
@@ -576,26 +490,33 @@
                         <% } %>
                     <% } %>
                     <% if (currentPage < totalPages) { %>
-                        <a href="?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&favorites=<%= showFavoritesOnly ? 'true' : 'false' %>&page=<%= currentPage + 1 %>" class="page-link">Next →</a>
+                        <a href="/video-search?q=<%= encodeURIComponent(searchTerm) %>&sort=<%= sortBy %>&page=<%= currentPage + 1 %><% if (showFavoritesOnly) { %>&favorites=true<% } %>" class="page-link">Next →</a>
                     <% } %>
                 </div>
             <% } %>
-
-        <% } else if (searchTerm) { %>
-            <div class="no-results">
-                <h3>🔍 No Results Found</h3>
-                <p>No videos found for "<%= searchTerm %>"</p>
-            </div>
         <% } else { %>
-            <div class="no-results">
-                <h3>🔍 Search for Videos</h3>
-                <p>Enter a search term above to find videos</p>
-                <p style="margin-top: 8px; font-size: 13px; color: #666;">💡 Try searching for a studio like "Brazzers" or performer like "Riley Reid"</p>
+            <div class="no-videos">
+                <% if (searchTerm) { %>
+                    <h3>🔍 No Results Found</h3>
+                    <p>No videos found for "<%= searchTerm %>"</p>
+                    <% if (showFavoritesOnly) { %>
+                        <p style="margin-top: 8px;">No favorites found matching your search.</p>
+                    <% } %>
+                    <p style="margin-top: 8px; font-size: 12px; color: #666;">
+                        Try using fewer terms or different keywords.
+                    </p>
+                <% } else { %>
+                    <h3>🔍 Search for Videos</h3>
+                    <p>Enter a search term above to find videos</p>
+                    <p style="margin-top: 8px; font-size: 12px; color: #666;">
+                        Examples: Studio, Performer, Title
+                    </p>
+                <% } %>
             </div>
         <% } %>
     </div>
 
-    <!-- Video Player Modal -->
+    <!-- ===== VIDEO MODAL ===== -->
     <div class="video-modal" id="videoModal">
         <button class="close-modal" onclick="closeVideoModal()">✕</button>
         <div class="video-container">
@@ -626,9 +547,156 @@
         </div>
     </div>
 
+    <style>
+        .video-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .video-modal.active {
+            display: flex;
+        }
+        .video-modal .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 40px;
+            color: #fff;
+            cursor: pointer;
+            z-index: 1001;
+            font-family: Arial, sans-serif;
+            background: none;
+            border: none;
+            padding: 10px;
+            line-height: 1;
+        }
+        .video-modal .close-modal:hover {
+            color: #667eea;
+            transform: scale(1.2);
+        }
+        .video-modal .video-container {
+            width: 90%;
+            max-width: 1000px;
+            max-height: 90vh;
+            position: relative;
+        }
+        .video-modal video {
+            width: 100%;
+            max-height: 80vh;
+            background: #000;
+            border-radius: 8px;
+        }
+        .video-modal .video-title {
+            color: #fff;
+            font-size: 18px;
+            margin-top: 12px;
+            text-align: center;
+            max-width: 90%;
+        }
+        .video-modal .video-controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .video-modal .video-controls button {
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #667eea;
+            background: transparent;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        .video-modal .video-controls button:hover {
+            background: #667eea;
+            color: #fff;
+        }
+        .video-modal .video-controls .download-btn {
+            background: #4caf50;
+            color: white;
+            border-color: #4caf50;
+            display: inline-block;
+        }
+        .video-modal .video-controls .download-btn:hover {
+            background: #45a049;
+            border-color: #45a049;
+        }
+        .video-modal .video-controls .quality-selector {
+            padding: 8px 14px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+        }
+        .video-modal .video-controls .quality-selector:focus {
+            border-color: #667eea;
+        }
+        .video-modal .video-controls .quality-selector option {
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .original-link-btn {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #ff9f43;
+            background: transparent;
+            color: #ff9f43;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .original-link-btn:hover {
+            background: #ff9f43;
+            color: #fff;
+        }
+        .video-modal .video-loading {
+            color: #888;
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .video-modal .video-error {
+            color: #ff6b6b;
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .video-modal .video-error a {
+            color: #667eea;
+        }
+    </style>
+
     <script>
         // =========================
-        // GLOBAL VARIABLES
+        // VIDEO PLAYER
         // =========================
         let currentVideoUrl = null;
         let currentSceneUrl = null;
@@ -639,55 +707,7 @@
         let currentQuality = '720p';
         let isLoadingQuality = false;
         let videoLoaded = false;
-        let showFavoritesOnly = <%= showFavoritesOnly ? 'true' : 'false' %>;
 
-        // =========================
-        // BASE URL DETECTION
-        // =========================
-        function getApiBase() {
-            const hostname = window.location.hostname;
-            const href = window.location.href;
-            
-            if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                return '';
-            }
-            if (hostname.includes('onrender.com')) {
-                return '';
-            }
-            if (hostname.includes('proxysite') || hostname.includes('proxy') || href.includes('proxysite')) {
-                return 'https://second-hmg0.onrender.com';
-            }
-            return '';
-        }
-
-        async function apiFetch(endpoint, options = {}) {
-            const base = getApiBase();
-            const url = `${base}${endpoint}`;
-            const response = await fetch(url, options);
-            if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
-            }
-            return response;
-        }
-
-        // =========================
-        // FAVORITES FILTER
-        // =========================
-        function toggleFavoritesFilter() {
-            const checkbox = document.getElementById('favoritesFilter');
-            const form = checkbox.closest('form');
-            const hiddenInput = document.getElementById('favoritesHidden');
-            
-            if (hiddenInput) {
-                hiddenInput.value = checkbox.checked ? 'true' : 'false';
-            }
-            
-            form.submit();
-        }
-
-        // =========================
-        // VIDEO PLAYER FUNCTIONS
-        // =========================
         async function playVideo(sceneUrl, title, thumbnail, video720p, video480p) {
             console.log('🎬 Playing video:', title);
             
@@ -740,16 +760,12 @@
                 }
                 
                 if (!videoUrl || !videoUrl.includes('get_file')) {
-                    if (sceneUrl) {
-                        const response = await apiFetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
-                        const data = await response.json();
-                        if (data.success && data.videoUrl) {
-                            videoUrl = data.videoUrl;
-                        } else {
-                            throw new Error(data.error || 'Video URL not found');
-                        }
+                    const response = await fetch(`/api/video/url?sceneUrl=${encodeURIComponent(sceneUrl)}`);
+                    const data = await response.json();
+                    if (data.success && data.videoUrl) {
+                        videoUrl = data.videoUrl;
                     } else {
-                        throw new Error('No video URL or scene URL provided');
+                        throw new Error(data.error || 'Video URL not found');
                     }
                 }
                 
@@ -973,26 +989,8 @@
             }
         });
 
-        // =========================
-        // INIT
-        // =========================
-        document.addEventListener('DOMContentLoaded', function() {
-            // Set the sort select to match the URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const sortParam = urlParams.get('sort') || 'date';
-            const favoritesParam = urlParams.get('favorites') === 'true';
-            
-            const sortSelect = document.getElementById('sortSelect');
-            if (sortSelect) {
-                sortSelect.value = sortParam;
-            }
-            
-            const favCheckbox = document.getElementById('favoritesFilter');
-            if (favCheckbox) {
-                favCheckbox.checked = favoritesParam;
-            }
-            
-            // ⭐ No loadFavorites() call here - favorites are loaded server-side
+        window.addEventListener('beforeunload', function() {
+            closeVideoModal();
         });
     </script>
 </body>
