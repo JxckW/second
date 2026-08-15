@@ -2765,6 +2765,9 @@ app.get('/api/search/videos', async (req, res) => {
 });
 
 
+// =========================
+// VIDEO SEARCH - FINAL FIXED VERSION (No date column)
+// =========================
 app.get('/video-search', async (req, res) => {
     const searchTerm = req.query.q || '';
     const sortBy = req.query.sort || 'date';
@@ -2779,57 +2782,63 @@ app.get('/video-search', async (req, res) => {
     const showFavoritesOnly = req.query.favorites === 'true';
     const firstVideos = parseInt(req.query.first) || 0;
     
+    // ⭐ IMPORTANT: Limit to prevent network overages
+    const MAX_QUERY_LIMIT = 1000;
+    
     console.log(`🔍 Video search: term="${searchTerm || '(empty)'}", ratingFilter="${ratingFilter}", firstVideos=${firstVideos}`);
     
     try {
-        // Get performer ratings from Miget
+        // STEP 1: Get performer ratings from Miget (if rating filter is active)
         let performerRatings = {};
         let ratedPerformerNames = [];
         let ratedPerformerNamesSet = new Set();
         
-        try {
-            const ratingsResult = await queryMiget('SELECT performer_id, rating FROM performer_ratings');
-            console.log(`📊 Got ${ratingsResult.rows.length} ratings from Miget`);
-            
-            // Get performer names from Neon for these IDs
-            const performerIds = ratingsResult.rows.map(row => row.performer_id);
-            if (performerIds.length > 0) {
-                const placeholders = performerIds.map((_, i) => `$${i + 1}`).join(',');
-                const performersResult = await queryNeon(
-                    `SELECT id, name FROM performers WHERE id IN (${placeholders})`,
-                    performerIds
-                );
+        if (ratingFilter) {
+            try {
+                const ratingsResult = await queryMiget('SELECT performer_id, rating FROM performer_ratings');
+                console.log(`📊 Got ${ratingsResult.rows.length} ratings from Miget`);
                 
-                // Build a map of performer ID to name
-                const idToName = {};
-                performersResult.forEach(p => {
-                    idToName[p.id] = p.name;
-                });
-                
-                // Store ratings with performer names
-                ratingsResult.rows.forEach(row => {
-                    const name = idToName[row.performer_id];
-                    if (name) {
-                        performerRatings[name.toLowerCase()] = row.rating;
-                        if (row.rating === ratingFilter) {
-                            ratedPerformerNames.push(name.toLowerCase());
-                            ratedPerformerNamesSet.add(name.toLowerCase());
+                // Get performer names from Neon for these IDs
+                const performerIds = ratingsResult.rows.map(row => row.performer_id);
+                if (performerIds.length > 0) {
+                    const placeholders = performerIds.map((_, i) => `$${i + 1}`).join(',');
+                    const performersResult = await queryNeon(
+                        `SELECT id, name FROM performers WHERE id IN (${placeholders})`,
+                        performerIds
+                    );
+                    
+                    const idToName = {};
+                    performersResult.forEach(p => {
+                        idToName[p.id] = p.name;
+                    });
+                    
+                    ratingsResult.rows.forEach(row => {
+                        const name = idToName[row.performer_id];
+                        if (name) {
+                            performerRatings[name.toLowerCase()] = row.rating;
+                            if (row.rating === ratingFilter) {
+                                ratedPerformerNames.push(name.toLowerCase());
+                                ratedPerformerNamesSet.add(name.toLowerCase());
+                            }
                         }
-                    }
-                });
+                    });
+                }
+            } catch (error) {
+                console.error('❌ Error fetching performer ratings:', error.message);
             }
-        } catch (error) {
-            console.error('❌ Error fetching performer ratings:', error.message);
         }
         
         console.log(`📊 Found ${ratedPerformerNames.length} performers with rating: ${ratingFilter}`);
         
-        // Build the query - WITHOUT rating filter in SQL (we'll filter in JS)
+        // STEP 2: Build the SQL query with ONLY existing columns
         let params = [];
         let paramIndex = 1;
         let whereConditions = [];
         
-        // Parse search terms
+        // ⭐ Always require video720p
+        whereConditions.push(`video720p IS NOT NULL AND video720p != ''`);
+        
+        // ⭐ Parse search terms
         if (searchTerm && searchTerm.trim()) {
             const searchTerms = searchTerm.trim().split(/\s*,\s*/).filter(t => t);
             if (searchTerms.length > 0) {
@@ -2837,10 +2846,9 @@ app.get('/video-search', async (req, res) => {
                 for (const term of searchTerms) {
                     const termLower = term.toLowerCase().trim();
                     conditions.push(`(
-                        LOWER(w.studio) ILIKE $${paramIndex} OR 
-                        LOWER(w.performers) ILIKE $${paramIndex} OR 
-                        LOWER(w.title) ILIKE $${paramIndex} OR 
-                        LOWER(w.performer) ILIKE $${paramIndex}
+                        LOWER(studio) ILIKE $${paramIndex} OR 
+                        LOWER(performer_name) ILIKE $${paramIndex} OR 
+                        LOWER(title) ILIKE $${paramIndex}
                     )`);
                     params.push(`%${termLower}%`);
                     paramIndex++;
@@ -2851,144 +2859,66 @@ app.get('/video-search', async (req, res) => {
             }
         }
         
-        // Rating status filter (on wow_videos data)
-        if (ratingStatus === 'rated') {
-            whereConditions.push(`(w.is_x = 0 AND w.total_clips > 0 AND w.score > 0)`);
-        } else if (ratingStatus === 'unrated') {
-            whereConditions.push(`(w.is_x IS NULL OR w.is_x = 0) AND (w.total_clips IS NULL OR w.total_clips = 0) AND (w.score IS NULL OR w.score = 0)`);
-        }
-        
-        // Min score filter
-        if (minScore > 0) {
-            whereConditions.push(`w.score >= $${paramIndex}`);
-            params.push(minScore);
-            paramIndex++;
-        }
-        
-        // Build the main query
-        let query = `
-            SELECT DISTINCT ON (w.video720p) 
-                w.performer,
-                w.title,
-                w.duration,
-                w.studio,
-                w.url,
-                w.video720p,
-                w.video480p,
-                w.date,
-                w.performers,
-                w.thumbnail,
-                w.intro_clips,
-                w.head_clips,
-                w.doggystyle_clips,
-                w.cowgirl_clips,
-                w.reverse_cowgirl_clips,
-                w.lying_clips,
-                w.lying_doggystyle_clips,
-                w.outro_clips,
-                w.is_x,
-                w.total_clips,
-                w.score,
-                w.duration_minutes
-            FROM wow_videos w
-        `;
-        
-        // Add cupsize filter (needs join)
-        if (cupsize) {
-            query = `
-                SELECT DISTINCT ON (w.video720p) 
-                    w.performer,
-                    w.title,
-                    w.duration,
-                    w.studio,
-                    w.url,
-                    w.video720p,
-                    w.video480p,
-                    w.date,
-                    w.performers,
-                    w.thumbnail,
-                    w.intro_clips,
-                    w.head_clips,
-                    w.doggystyle_clips,
-                    w.cowgirl_clips,
-                    w.reverse_cowgirl_clips,
-                    w.lying_clips,
-                    w.lying_doggystyle_clips,
-                    w.outro_clips,
-                    w.is_x,
-                    w.total_clips,
-                    w.score,
-                    w.duration_minutes
-                FROM wow_videos w
-                JOIN performers p ON LOWER(w.performer) = LOWER(p.name)
-                WHERE LOWER(p.cupsize) = LOWER($${paramIndex})
-            `;
-            params.push(cupsize);
-            paramIndex++;
-        }
-        
-        // Add where conditions
-        if (whereConditions.length > 0) {
-            const whereClause = whereConditions.join(' AND ');
-            if (cupsize) {
-                query += ` AND ${whereClause}`;
-            } else {
-                query += ` WHERE ${whereClause}`;
-            }
-        }
-        
-        query += ` ORDER BY w.video720p`;
-        
-        console.log('🔍 Executing query...');
-        console.log(`📝 Query params count: ${params.length}`);
-        
-        // Execute query - get all videos matching search/filters
-        const allVideos = await queryNeon(query, params);
-        console.log(`📊 Found ${allVideos.length} raw videos from database`);
-        
-        // ⭐⭐⭐ APPLY RATING FILTER IN JAVASCRIPT
-        let filteredVideos = allVideos;
+        // ⭐ Rating filter - using performer_name column
         if (ratingFilter && ratedPerformerNames.length > 0) {
-            console.log(`🔍 Filtering ${filteredVideos.length} videos for performers with rating: ${ratingFilter}`);
-            
-            const ratedNamesSet = new Set(ratedPerformerNames);
-            
-            filteredVideos = allVideos.filter(video => {
-                // Check primary performer
-                const primaryPerformer = video.performer ? video.performer.toLowerCase().trim() : '';
-                if (ratedNamesSet.has(primaryPerformer)) {
-                    return true;
-                }
-                
-                // Check performers field (semicolon-separated)
-                if (video.performers) {
-                    const performerList = video.performers.split(';').map(p => p.trim().toLowerCase()).filter(p => p);
-                    for (const name of performerList) {
-                        if (ratedNamesSet.has(name)) {
-                            return true;
-                        }
-                    }
-                }
-                
-                return false;
+            const performerConditions = ratedPerformerNames.map(name => {
+                return `LOWER(performer_name) = $${paramIndex++}`;
             });
             
-            console.log(`📊 After JS rating filter: ${filteredVideos.length} videos (contain ${ratingFilter}-rated performers)`);
-        }
-        
-        // Get favorite URLs
-        const favResult = await queryNeon('SELECT scene_url FROM video_favorites');
-        const allFavoriteUrls = new Set();
-        for (const row of favResult) {
-            let url = row.scene_url;
-            if (url && url.startsWith('/videos/')) {
-                url = `https://www.freesexvideos.xxx${url}`;
+            for (const name of ratedPerformerNames) {
+                params.push(name);
             }
-            allFavoriteUrls.add(url);
+            
+            whereConditions.push(`(${performerConditions.join(' OR ')})`);
         }
         
-        // Process videos
-        let processedVideos = filteredVideos.map(video => {
+        // ⭐ Build the main query with ONLY existing columns
+        let query = `
+            SELECT DISTINCT ON (video720p) 
+                performer_name,
+                title,
+                duration,
+                studio,
+                url,
+                video720p,
+                thumbnail,
+                video_url
+            FROM wow_videos
+        `;
+        
+        // ⭐ Add WHERE conditions
+        if (whereConditions.length > 0) {
+            query += ` WHERE ${whereConditions.join(' AND ')}`;
+        }
+        
+        // ⭐ CRITICAL: ORDER BY and LIMIT
+        query += ` ORDER BY video720p LIMIT ${MAX_QUERY_LIMIT}`;
+        
+        console.log('🔍 Executing query with LIMIT', MAX_QUERY_LIMIT);
+        console.log(`📝 Query params count: ${params.length}`);
+        console.log('📝 Query:', query.substring(0, 500) + '...');
+        
+        // Execute query
+        const allVideos = await queryNeon(query, params);
+        console.log(`📊 Found ${allVideos.length} videos (limited to ${MAX_QUERY_LIMIT})`);
+        
+        // ⭐ Get favorite URLs (if table exists)
+        let allFavoriteUrls = new Set();
+        try {
+            const favResult = await queryNeon('SELECT scene_url FROM video_favorites');
+            for (const row of favResult) {
+                let url = row.scene_url;
+                if (url && url.startsWith('/videos/')) {
+                    url = `https://www.freesexvideos.xxx${url}`;
+                }
+                allFavoriteUrls.add(url);
+            }
+        } catch (error) {
+            console.log('⚠️ video_favorites table not found, skipping');
+        }
+        
+        // ⭐ Process videos
+        let processedVideos = allVideos.map(video => {
             // Fix thumbnail
             if (!video.thumbnail || video.thumbnail.startsWith('data:image')) {
                 let videoId = null;
@@ -2996,34 +2926,14 @@ app.get('/video-search', async (req, res) => {
                     const match = video.video720p.match(/\/(\d+)_\d+[pm]\.mp4/);
                     if (match) videoId = match[1];
                 }
-                if (!videoId && video.video480p) {
-                    const match = video.video480p.match(/\/(\d+)_\d+[pm]\.mp4/);
+                if (!videoId && video.video_url) {
+                    const match = video.video_url.match(/\/(\d+)_\d+[pm]\.mp4/);
                     if (match) videoId = match[1];
                 }
                 if (videoId) {
                     const prefix = String(videoId).substring(0, 5);
                     video.thumbnail = `https://img.freesexvideos.xxx/${prefix}000/${videoId}/medium@2x/1.jpg`;
                 }
-            }
-            
-            // Fix date
-            if (video.date) {
-                const parts = video.date.split('.');
-                if (parts.length === 3) {
-                    video.dateSort = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                    video.displayDate = `${parts[1]}/${parts[0]}/${parts[2]}`;
-                } else {
-                    video.dateSort = '';
-                    video.displayDate = video.date;
-                }
-            } else {
-                video.dateSort = '';
-                video.displayDate = '';
-            }
-            
-            // Clean performers
-            if (video.performers) {
-                video.performers = video.performers.replace(/\s*;\s*/g, '; ');
             }
             
             video.isFavorited = allFavoriteUrls.has(video.url);
@@ -3033,103 +2943,73 @@ app.get('/video-search', async (req, res) => {
         
         console.log(`📊 After processing: ${processedVideos.length} videos`);
         
-        // ⭐ Apply min scenes filter (in-memory)
+        // ⭐ Apply min scenes filter (in-memory) - using performer_name
         if (minScenes > 0 && processedVideos.length > 0) {
             const performerCounts = {};
             processedVideos.forEach(video => {
-                const performerName = video.performer;
+                const performerName = video.performer_name;
                 if (performerName) {
                     performerCounts[performerName] = (performerCounts[performerName] || 0) + 1;
                 }
             });
             
             processedVideos = processedVideos.filter(video => {
-                const performerNames = video.performers ? video.performers.split(';').map(p => p.trim()).filter(p => p) : [];
-                return performerNames.some(name => {
-                    return (performerCounts[name] || 0) >= minScenes;
-                });
+                const performerName = video.performer_name;
+                return (performerCounts[performerName] || 0) >= minScenes;
             });
             console.log(`📊 After min scenes filter: ${processedVideos.length} videos`);
         }
         
-        // Apply favorites filter
+        // ⭐ Apply favorites filter
         if (showFavoritesOnly) {
             processedVideos = processedVideos.filter(video => video.isFavorited);
             console.log(`📊 After favorites filter: ${processedVideos.length} videos`);
         }
         
-        // ⭐⭐⭐ FIRST VIDEOS FILTER - Get oldest N videos per performer
-        // ⭐ ONLY group by S-rated performers when rating filter is active
+        // ⭐ FIRST VIDEOS FILTER - Get oldest N videos per performer
+        // Note: Without a date column, we can't sort by oldest first
+        // We'll use the order they come from the database
         if (firstVideos > 0 && processedVideos.length > 0) {
-            console.log(`📋 Applying first ${firstVideos} videos filter (OLDEST FIRST)...`);
+            console.log(`📋 Applying first ${firstVideos} videos filter...`);
             console.log(`   Before filter: ${processedVideos.length} videos`);
             
-            // Group videos by performer name
             const performerVideoMap = {};
             
-            // Determine which performers to group by
             let targetPerformers = null;
             if (ratingFilter && ratedPerformerNamesSet.size > 0) {
-                // Only group by S-rated performers
                 targetPerformers = ratedPerformerNamesSet;
                 console.log(`   🎯 Only grouping by ${targetPerformers.size} ${ratingFilter}-rated performers`);
             }
             
             processedVideos.forEach(video => {
-                // Get all performers from the performers field
-                const performerNames = video.performers ? 
-                    video.performers.split(';').map(p => p.trim()).filter(p => p) : [];
+                const performerName = video.performer_name;
+                if (!performerName) return;
                 
-                // Also include the primary performer
-                if (video.performer && !performerNames.includes(video.performer)) {
-                    performerNames.push(video.performer);
+                if (targetPerformers) {
+                    const nameLower = performerName.toLowerCase();
+                    if (!targetPerformers.has(nameLower)) {
+                        return;
+                    }
                 }
                 
-                if (performerNames.length === 0) {
-                    return;
+                if (!performerVideoMap[performerName]) {
+                    performerVideoMap[performerName] = [];
                 }
-                
-                // For each performer, add the video
-                performerNames.forEach(performerName => {
-                    // ⭐ If we have target performers, only group by those
-                    if (targetPerformers) {
-                        const nameLower = performerName.toLowerCase();
-                        if (!targetPerformers.has(nameLower)) {
-                            return; // Skip non-rated performers
-                        }
-                    }
-                    
-                    if (!performerVideoMap[performerName]) {
-                        performerVideoMap[performerName] = [];
-                    }
-                    if (!performerVideoMap[performerName].some(v => v.url === video.url)) {
-                        performerVideoMap[performerName].push(video);
-                    }
-                });
+                if (!performerVideoMap[performerName].some(v => v.url === video.url)) {
+                    performerVideoMap[performerName].push(video);
+                }
             });
             
             const performerCount = Object.keys(performerVideoMap).length;
             console.log(`   Found ${performerCount} unique performers (filtered)`);
             
-            // For each performer, sort by date OLDEST FIRST and take first N
             const result = [];
             for (const [performer, videos] of Object.entries(performerVideoMap)) {
-                // Sort by date ASCENDING (oldest first)
-                videos.sort((a, b) => {
-                    const dateA = a.dateSort || '';
-                    const dateB = b.dateSort || '';
-                    if (!dateA && !dateB) return 0;
-                    if (!dateA) return 1;
-                    if (!dateB) return -1;
-                    return dateA.localeCompare(dateB);
-                });
-                
-                // Take first N videos (the oldest ones)
+                // Take first N videos (in the order they came from the database)
                 const firstNVideos = videos.slice(0, firstVideos);
                 result.push(...firstNVideos);
             }
             
-            // Remove duplicates
             const seen = new Set();
             processedVideos = result.filter(video => {
                 if (seen.has(video.url)) return false;
@@ -3139,36 +3019,11 @@ app.get('/video-search', async (req, res) => {
             
             console.log(`   After filter: ${processedVideos.length} videos`);
             console.log(`   (${performerCount} performers × ${firstVideos} videos = ${performerCount * firstVideos} max, actual: ${processedVideos.length})`);
-            
-            // ⭐ FORCE sort by oldest first when firstVideos is active
-            processedVideos.sort((a, b) => {
-                const dateA = a.dateSort || '';
-                const dateB = b.dateSort || '';
-                if (!dateA && !dateB) return 0;
-                if (!dateA) return 1;
-                if (!dateB) return -1;
-                return dateA.localeCompare(dateB);
-            });
         }
         
         // ⭐ Skip normal sorting if firstVideos is active
         if (firstVideos === 0) {
-            if (autoSortRated) {
-                processedVideos.sort((a, b) => {
-                    const scoreA = parseFloat(a.score) || 0;
-                    const scoreB = parseFloat(b.score) || 0;
-                    return scoreB - scoreA;
-                });
-            } else if (sortBy === 'date') {
-                processedVideos.sort((a, b) => {
-                    const dateA = a.dateSort || '';
-                    const dateB = b.dateSort || '';
-                    if (!dateA && !dateB) return 0;
-                    if (!dateA) return 1;
-                    if (!dateB) return -1;
-                    return dateB.localeCompare(dateA);
-                });
-            } else if (sortBy === 'title') {
+            if (sortBy === 'title') {
                 processedVideos.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
             } else if (sortBy === 'duration') {
                 processedVideos.sort((a, b) => {
@@ -3177,9 +3032,10 @@ app.get('/video-search', async (req, res) => {
                     return durB - durA;
                 });
             }
+            // Note: 'date' sorting is not available since there's no date column
         }
         
-        // Paginate
+        // ⭐ Paginate
         const totalVideos = processedVideos.length;
         const totalPages = Math.ceil(totalVideos / perPage);
         const startIndex = (page - 1) * perPage;
