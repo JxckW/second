@@ -1125,18 +1125,18 @@ app.get('/api/performer-rating/:performerId', async (req, res) => {
 
 
 // =========================
-// RANDOM VIDEO API - FIXED for your table structure
+// RANDOM VIDEO API - POST version (for proxy compatibility)
 // =========================
-app.get('/api/random-video', async (req, res) => {
-    const { q = '', cupsize = '', rating = '', min_scenes = 0, min_score = 0, rating_status = 'all', first = 0 } = req.query;
+app.post('/api/random-video', async (req, res) => {
+    const { q = '', cupsize = '', rating = '', min_scenes = 0, min_score = 0, rating_status = 'all', first = 0 } = req.body;
     
-    console.log(`🎲 Random video request with filters:`, { q, cupsize, rating, min_scenes, min_score, rating_status, first });
+    console.log(`🎲 Random video POST request with filters:`, { q, cupsize, rating, min_scenes, min_score, rating_status, first });
     
     // ⭐ Limit to prevent network overages
     const MAX_QUERY_LIMIT = 1000;
     
     try {
-        // STEP 1: Get performer ratings from Miget
+        // STEP 1: Get performer ratings from Miget (if rating filter is active)
         let performerRatings = {};
         let ratedPerformerNames = [];
         let ratedPerformerNamesSet = new Set();
@@ -1252,14 +1252,11 @@ app.get('/api/random-video', async (req, res) => {
             return res.json({ success: false, error: 'No videos found matching your filters' });
         }
         
-        // STEP 3: Apply rating filter (already done in SQL, but double-check)
-        let filteredVideos = allVideos;
-        
-        // STEP 4: Apply "first videos" filter (if needed)
-        let finalVideos = filteredVideos;
+        // STEP 3: Apply "first videos" filter (if needed)
+        let finalVideos = allVideos;
         const firstVideos = parseInt(first) || 0;
         
-        if (firstVideos > 0 && filteredVideos.length > 0) {
+        if (firstVideos > 0 && allVideos.length > 0) {
             console.log(`📋 Applying first ${firstVideos} filter for random...`);
             
             // Group videos by performer
@@ -1271,7 +1268,7 @@ app.get('/api/random-video', async (req, res) => {
                 console.log(`   🎯 Only grouping by ${targetPerformers.size} ${rating}-rated performers`);
             }
             
-            filteredVideos.forEach(video => {
+            allVideos.forEach(video => {
                 const performerName = video.performer_name;
                 if (!performerName) return;
                 
@@ -1315,7 +1312,7 @@ app.get('/api/random-video', async (req, res) => {
             return res.json({ success: false, error: 'No videos found after applying filters' });
         }
         
-        // STEP 5: Pick a random video from the filtered results
+        // STEP 4: Pick a random video from the filtered results
         const randomIndex = Math.floor(Math.random() * finalVideos.length);
         const video = finalVideos[randomIndex];
         
@@ -1344,6 +1341,21 @@ app.get('/api/random-video', async (req, res) => {
         console.error('❌ Random video error:', error.message);
         console.error('   Stack:', error.stack);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Keep the GET version for backward compatibility
+app.get('/api/random-video', async (req, res) => {
+    // Forward to POST handler with query params as body
+    req.body = req.query;
+    // Call the POST handler
+    const handler = app._router.stack.find(layer => {
+        return layer.route && layer.route.path === '/api/random-video' && layer.route.methods.post;
+    });
+    if (handler) {
+        handler.handle(req, res);
+    } else {
+        res.status(404).json({ success: false, error: 'POST endpoint not found' });
     }
 });
 
